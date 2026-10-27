@@ -174,8 +174,16 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/bm25_index.py`, `tests/unit/test_bm25_index.py`
 - **Acceptance Criteria**: Constructs index from `List[Chunk]`, retrieves ranked results with scores, handles out-of-vocabulary terms.
 - **Verification Command**: `pytest tests/unit/test_bm25_index.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Implemented on feat/RET-001-bm25-lexical-index. 53 focused unit tests passed, 164 full suite passed, 94% package coverage. Mathematically verified against exact hand-calculated BM25 and Robertson-Spärck Jones IDF formulations.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused BM25 tests: `53 passed in 0.23s` (`pytest tests/unit/test_bm25_index.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (24 files already formatted), `mypy reliability_lab` (Success: no issues found in 9 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (164 passed in 3.47s, 94% package coverage, exit code 0).
+  - PR #11 was squash-merged to `main` as commit `0825c39d87b2f2f1a2e778f6a5f9678c2e160ff3`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40513705919/job/122221964294) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40513705919/job/122221965217); both completed successfully before merge.
+  - Mathematical correctness: Verified against hand-calculated scores down to 1e-6 relative tolerance for Robertson-Spärck Jones non-negative IDF, term frequency saturation, and document length normalization.
+  - Ranking & stability: Deterministic tie-breaking preserves original corpus input order, 1-based ranks, and top_k bounds.
+  - Zero external dependencies: pure standard-library implementation.
 
 ---
 
@@ -187,7 +195,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `data/benchmarks/schema.json`, `data/benchmarks/sample_benchmark.jsonl`, `tests/unit/test_dataset_schema.py`
 - **Acceptance Criteria**: At least 15 verified queries with graded relevance (0=irrelevant, 1=relevant, 2=critical evidence).
 - **Verification Command**: `pytest tests/unit/test_dataset_schema.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

@@ -10,7 +10,8 @@ AI Reliability Lab is an industrial-grade engineering and evaluation platform de
 4. **Honest Measurement**: Never fabricate benchmarks, metrics, or claim simulated systems are production-ready.
 5. **No Direct Pushes to `main`**: All changes to `main` occur via task-specific feature branches, passing CI checks, and GitHub auto-merge (`gh pr merge --auto --squash`).
 6. **Atomic Status Updates**: Feature branches update their own task completion state in `docs/roadmap/TASKS.md` and `docs/STATUS.md` so that code, tests, and documentation merge into `main` atomically.
-7. **Permanent UI/UX Standard**: Any presentation or visual interface must exhibit top-tier aesthetic polish, high information hierarchy, clear failure diagnostics, and deterministic data credibility.
+7. **Status Snapshot Invariants**: `docs/roadmap/TASKS.md` is the source of truth for task IDs and statuses. Every status pointer must reference exactly one task with a compatible non-`DONE` status; do not record transient merge SHAs in `docs/STATUS.md`. A task may be marked `DONE` only after it is merged and its evidence records the commit, exact verification results, and CI evidence. An empty webhooks response does not establish that no GitHub Apps are installed.
+8. **Permanent UI/UX Standard**: Any presentation or visual interface must exhibit top-tier aesthetic polish, high information hierarchy, clear failure diagnostics, and deterministic data credibility.
 
 ## Git & Task Protocol
 - **Branch Naming**: `feat/<TASK-ID>-<kebab-description>`, `fix/<TASK-ID>-<kebab-description>`

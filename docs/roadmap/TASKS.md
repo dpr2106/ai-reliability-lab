@@ -67,13 +67,13 @@ This document is the canonical single source of truth for all engineering tasks.
 ---
 
 ### [FOUND-004] Repository Governance, Branch Protection & CI Review Audit
-- **Objective**: Audit and enforce GitHub repository configuration: branch protection on `main`, strict required CI checks, squash-only merge policy, linear history enforcement, and explicit reporting on the absence of third-party review bots.
+- **Objective**: Audit GitHub repository configuration: branch protection on `main`, strict required CI checks, squash-only merge policy, linear history enforcement, and accurately document review evidence limits.
 - **Priority**: P0 | **Dependencies**: `FOUND-002`
 - **Scope / Expected Files**: `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/roadmap/TASKS.md`, `tests/unit/test_documentation.py`
 - **Acceptance Criteria**:
   - GitHub branch protection verified via API: direct pushes and force pushes disallowed, required checks `["test-and-lint (3.11)", "test-and-lint (3.12)"]` with `strict: true`.
   - Repository settings enforce `allow_squash_merge: true`, `allow_merge_commit: false`, `allow_rebase_merge: false`, and `required_linear_history: true`.
-  - Repository verified to have zero unconfigured or failing third-party review bots; code review status accurately reported as strictly CI-gated.
+  - Review automation findings are accurately scoped to the evidence inspected; an empty webhooks response is not treated as proof that no GitHub Apps are installed.
   - `docs/STATUS.md` adheres to the maintainable repository baseline rule without transient branch names that rot upon merge.
   - Unit tests in `tests/unit/test_documentation.py` assert structural integrity, required fields in `TASKS.md`, and valid task pointers in `STATUS.md`.
 - **Verification Command**:
@@ -86,8 +86,38 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Verification Evidence**:
   - Branch Protection API verified: `strict: true`, `contexts: ["test-and-lint (3.11)", "test-and-lint (3.12)"]`, `allow_force_pushes: false`, `allow_deletions: false`, `required_linear_history: true`.
   - Repository Settings API verified: `allow_auto_merge: true`, `allow_squash_merge: true`, `allow_merge_commit: false`, `allow_rebase_merge: false`, `delete_branch_on_merge: true`.
-  - Webhooks API verified: `[]` (no third-party review bots configured; gating is strictly CI-based).
+  - Webhooks API response recorded as `[]`; this reports an empty webhooks list only and does not establish whether GitHub Apps are installed.
   - Test Suite: Comprehensive assertions in `tests/unit/test_documentation.py` verifying documentation structural invariants.
+
+---
+
+### [FOUND-005] Status Snapshot Semantics & Documentation Invariants
+- **Objective**: Make the project status snapshot durable and enforce consistency between status pointers and the canonical task backlog.
+- **Priority**: P0 | **Dependencies**: `FOUND-004`
+- **Scope / Expected Files**: `GEMINI.md`, `docs/STATUS.md`, `docs/roadmap/TASKS.md`, `tests/unit/test_documentation.py`
+- **Acceptance Criteria**:
+  - `docs/STATUS.md` records durable governance facts and active/next task pointers that resolve to exactly one task in `TASKS.md` with a compatible status.
+  - The status snapshot does not assert a current merge SHA or infer that no GitHub Apps are installed from an empty webhooks response.
+  - The known fact that Copilot could not review PR #3 because of quota remains documented.
+  - Documentation tests reject unknown or duplicate task IDs, invalid/conflicting statuses, completed tasks referenced as active/next, missing task sections, and absent or placeholder evidence for `DONE` tasks.
+  - Operating guidance defines these task and status rules durably.
+- **Verification Command**:
+  ```bash
+  pytest tests/unit/test_documentation.py -v
+  ruff check .
+  ruff format --check .
+  mypy reliability_lab
+  pytest --cov=reliability_lab
+  ```
+- **Verification Evidence Policy**: A `DONE` task must have merged commit evidence, exact verification command outputs and exit codes, and successful required CI run evidence. Do not use placeholders (including `None`, `pending`, `TBD`, or `TODO`); record evidence only after it has been observed. A task under review remains `IN_REVIEW` until GitHub confirms merge.
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**:
+  - Focused documentation tests: `6 passed in 0.25s` (exit code 0).
+  - `ruff check .`: `All checks passed!` (exit code 0).
+  - `ruff format --check .`: `12 files already formatted` (exit code 0).
+  - `mypy reliability_lab`: `Success: no issues found in 1 source file` (exit code 0; configuration note: unused `tests.*` override).
+  - `pytest --cov=reliability_lab`: `8 passed in 0.24s`, 100% package coverage (exit code 0).
+  - Required GitHub CI runs and merged commit evidence will be recorded only after GitHub reports their results.
 
 ---
 

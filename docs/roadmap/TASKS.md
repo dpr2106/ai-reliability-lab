@@ -66,16 +66,28 @@ This document is the canonical single source of truth for all engineering tasks.
 
 ---
 
-### [FOUND-004] Enhanced CI Review & Branch Protection Audit
-- **Objective**: Verify branch protection rules, required CI checks, and automated review annotations on GitHub.
+### [FOUND-004] Repository Governance, Branch Protection & CI Review Audit
+- **Objective**: Audit and enforce GitHub repository configuration: branch protection on `main`, strict required CI checks, squash-only merge policy, linear history enforcement, and explicit reporting on the absence of third-party review bots.
 - **Priority**: P0 | **Dependencies**: `FOUND-002`
-- **Scope / Expected Files**: `.github/workflows/ci.yml`
+- **Scope / Expected Files**: `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/roadmap/TASKS.md`, `tests/unit/test_documentation.py`
 - **Acceptance Criteria**:
-  - Direct pushes to `main` are rejected.
-  - Auto-merge completes only when `test-and-lint` passes.
-- **Verification Command**: `gh pr checks` and branch protection query.
-- **Status**: `BACKLOG`
-- **Verification Evidence**: None
+  - GitHub branch protection verified via API: direct pushes and force pushes disallowed, required checks `["test-and-lint (3.11)", "test-and-lint (3.12)"]` with `strict: true`.
+  - Repository settings enforce `allow_squash_merge: true`, `allow_merge_commit: false`, `allow_rebase_merge: false`, and `required_linear_history: true`.
+  - Repository verified to have zero unconfigured or failing third-party review bots; code review status accurately reported as strictly CI-gated.
+  - `docs/STATUS.md` adheres to the maintainable repository baseline rule without transient branch names that rot upon merge.
+  - Unit tests in `tests/unit/test_documentation.py` assert structural integrity, required fields in `TASKS.md`, and valid task pointers in `STATUS.md`.
+- **Verification Command**:
+  ```bash
+  gh api /repos/dpr2106/ai-reliability-lab/branches/main/protection
+  gh api /repos/dpr2106/ai-reliability-lab --jq '{allow_squash_merge: .allow_squash_merge, allow_merge_commit: .allow_merge_commit, allow_rebase_merge: .allow_rebase_merge}'
+  pytest tests/unit/test_documentation.py -v
+  ```
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Branch Protection API verified: `strict: true`, `contexts: ["test-and-lint (3.11)", "test-and-lint (3.12)"]`, `allow_force_pushes: false`, `allow_deletions: false`, `required_linear_history: true`.
+  - Repository Settings API verified: `allow_auto_merge: true`, `allow_squash_merge: true`, `allow_merge_commit: false`, `allow_rebase_merge: false`, `delete_branch_on_merge: true`.
+  - Webhooks API verified: `[]` (no third-party review bots configured; gating is strictly CI-based).
+  - Test Suite: Comprehensive assertions in `tests/unit/test_documentation.py` verifying documentation structural invariants.
 
 ---
 

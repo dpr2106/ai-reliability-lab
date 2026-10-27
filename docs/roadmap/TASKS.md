@@ -153,8 +153,8 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/ingestion/chunker.py`, `tests/unit/test_chunker.py`
 - **Acceptance Criteria**: Supports configurable chunk size and overlap; verifies zero metadata leakage across boundaries.
 - **Verification Command**: `pytest tests/unit/test_chunker.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Implemented on feat/ING-002-citation-aware-chunkers. 27 focused tests passed, 111 full suite passed, 93% package coverage. Exact substring slicing verified for all chunks, lines, and spans with zero metadata leakage.
 
 ---
 

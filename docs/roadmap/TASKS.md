@@ -134,8 +134,16 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/ingestion/parser.py`, `tests/unit/test_parser.py`, `reliability_lab/ingestion/__init__.py`
 - **Acceptance Criteria**: Extracts clean text, handles encrypted/corrupt PDFs gracefully, records bounding metadata, ensures exact substring slicing.
 - **Verification Command**: `pytest tests/unit/test_parser.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Implemented on feat/ING-001-pymupdf-document-parser. 15 focused tests passed, 84 full suite passed, 93% coverage. Substring slicing verified exact for all pages, lines, and spans.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused parser tests: `15 passed in 0.52s` (`pytest tests/unit/test_parser.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (19 files already formatted), `mypy reliability_lab` (Success: no issues found in 6 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (84 passed in 0.89s, 93% package coverage, exit code 0).
+  - PR #7 was squash-merged to `main` as commit `b14a707959c2b97a29442b5377c0539ba5ba1ef5`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40508473499/job/122203815962) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40508473499/job/122203815908); both completed successfully before merge.
+  - Character provenance invariants verified: `Document.content[char_start:char_end]` exactly reproduces the text for all pages, lines, and spans under half-open indexing `[start, end)`.
+  - Deterministic separators: `\n\n` between pages, `\n` between lines.
+  - Zero sensitive path or credential leakage: only basename stored in `source_file`, passwords never stored in metadata or error strings.
 
 ---
 
@@ -145,7 +153,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/ingestion/chunker.py`, `tests/unit/test_chunker.py`
 - **Acceptance Criteria**: Supports configurable chunk size and overlap; verifies zero metadata leakage across boundaries.
 - **Verification Command**: `pytest tests/unit/test_chunker.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

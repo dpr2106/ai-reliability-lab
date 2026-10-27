@@ -61,8 +61,12 @@ This document is the canonical single source of truth for all engineering tasks.
   - Standard library abstract base classes (`BaseRetriever`, `BaseChunker`, `BaseMetric`).
   - Unit tests verify immutable properties, validation rules, and JSON round-trips without external third-party dependencies.
 - **Verification Command**: `pytest tests/unit/test_core_models.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Test Suite: 69 passed in 0.74s (`tests/unit/test_core_models.py`, `tests/unit/test_documentation.py`, `tests/unit/test_smoke.py`)
+  - Quality Checks: `ruff check .` (0 errors), `ruff format --check .` (0 errors), `mypy reliability_lab` (0 errors), `pytest --cov=reliability_lab` (93% package coverage).
+  - Models Implemented: `Document`, `Chunk`, `Query`, `RetrievalResult`, `EvaluationReport` (pure Python stdlib dataclasses with validation and `to_dict`/`from_dict`/`to_json`/`from_json`).
+  - Abstract Interfaces Implemented: `BaseRetriever`, `BaseChunker`, `BaseMetric`.
 
 ---
 
@@ -130,7 +134,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/ingestion/parser.py`, `tests/unit/test_parser.py`
 - **Acceptance Criteria**: Extracts clean text, handles encrypted/corrupt PDFs gracefully, records bounding metadata.
 - **Verification Command**: `pytest tests/unit/test_parser.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

@@ -131,11 +131,11 @@ This document is the canonical single source of truth for all engineering tasks.
 ### [ING-001] PyMuPDF Document Parser with Page & Bounding Span Tracking
 - **Objective**: Extract text per page while preserving line numbers, page indexes, and character offsets for citation audits.
 - **Priority**: P0 | **Dependencies**: `FOUND-003`
-- **Scope / Expected Files**: `reliability_lab/ingestion/parser.py`, `tests/unit/test_parser.py`
-- **Acceptance Criteria**: Extracts clean text, handles encrypted/corrupt PDFs gracefully, records bounding metadata.
+- **Scope / Expected Files**: `reliability_lab/ingestion/parser.py`, `tests/unit/test_parser.py`, `reliability_lab/ingestion/__init__.py`
+- **Acceptance Criteria**: Extracts clean text, handles encrypted/corrupt PDFs gracefully, records bounding metadata, ensures exact substring slicing.
 - **Verification Command**: `pytest tests/unit/test_parser.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Implemented on feat/ING-001-pymupdf-document-parser. 15 focused tests passed, 84 full suite passed, 93% coverage. Substring slicing verified exact for all pages, lines, and spans.
 
 ---
 
@@ -219,7 +219,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/embeddings.py`, `tests/unit/test_embeddings.py`
 - **Acceptance Criteria**: Batch embedding generation with dimension checks, device fallback, and L2 normalization.
 - **Verification Command**: `pytest tests/unit/test_embeddings.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

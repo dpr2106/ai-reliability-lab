@@ -23,3 +23,9 @@
 - **Context**: Citation verification requires attributing claims to exact page numbers and character bounding spans. Naive PDF text extractors strip layout coordinates and often misorder multi-column text.
 - **Decision**: Use PyMuPDF (`fitz`) for document parsing due to its C-backed speed and explicit page/span coordinate preservation.
 - **Consequences**: Enables deterministic citation auditing and span matching without cloud document processing APIs.
+
+## ADR-005: Pure Python Standard Library Domain Models in Core
+- **Status**: Accepted
+- **Context**: `docs/ARCHITECTURE.md` declared `reliability_lab/core/` to possess zero external dependencies, but `FOUND-003`'s initial acceptance criteria referenced Pydantic models. Third-party dependencies in the core domain layer introduce coupling and potential dependency churn.
+- **Decision**: Implement all core domain models (`Document`, `Chunk`, `Query`, `RetrievalResult`, `EvaluationReport`) and abstract interfaces using pure Python standard library (`dataclasses`, `typing`, `enum`, `abc`, `json`, `uuid`). Enforce domain constraints via `@dataclass` and `__post_init__` validation. Pydantic or schema serializers may be utilized at boundaries (e.g., dataset ingestion or API layers), but `core/` remains strictly zero-external-dependency standard library Python.
+- **Consequences**: Ensures maximum portability, clean hexagonal architecture, zero vendor/library lock-in for core entities, and complete alignment between documentation and implementation.

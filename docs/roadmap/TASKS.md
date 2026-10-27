@@ -45,22 +45,23 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Verification Command**: Documentation presence and link check; local test execution.
 - **Status**: `DONE`
 - **Verification Evidence**:
+  - Squash Merge Commit: `f49752fdf3053f92503ee8f3c3f8a8c8da91d163` on `main` ([PR #1](https://github.com/dpr2106/ai-reliability-lab/pull/1))
+  - GitHub Actions Run: [40491747319](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40491747319) (Success on Python 3.11 & 3.12)
   - Test Suite: 5 passed in 0.20s (`tests/unit/test_documentation.py`, `tests/unit/test_smoke.py`)
-  - Verification Command: `ruff check . && ruff format --check . && mypy reliability_lab && pytest --cov=reliability_lab -v`
   - Canonical Files: `GEMINI.md`, `docs/PROJECT_BRIEF.md`, `docs/ARCHITECTURE.md`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/roadmap/TASKS.md` all verified present and consistent.
 
 ---
 
 ### [FOUND-003] Core Domain Entities & Protocol Interfaces
-- **Objective**: Implement pure domain dataclasses (`Document`, `Chunk`, `Query`, `RetrievalResult`, `MetricResult`) with zero external library dependencies.
+- **Objective**: Implement pure domain models (`Document`, `Chunk`, `Query`, `RetrievalResult`, `EvaluationReport`) with zero external library dependencies (ADR-005).
 - **Priority**: P0 | **Dependencies**: `FOUND-002`
 - **Scope / Expected Files**: `reliability_lab/core/models.py`, `reliability_lab/core/interfaces.py`, `tests/unit/test_core_models.py`
 - **Acceptance Criteria**:
-  - Pydantic models with validation and serialization methods.
-  - Abstract base classes (`BaseRetriever`, `BaseChunker`, `BaseMetric`).
-  - Unit tests verify immutable properties and JSON round-trips.
+  - Pure Python standard library dataclasses with validation and serialization helper methods (`to_dict`, `from_dict`, `to_json`).
+  - Standard library abstract base classes (`BaseRetriever`, `BaseChunker`, `BaseMetric`).
+  - Unit tests verify immutable properties, validation rules, and JSON round-trips without external third-party dependencies.
 - **Verification Command**: `pytest tests/unit/test_core_models.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

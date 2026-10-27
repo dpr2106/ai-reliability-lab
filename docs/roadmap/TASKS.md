@@ -174,8 +174,8 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/bm25_index.py`, `tests/unit/test_bm25_index.py`
 - **Acceptance Criteria**: Constructs index from `List[Chunk]`, retrieves ranked results with scores, handles out-of-vocabulary terms.
 - **Verification Command**: `pytest tests/unit/test_bm25_index.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Implemented on feat/RET-001-bm25-lexical-index. 53 focused unit tests passed, 164 full suite passed, 94% package coverage. Mathematically verified against exact hand-calculated BM25 and Robertson-Spärck Jones IDF formulations.
 
 ---
 

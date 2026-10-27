@@ -110,14 +110,15 @@ This document is the canonical single source of truth for all engineering tasks.
   pytest --cov=reliability_lab
   ```
 - **Verification Evidence Policy**: A `DONE` task must have merged commit evidence, exact verification command outputs and exit codes, and successful required CI run evidence. Do not use placeholders (including `None`, `pending`, `TBD`, or `TODO`); record evidence only after it has been observed. A task under review remains `IN_REVIEW` until GitHub confirms merge.
-- **Status**: `IN_REVIEW`
+- **Status**: `DONE`
 - **Verification Evidence**:
-  - Focused documentation tests: `6 passed in 0.25s` (exit code 0).
+  - Focused documentation tests: `6 passed in 0.09s` (exit code 0).
   - `ruff check .`: `All checks passed!` (exit code 0).
   - `ruff format --check .`: `12 files already formatted` (exit code 0).
   - `mypy reliability_lab`: `Success: no issues found in 1 source file` (exit code 0; configuration note: unused `tests.*` override).
-  - `pytest --cov=reliability_lab`: `8 passed in 0.24s`, 100% package coverage (exit code 0).
-  - Required GitHub CI runs and merged commit evidence will be recorded only after GitHub reports their results.
+  - `pytest --cov=reliability_lab`: `8 passed in 0.12s`, 100% package coverage (exit code 0).
+  - PR #4 was squash-merged to `main` as commit `cc3da1f608b3c0defd42465d3263346d0ed3fbcc`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40502440838/job/122183202675) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40502440838/job/122183202130); both completed successfully before merge.
 
 ---
 

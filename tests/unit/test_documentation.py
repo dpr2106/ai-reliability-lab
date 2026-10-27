@@ -76,18 +76,26 @@ def _extract_pointer(status_content: str, label: str) -> str:
 
 def _validate_status_snapshot(tasks_content: str, status_content: str) -> None:
     tasks = _parse_tasks(tasks_content)
-    active_id = _extract_pointer(status_content, "Active Task")
+    active_ids = re.findall(
+        r"^\s*- \*\*Active Task\*\*:\s*`([^`]+)`\s*$", status_content, re.MULTILINE
+    )
+    assert len(active_ids) <= 1, "STATUS.md may contain at most one Active Task pointer"
+    active_id = active_ids[0] if active_ids else None
     next_id = _extract_pointer(status_content, "Next READY Task")
-    assert active_id != next_id, "Active and next task pointers conflict"
+    assert active_id is None or active_id != next_id, "Active and next task pointers conflict"
 
-    for label, task_id in (("Active Task", active_id), ("Next READY Task", next_id)):
+    pointers = [("Next READY Task", next_id)]
+    if active_id is not None:
+        pointers.append(("Active Task", active_id))
+    for label, task_id in pointers:
         assert task_id in tasks, f"{label} {task_id} does not exist in TASKS.md"
         task_status = tasks[task_id][0]
         assert task_status != "DONE", f"Completed task {task_id} cannot be listed as {label}"
 
-    assert tasks[active_id][0] in {"READY", "IN_PROGRESS", "IN_REVIEW"}, (
-        f"Active task {active_id} has incompatible status {tasks[active_id][0]}"
-    )
+    if active_id is not None:
+        assert tasks[active_id][0] in {"IN_PROGRESS", "IN_REVIEW"}, (
+            f"Active task {active_id} has incompatible status {tasks[active_id][0]}"
+        )
     assert tasks[next_id][0] == "READY", f"Next task {next_id} must be READY in TASKS.md"
     assert not re.search(r"Commit SHA:\s*`[0-9a-f]{40}`", status_content), (
         "STATUS.md must not embed a transient purported latest merge SHA"
@@ -135,11 +143,11 @@ def test_documentation_validator_rejects_invalid_references_and_status_conflicts
     tasks = (root / "docs/roadmap/TASKS.md").read_text(encoding="utf-8")
     status = (root / "docs/STATUS.md").read_text(encoding="utf-8")
     invalid_snapshots = [
-        status.replace("`FOUND-005`", "`FOUND-999`", 1),
-        status.replace("`FOUND-005`", "`FOUND-001`", 1),
-        status.replace("Next READY Task**: `FOUND-003`", "Next READY Task**: `FOUND-005`", 1),
         status.replace("Next READY Task**: `FOUND-003`", "Next READY Task**: `FOUND-001`", 1),
-        status + "\n- **Active Task**: `FOUND-004`\n",
+        status.replace("Next READY Task**: `FOUND-003`", "Next READY Task**: `FOUND-999`", 1),
+        status + "\n- **Active Task**: `FOUND-001`\n",
+        status + "\n- **Active Task**: `FOUND-999`\n",
+        status + "\n- **Active Task**: `FOUND-003`\n- **Active Task**: `FOUND-004`\n",
     ]
     for invalid_status in invalid_snapshots:
         with pytest.raises(AssertionError):
@@ -150,22 +158,31 @@ def test_documentation_validator_rejects_invalid_task_fields_and_done_evidence()
     """Exercise task parsing against missing fields, invalid states, and placeholder evidence."""
     root = Path(__file__).resolve().parents[2]
     tasks = (root / "docs/roadmap/TASKS.md").read_text(encoding="utf-8")
+    task_005_match = re.search(
+        r"^### \[FOUND-005\].*?(?=^### \[|\Z)", tasks, re.DOTALL | re.MULTILINE
+    )
+    assert task_005_match is not None
+    task_005 = task_005_match.group(0)
     invalid_tasks = [
         tasks.replace("- **Objective**:", "- **Aim**:", 1),
-        tasks.replace("**Status**: `IN_REVIEW`", "**Status**: `UNRECOGNIZED`", 1),
         tasks.replace(
-            "**Status**: `IN_REVIEW`", "**Status**: `READY`\n- **Status**: `IN_REVIEW`", 1
+            task_005, task_005.replace("**Status**: `DONE`", "**Status**: `UNRECOGNIZED`", 1), 1
         ),
         tasks.replace(
-            "- **Verification Evidence**:\n  - Focused documentation tests",
-            "- **Verification Evidence**: None",
+            task_005,
+            task_005.replace("**Status**: `DONE`", "**Status**: `READY`\n- **Status**: `DONE`", 1),
             1,
-        ).replace("**Status**: `IN_REVIEW`", "**Status**: `DONE`", 1),
-        tasks
-        + "\n"
-        + re.search(r"^### \[FOUND-005\].*?(?=^### \[|\Z)", tasks, re.DOTALL | re.MULTILINE).group(
-            0
         ),
+        tasks.replace(
+            task_005,
+            task_005.replace(
+                "- **Verification Evidence**:\n  - Focused documentation tests",
+                "- **Verification Evidence**: None",
+                1,
+            ),
+            1,
+        ),
+        tasks + "\n" + task_005,
     ]
     for invalid_content in invalid_tasks:
         with pytest.raises(AssertionError):

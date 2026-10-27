@@ -142,12 +142,13 @@ def test_documentation_validator_rejects_invalid_references_and_status_conflicts
     root = Path(__file__).resolve().parents[2]
     tasks = (root / "docs/roadmap/TASKS.md").read_text(encoding="utf-8")
     status = (root / "docs/STATUS.md").read_text(encoding="utf-8")
+    next_task = _extract_pointer(status, "Next READY Task")
     invalid_snapshots = [
-        status.replace("Next READY Task**: `FOUND-003`", "Next READY Task**: `FOUND-001`", 1),
-        status.replace("Next READY Task**: `FOUND-003`", "Next READY Task**: `FOUND-999`", 1),
+        status.replace(f"Next READY Task**: `{next_task}`", "Next READY Task**: `FOUND-001`", 1),
+        status.replace(f"Next READY Task**: `{next_task}`", "Next READY Task**: `FOUND-999`", 1),
         status + "\n- **Active Task**: `FOUND-001`\n",
         status + "\n- **Active Task**: `FOUND-999`\n",
-        status + "\n- **Active Task**: `FOUND-003`\n- **Active Task**: `FOUND-004`\n",
+        status + f"\n- **Active Task**: `{next_task}`\n- **Active Task**: `FOUND-004`\n",
     ]
     for invalid_status in invalid_snapshots:
         with pytest.raises(AssertionError):

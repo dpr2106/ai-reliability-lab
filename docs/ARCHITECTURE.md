@@ -45,7 +45,8 @@
        • CI regression threshold gating
 ```
 
-## Core Domain Models (Pure Python)
+## Core Domain Models (Pure Python Standard Library, Zero External Dependencies)
+Per `ADR-005`, the domain model layer has zero third-party dependencies and relies exclusively on standard library `dataclasses`, `typing`, `abc`, `enum`, and `json`:
 - `Document`: Raw parsed text, metadata dictionary, and page collection.
 - `Chunk`: Text content, `doc_id`, `chunk_id`, `page_number`, `char_start`, `char_end`.
 - `Query`: Unique `query_id`, query text, and evaluation metadata.

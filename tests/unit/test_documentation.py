@@ -30,7 +30,15 @@ def test_tasks_file_contains_task_ids():
 
 
 def test_status_file_references_active_task():
-    """Verify docs/STATUS.md accurately references FOUND-002."""
+    """Verify docs/STATUS.md references active or next in-flight task."""
     root = Path(__file__).resolve().parents[2]
     status_content = (root / "docs/STATUS.md").read_text(encoding="utf-8")
+    assert "FOUND-003" in status_content
     assert "FOUND-002" in status_content
+
+
+def test_decisions_file_contains_adr_005():
+    """Verify docs/DECISIONS.md records ADR-005 for pure standard library core."""
+    root = Path(__file__).resolve().parents[2]
+    decisions_content = (root / "docs/DECISIONS.md").read_text(encoding="utf-8")
+    assert "ADR-005" in decisions_content

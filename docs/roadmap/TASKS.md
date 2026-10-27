@@ -153,8 +153,16 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/ingestion/chunker.py`, `tests/unit/test_chunker.py`
 - **Acceptance Criteria**: Supports configurable chunk size and overlap; verifies zero metadata leakage across boundaries.
 - **Verification Command**: `pytest tests/unit/test_chunker.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Implemented on feat/ING-002-citation-aware-chunkers. 27 focused tests passed, 111 full suite passed, 93% package coverage. Exact substring slicing verified for all chunks, lines, and spans with zero metadata leakage.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused chunker tests: `27 passed in 2.40s` (`pytest tests/unit/test_chunker.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (21 files already formatted), `mypy reliability_lab` (Success: no issues found in 7 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (111 passed in 3.84s, 93% package coverage, exit code 0).
+  - PR #9 was squash-merged to `main` as commit `a77655e2c25d90c45ee27e9b50b475e18483a386`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40511262693/job/122213478417) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40511262693/job/122213477986); both completed successfully before merge.
+  - Character provenance invariants verified: `Document.content[char_start:char_end]` exactly reproduces chunk content, line text, and span text for all elements under half-open indexing `[start, end)`.
+  - Zero metadata leakage: only intersecting pages, lines, and spans are retained; partial spans are clipped without leaking outer text; page separators are never falsely attributed to page text.
+  - Stable deterministic chunk IDs across repeated runs.
 
 ---
 
@@ -166,7 +174,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/bm25_index.py`, `tests/unit/test_bm25_index.py`
 - **Acceptance Criteria**: Constructs index from `List[Chunk]`, retrieves ranked results with scores, handles out-of-vocabulary terms.
 - **Verification Command**: `pytest tests/unit/test_bm25_index.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

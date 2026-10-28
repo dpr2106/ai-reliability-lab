@@ -191,9 +191,9 @@ def test_documentation_validator_rejects_invalid_task_fields_and_done_evidence()
 
 
 def test_decisions_file_contains_approved_adrs():
-    """Verify docs/DECISIONS.md records all active ADRs from ADR-001 through ADR-006."""
+    """Verify docs/DECISIONS.md records all active ADRs from ADR-001 through ADR-007."""
     root = Path(__file__).resolve().parents[2]
     decisions_content = (root / "docs/DECISIONS.md").read_text(encoding="utf-8")
-    for i in range(1, 7):
+    for i in range(1, 8):
         adr_id = f"ADR-{i:03d}"
         assert adr_id in decisions_content, f"Missing {adr_id} in docs/DECISIONS.md"

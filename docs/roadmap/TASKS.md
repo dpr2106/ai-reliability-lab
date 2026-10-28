@@ -126,6 +126,28 @@ This document is the canonical single source of truth for all engineering tasks.
 
 ---
 
+### [GOV-006] Commit-Preserving Merge Workflow
+- **Objective**: Establish and verify a GitHub merge workflow that preserves meaningful implementation commits on `main` to enable reaching the project target of at least 300 commits on the default branch.
+- **Priority**: P0 | **Dependencies**: `FOUND-004`
+- **Scope / Expected Files**: `GEMINI.md`, `docs/DECISIONS.md`, `docs/STATUS.md`, `docs/roadmap/TASKS.md`, `docs/roadmap/COMMIT_PROGRESS.md`, `tests/unit/test_documentation.py`
+- **Acceptance Criteria**:
+  - Rebase-based merging is configured on GitHub (`allow_rebase_merge: true`, `allow_squash_merge: false`, `allow_merge_commit: false`).
+  - Strict CI checks (`test-and-lint (3.11)` and `test-and-lint (3.12)`), linear history enforcement, and direct/force push prohibitions are preserved.
+  - Initial governance PR establishes ADR-007, COMMIT_PROGRESS.md, and updates task ledger under current allowed merge policy.
+  - Follow-up test PR verifies that multiple feature branch commits land on `main` without being squashed.
+  - If permissions are insufficient to alter repository settings, the task documents a clear BLOCKED state with required administrator actions.
+- **Verification Command**:
+  ```bash
+  gh repo view dpr2106/ai-reliability-lab --json mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed
+  gh api repos/dpr2106/ai-reliability-lab/branches/main/protection
+  git rev-list --count origin/main
+  pytest tests/unit/test_documentation.py -v
+  ```
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Initial governance PR opened on `chore/GOV-006-preserve-main-commits` introducing ADR-007 (superseding ADR-006), `docs/roadmap/COMMIT_PROGRESS.md` recording initial baseline of 19 commits, and updating `test_documentation.py` for ADR-007.
+
+---
+
 ## Milestone 1: Document Ingestion & Citation-Aware Chunking
 
 ### [ING-001] PyMuPDF Document Parser with Page & Bounding Span Tracking

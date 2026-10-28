@@ -148,9 +148,11 @@ This document is the canonical single source of truth for all engineering tasks.
   - Initial governance PR #19 established ADR-007 (superseding ADR-006) and `docs/roadmap/COMMIT_PROGRESS.md` (initial count 19), merged under final squash policy as commit `9de7e1951f28b499e74d1a4983fb08d98d633c77`.
   - Repository settings configured via GitHub API and verified: `rebaseMergeAllowed: true`, `squashMergeAllowed: false`, `mergeCommitAllowed: false`, `delete_branch_on_merge: true`, `allow_auto_merge: true`.
   - Branch protection verified via API: `required_linear_history: true`, strict checks `["test-and-lint (3.11)", "test-and-lint (3.12)"]`, `allow_force_pushes: false`, `allow_deletions: false`.
-  - Rebase merge workflow verified via PR #20 preserving distinct feature-branch commits on `main`.
+  - Rebase merge workflow verified via PR #20 preserving distinct feature-branch commits on `main`: commit `15e8096` (`docs(guidelines): update PR workflow in GEMINI.md for rebase merging`) and commit `4b192ad` (`docs(status): record verified rebase settings and complete GOV-006`).
+  - Required CI verified on PR #20: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40636492854/job/122644547644) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40636492854/job/122644547846).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 22 commits reachable from `main`.
   - Operating guidelines updated in `GEMINI.md` to document `gh pr merge --auto --rebase --delete-branch`.
-  - Documentation tests verified: `pytest tests/unit/test_documentation.py -v` (6 passed in 0.25s).
+  - Documentation tests verified: `pytest tests/unit/test_documentation.py -v` (6 passed in 0.16s).
 
 ---
 

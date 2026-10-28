@@ -1,6 +1,23 @@
 """Relational storage and experiment run repository for AI Reliability Lab."""
 
 from reliability_lab.storage.database import Database
+from reliability_lab.storage.regression import (
+    DEFAULT_TOLERANCE,
+    IncomparableRunsError,
+    InvalidToleranceError,
+    MetricDelta,
+    MetricDirection,
+    QueryMetricDelta,
+    QueryRegression,
+    RegressionDetector,
+    RegressionError,
+    RegressionResult,
+    RegressionStatus,
+    is_degradation_regressed,
+    is_ranking_metric,
+    normalize_metric_name,
+    validate_tolerance,
+)
 from reliability_lab.storage.repository import (
     ConfigurationConflictError,
     DuplicateRunError,
@@ -14,14 +31,29 @@ from reliability_lab.storage.repository import (
 )
 
 __all__ = [
+    "DEFAULT_TOLERANCE",
     "ConfigurationConflictError",
     "Database",
     "DuplicateRunError",
     "ExperimentRepository",
+    "IncomparableRunsError",
+    "InvalidToleranceError",
+    "MetricDelta",
+    "MetricDirection",
+    "QueryMetricDelta",
+    "QueryRegression",
+    "RegressionDetector",
+    "RegressionError",
+    "RegressionResult",
+    "RegressionStatus",
     "RunNotFoundError",
     "StorageError",
     "StoredRun",
     "StoredRunSummary",
     "canonicalize_config",
     "compute_config_hash",
+    "is_degradation_regressed",
+    "is_ranking_metric",
+    "normalize_metric_name",
+    "validate_tolerance",
 ]

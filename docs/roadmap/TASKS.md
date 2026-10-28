@@ -302,8 +302,17 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/embeddings.py`, `tests/unit/test_embeddings.py`
 - **Acceptance Criteria**: Batch embedding generation with dimension checks, device fallback, and L2 normalization.
 - **Verification Command**: `pytest tests/unit/test_embeddings.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**:
+  - Focused unit tests: `31 passed in 0.71s` (`pytest tests/unit/test_embeddings.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (33 files already formatted), `mypy reliability_lab` (Success: no issues found in 13 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (340 passed, 93% package coverage, exit code 0).
+  - `BaseEmbedder` interface and `SentenceTransformerEmbedder` adapter implemented with default `all-MiniLM-L6-v2` producing 384-dimensional vectors.
+  - Verified L2 normalization: non-zero vectors normalized to unit length $\|v\|_2 = 1.0 \pm 10^{-4}$.
+  - Numerical safety verified: zero-norm vectors handled without NaNs, non-finite (NaN/Inf) outputs rejected.
+  - Device resolution: automatic CPU fallback when requested CUDA/MPS is unavailable.
+  - Offline support: `local_files_only=True` prevents network access and raises actionable `FileNotFoundError` if weights are missing.
+  - Optional dependency isolation: `reliability-lab[dense]` extras configured in `pyproject.toml` while keeping lightweight Tier 1 BM25 execution unaffected.
 
 ---
 
@@ -313,7 +322,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/faiss_index.py`, `tests/unit/test_faiss_index.py`
 - **Acceptance Criteria**: Supports serialization to disk, add/search operations, and mapping integer IDs to chunk UUIDs.
 - **Verification Command**: `pytest tests/unit/test_faiss_index.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

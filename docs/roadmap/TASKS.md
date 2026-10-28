@@ -143,8 +143,14 @@ This document is the canonical single source of truth for all engineering tasks.
   git rev-list --count origin/main
   pytest tests/unit/test_documentation.py -v
   ```
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Initial governance PR opened on `chore/GOV-006-preserve-main-commits` introducing ADR-007 (superseding ADR-006), `docs/roadmap/COMMIT_PROGRESS.md` recording initial baseline of 19 commits, and updating `test_documentation.py` for ADR-007.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Initial governance PR #19 established ADR-007 (superseding ADR-006) and `docs/roadmap/COMMIT_PROGRESS.md` (initial count 19), merged under final squash policy as commit `9de7e1951f28b499e74d1a4983fb08d98d633c77`.
+  - Repository settings configured via GitHub API and verified: `rebaseMergeAllowed: true`, `squashMergeAllowed: false`, `mergeCommitAllowed: false`, `delete_branch_on_merge: true`, `allow_auto_merge: true`.
+  - Branch protection verified via API: `required_linear_history: true`, strict checks `["test-and-lint (3.11)", "test-and-lint (3.12)"]`, `allow_force_pushes: false`, `allow_deletions: false`.
+  - Rebase merge workflow verified via PR #20 preserving distinct feature-branch commits on `main`.
+  - Operating guidelines updated in `GEMINI.md` to document `gh pr merge --auto --rebase --delete-branch`.
+  - Documentation tests verified: `pytest tests/unit/test_documentation.py -v` (6 passed in 0.25s).
 
 ---
 

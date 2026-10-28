@@ -20,7 +20,8 @@ git rev-list --count origin/main
 | Stage / Milestone | Baseline Commit SHA | Main Branch Commit Count | Target | Delta Remaining | Notes |
 |---|---|---|---|---|---|
 | Initial Audit (pre-GOV-006) | `41119a073f4e857ddca76fa78e622b724490f055` | 19 | 300 | 281 | Verified starting count following PR #18 |
-| Current Operational State | `41119a073f4e857ddca76fa78e622b724490f055` | 19 | 300 | 281 | In progress under GOV-006 |
+| Governance Scaffolding (PR #19) | `9de7e1951f28b499e74d1a4983fb08d98d633c77` | 20 | 300 | 280 | PR #19 merged under final squash policy |
+| Rebase Policy Active (GOV-006) | `9de7e1951f28b499e74d1a4983fb08d98d633c77` | 20 | 300 | 280 | Rebase-only merge enabled via API; PR #20 authored with 2 feature commits |
 
 ---
 

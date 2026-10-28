@@ -325,8 +325,21 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/faiss_index.py`, `tests/unit/test_faiss_index.py`
 - **Acceptance Criteria**: Supports serialization to disk, add/search operations, and mapping integer IDs to chunk UUIDs.
 - **Verification Command**: `pytest tests/unit/test_faiss_index.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `23 passed in 0.84s` (`pytest tests/unit/test_faiss_index.py -v`, exit code 0).
+  - BM25 regression tests: `53 passed in 0.37s` (`pytest tests/unit/test_bm25_index.py -v`, exit code 0).
+  - Documentation tests: `6 passed in 0.10s` (`pytest tests/unit/test_documentation.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (35 files already formatted), `mypy reliability_lab` (Success: no issues found in 14 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (363 passed, 93% package coverage, exit code 0).
+  - `FaissVectorRetriever` implemented supporting `IndexFlatIP` (exact) and `IndexHNSWFlat` (approximate) wrapped with `IndexIDMap2` to normalize integer ID assignment and guarantee stable Chunk provenance reconstruction.
+  - Verified incremental chunk additions, corpus replacement (`index()`), atomic persistence (`save()` and `load()`), and post-reload incremental expansion.
+  - Verified safe L2 normalization without zero-norm NaNs, rejection of non-finite vectors, and dimension matching against injected `BaseEmbedder`.
+  - Controlled benchmark verified: HNSW achieved $\ge 90\%$ recall relative to exact Flat on synthetic vectors.
+  - Optional dependency isolation verified: Tier 1 BM25 executes independently of FAISS, and missing runtime FAISS triggers actionable `ImportError`.
+  - Rebase merge workflow verified via PR #26 preserving 4 distinct feature-branch commits on `main`: `adc6471`, `f852094`, `05b59e7`, and `602d3b7`.
+  - Required CI verified on PR #26: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40643871110/job/122668044588) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40643871110/job/122668044742).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 38 commits reachable from `main`.
 
 ---
 
@@ -336,7 +349,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/hybrid.py`, `tests/unit/test_hybrid.py`
 - **Acceptance Criteria**: Implements $RRF(d) = \sum \frac{1}{k + r_i(d)}$; unit tests verify fused ranking matches math.
 - **Verification Command**: `pytest tests/unit/test_hybrid.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

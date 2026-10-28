@@ -216,8 +216,15 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`, `reliability_lab/evaluation/__init__.py`, `tests/unit/test_retrieval_metrics.py`
 - **Acceptance Criteria**: Unit tests match hand calculations for empty results, $K > N$, and zero-ground-truth edge cases.
 - **Verification Command**: `pytest tests/unit/test_retrieval_metrics.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Implemented on `feat/EVAL-001-set-based-retrieval-metrics`. 56 focused unit tests passed, 230 full suite passed, 94% package coverage (100% on retrieval_metrics.py). Validated Recall@K, Precision@K, and HitRate@K with hand calculations, edge cases, k cutoff invariants, and real golden benchmark dataset integration.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `56 passed in 0.46s` (`pytest tests/unit/test_retrieval_metrics.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (28 files already formatted), `mypy reliability_lab` (Success: no issues found in 11 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (230 passed in 10.98s, 94% package coverage, 100% coverage on `reliability_lab/evaluation/retrieval_metrics.py`, exit code 0).
+  - PR #15 was squash-merged to `main` as commit `d1594895169dd946f7eae7227dbfbe48da5f5caa`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40632547960/job/122632049436) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40632547960/job/122632049110); both completed successfully before merge.
+  - Set-based metric suite implemented with standard-library-only interfaces adhering to ADR-005: `RecallAtK`, `PrecisionAtK`, and `HitRateAtK` implementing `BaseMetric` with configurable positive cutoff `k` (default 5).
+  - Mathematical correctness & edge cases verified: empty ground-truth returns 0.0, empty retrieval returns 0.0, duplicate retrieved chunk IDs deduplicated, fewer than k results keeps denominator k in precision, and grade 0 overrides properly exclude non-relevant items.
 
 ---
 
@@ -227,7 +234,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`
 - **Acceptance Criteria**: NDCG@K matches standard reference calculations for arbitrary graded gains.
 - **Verification Command**: `pytest tests/unit/test_retrieval_metrics.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

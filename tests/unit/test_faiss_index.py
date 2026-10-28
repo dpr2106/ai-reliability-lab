@@ -28,6 +28,18 @@ from reliability_lab.indexing.faiss_index import (
     _require_faiss,
 )
 
+try:
+    import faiss  # noqa: F401
+
+    HAS_FAISS = True
+except ImportError:
+    HAS_FAISS = False
+
+requires_faiss = pytest.mark.skipif(
+    not HAS_FAISS,
+    reason="Real FAISS library is not installed in the environment",
+)
+
 
 class DeterministicFakeEmbedder(BaseEmbedder):
     """Deterministic in-memory embedder for reproducible testing."""
@@ -93,6 +105,7 @@ def _make_sample_chunks() -> list[Chunk]:
 # -----------------------------------------------------------------------------
 
 
+@requires_faiss
 def test_real_faiss_flat_initialization_and_properties() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -108,6 +121,7 @@ def test_real_faiss_flat_initialization_and_properties() -> None:
     assert retriever.embedder is embedder
 
 
+@requires_faiss
 def test_real_faiss_hnsw_initialization_and_properties() -> None:
     embedder = DeterministicFakeEmbedder(dim=8)
     retriever = FaissVectorRetriever(
@@ -132,6 +146,7 @@ def test_real_faiss_hnsw_initialization_and_properties() -> None:
 # -----------------------------------------------------------------------------
 
 
+@requires_faiss
 def test_real_faiss_exact_flat_ranking_and_scores() -> None:
     # 3 orthogonal vectors in 3D
     mapping = {
@@ -173,6 +188,7 @@ def test_real_faiss_exact_flat_ranking_and_scores() -> None:
     assert pytest.approx(results[2].score, abs=1e-5) == 0.0
 
 
+@requires_faiss
 def test_real_faiss_hnsw_integer_id_mapping_and_retrieval() -> None:
     """Verifies HNSW sequential integer ID allocation via IndexIDMap2 wrapper."""
     mapping = {
@@ -212,6 +228,7 @@ def test_real_faiss_hnsw_integer_id_mapping_and_retrieval() -> None:
 # -----------------------------------------------------------------------------
 
 
+@requires_faiss
 def test_real_faiss_incremental_add_behavior() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -235,6 +252,7 @@ def test_real_faiss_incremental_add_behavior() -> None:
     assert set(found_ids) == {"chk-001", "chk-002", "chk-003"}
 
 
+@requires_faiss
 def test_real_faiss_corpus_replacement_index_method() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -259,6 +277,7 @@ def test_real_faiss_corpus_replacement_index_method() -> None:
 # -----------------------------------------------------------------------------
 
 
+@requires_faiss
 @pytest.mark.parametrize("index_type", ["flat", "hnsw"])
 def test_real_faiss_save_and_load_roundtrip(tmp_path: Path, index_type: str) -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
@@ -306,6 +325,7 @@ def test_real_faiss_save_and_load_roundtrip(tmp_path: Path, index_type: str) -> 
     assert "post-load-01" in loaded_retriever
 
 
+@requires_faiss
 def test_real_faiss_save_and_load_empty_index(tmp_path: Path) -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -323,6 +343,7 @@ def test_real_faiss_save_and_load_empty_index(tmp_path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
+@requires_faiss
 def test_real_faiss_empty_corpus_and_edge_cases() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -342,6 +363,7 @@ def test_real_faiss_empty_corpus_and_edge_cases() -> None:
     assert retriever.retrieve("query", top_k=-5) == []
 
 
+@requires_faiss
 def test_real_faiss_zero_norm_vector_handling() -> None:
     """Zero vectors must be handled without producing NaNs."""
     mapping = {
@@ -368,6 +390,7 @@ def test_real_faiss_zero_norm_vector_handling() -> None:
 # -----------------------------------------------------------------------------
 
 
+@requires_faiss
 def test_real_faiss_flat_vs_hnsw_benchmark() -> None:
     """Compares exact FlatIP against approximate HNSWFlat on synthetic vectors."""
     dim = 16
@@ -431,18 +454,21 @@ def test_validation_invalid_embedder_type() -> None:
         FaissVectorRetriever(embedder="not-an-embedder")  # type: ignore[arg-type]
 
 
+@requires_faiss
 def test_validation_invalid_index_type() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     with pytest.raises(ValueError, match="Invalid index_type 'unsupported'"):
         FaissVectorRetriever(embedder=embedder, index_type="unsupported")
 
 
+@requires_faiss
 def test_validation_invalid_metric() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     with pytest.raises(ValueError, match="Unsupported metric 'l2'"):
         FaissVectorRetriever(embedder=embedder, metric="l2")
 
 
+@requires_faiss
 def test_validation_invalid_hnsw_parameters() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     with pytest.raises(ValueError, match="m must be an integer >= 4"):
@@ -455,6 +481,7 @@ def test_validation_invalid_hnsw_parameters() -> None:
         FaissVectorRetriever(embedder=embedder, index_type="hnsw", ef_search=-1)
 
 
+@requires_faiss
 def test_validation_duplicate_chunk_in_batch() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -470,6 +497,7 @@ def test_validation_duplicate_chunk_in_batch() -> None:
     assert retriever.size == 0
 
 
+@requires_faiss
 def test_validation_duplicate_chunk_with_existing() -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
     retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
@@ -486,6 +514,7 @@ def test_validation_duplicate_chunk_with_existing() -> None:
     assert retriever.size == 1
 
 
+@requires_faiss
 def test_validation_embedder_dimension_mismatch() -> None:
     class BadEmbedder(BaseEmbedder):
         @property
@@ -505,6 +534,7 @@ def test_validation_embedder_dimension_mismatch() -> None:
         retriever.add([Chunk(chunk_id="c1", doc_id="d1", content="content")])
 
 
+@requires_faiss
 def test_validation_non_finite_embeddings_rejected() -> None:
     class NanEmbedder(BaseEmbedder):
         @property
@@ -525,6 +555,7 @@ def test_validation_non_finite_embeddings_rejected() -> None:
         retriever.add([Chunk(chunk_id="c1", doc_id="d1", content="content")])
 
 
+@requires_faiss
 def test_validation_load_errors(tmp_path: Path) -> None:
     embedder = DeterministicFakeEmbedder(dim=4)
 

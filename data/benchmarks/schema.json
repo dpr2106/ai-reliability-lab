@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-reliability-lab.org/schemas/benchmark-query.json",
+  "title": "RetrievalBenchmarkQuery",
+  "description": "Schema for ground-truth retrieval benchmark queries, graded relevance judgments, and required citation evidence in AI Reliability Lab.",
+  "type": "object",
+  "required": [
+    "query_id",
+    "query",
+    "ground_truth_answer",
+    "relevance_judgments",
+    "required_citations"
+  ],
+  "properties": {
+    "query_id": {
+      "type": "string",
+      "pattern": "^Q-\\d{3,}$",
+      "description": "Unique, stable identifier for the evaluation query (e.g., 'Q-001')."
+    },
+    "query": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Natural-language query text used to probe the retrieval system."
+    },
+    "ground_truth_answer": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Authoritative reference answer fully grounded in the cited source evidence."
+    },
+    "relevance_judgments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Graded relevance assessments mapping corpus chunks to relevance levels with audit rationale.",
+      "items": {
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "grade",
+          "rationale"
+        ],
+        "properties": {
+          "chunk_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable identifier of the evaluated corpus chunk."
+          },
+          "grade": {
+            "type": "integer",
+            "enum": [0, 1, 2],
+            "description": "Relevance grade: 0 = Irrelevant (distractor); 1 = Relevant context (insufficient alone); 2 = Critical evidence (directly supports ground-truth claim)."
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 5,
+            "description": "Auditable explanation of why this chunk was assigned the specific relevance grade."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "required_citations": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Primary evidence references that an authoritative response must cite to substantiate its claims.",
+      "items": {
+        "type": "object",
+        "required": [
+          "citation_id",
+          "chunk_id",
+          "doc_id",
+          "page_number",
+          "quote"
+        ],
+        "properties": {
+          "citation_id": {
+            "type": "string",
+            "pattern": "^CIT-\\d{3,}$",
+            "description": "Unique identifier for this required citation."
+          },
+          "chunk_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Identifier of the chunk supplying this citation evidence."
+          },
+          "doc_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Source document identifier matching the referenced chunk."
+          },
+          "page_number": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "One-based page number where the evidence appears, or null if cross-page or unavailable."
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 5,
+            "description": "Verbatim quote extracted directly from the referenced chunk content."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional evaluation metadata such as scenario category, complexity, or domain tags.",
+      "properties": {
+        "scenario": {
+          "type": "string",
+          "description": "Evaluation scenario category (e.g., 'direct_lookup', 'multi_evidence', 'lexical_distractor', 'numeric_units')."
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["easy", "medium", "hard"]
+        },
+        "domain": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

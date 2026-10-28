@@ -192,11 +192,11 @@ This document is the canonical single source of truth for all engineering tasks.
 ### [DATA-001] Benchmark Schema & Golden Dataset Construction
 - **Objective**: Build a verified benchmark dataset containing queries, multi-grade chunk relevances, and required citations.
 - **Priority**: P0 | **Dependencies**: `ING-002`
-- **Scope / Expected Files**: `data/benchmarks/schema.json`, `data/benchmarks/sample_benchmark.jsonl`, `tests/unit/test_dataset_schema.py`
-- **Acceptance Criteria**: At least 15 verified queries with graded relevance (0=irrelevant, 1=relevant, 2=critical evidence).
+- **Scope / Expected Files**: `data/benchmarks/schema.json`, `data/benchmarks/sample_corpus.jsonl`, `data/benchmarks/sample_benchmark.jsonl`, `tests/unit/test_dataset_schema.py`
+- **Acceptance Criteria**: At least 15 verified queries with graded relevance (0=irrelevant, 1=relevant, 2=critical evidence), grounded in a deterministic 25-chunk corpus fixture (`sample_corpus.jsonl`) required for independent verification of source provenance and exact verbatim citations.
 - **Verification Command**: `pytest tests/unit/test_dataset_schema.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Implemented on `feat/DATA-001-golden-benchmark-dataset`. 10 focused schema and integrity tests passed, 174 full suite passed, 94% package coverage. Validated JSON Schema Draft 2020-12, 25-chunk verified sample corpus, 16 multi-scenario benchmark queries, 100% verbatim citation quotes, and zero broken references.
 
 ---
 

@@ -3,6 +3,8 @@
 from reliability_lab.evaluation.retrieval_metrics import (
     BaseSetRetrievalMetric,
     HitRateAtK,
+    MRRAtK,
+    NDCGAtK,
     PrecisionAtK,
     RecallAtK,
 )
@@ -10,6 +12,8 @@ from reliability_lab.evaluation.retrieval_metrics import (
 __all__ = [
     "BaseSetRetrievalMetric",
     "HitRateAtK",
+    "MRRAtK",
+    "NDCGAtK",
     "PrecisionAtK",
     "RecallAtK",
 ]

@@ -231,11 +231,11 @@ This document is the canonical single source of truth for all engineering tasks.
 ### [EVAL-002] Positional Metrics: MRR@K and Graded NDCG@K
 - **Objective**: Implement Mean Reciprocal Rank and Normalized Discounted Cumulative Gain using standard logarithmic discounting.
 - **Priority**: P0 | **Dependencies**: `EVAL-001`
-- **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`
+- **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`, `reliability_lab/evaluation/__init__.py`, `tests/unit/test_retrieval_metrics.py`
 - **Acceptance Criteria**: NDCG@K matches standard reference calculations for arbitrary graded gains.
 - **Verification Command**: `pytest tests/unit/test_retrieval_metrics.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Implemented on `feat/EVAL-002-positional-retrieval-metrics`. 112 focused unit tests passed, 286 full suite passed, 94% package coverage (99% on retrieval_metrics.py). Validated MRR@K and graded NDCG@K using logarithmic discounting, exponential gain (2**rel - 1), duplicate rank preservation with zero gain, and real benchmark integration.
 
 ---
 

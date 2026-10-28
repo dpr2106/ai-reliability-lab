@@ -401,8 +401,19 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/groundedness.py`, `tests/unit/test_groundedness.py`
 - **Acceptance Criteria**: Accurately flags completely unsupported sentences vs fully grounded sentences.
 - **Verification Command**: `pytest tests/unit/test_groundedness.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `27 passed in 0.28s` (`pytest tests/unit/test_groundedness.py -v`, exit code 0).
+  - Existing metric regression tests: `32 passed in 0.26s` (`pytest tests/unit/test_citation_metrics.py tests/unit/test_documentation.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (41 files already formatted), `mypy reliability_lab` (Success: no issues found in 17 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (441 passed in 5.73s, 98% coverage on `reliability_lab/evaluation/groundedness.py`, 94% total package coverage, exit code 0).
+  - `GroundednessEvaluator`, `ClaimGroundingResult`, `GroundednessResult`, `LexicalGroundednessMetric`, and core calculation functions (`compute_token_containment`, `compute_lcs_length`, `compute_token_lcs_score`, `extract_claim_spans`, `tokenize`) implemented and exported from `reliability_lab.evaluation`.
+  - Deterministic sentence-level claim segmentation extracts exact character offsets (`answer_text[start:end] == claim_text`) while protecting decimal numbers (`1.5`, `0.75`, `25.5ms`) and handling Unicode and line breaks.
+  - Independent candidate chunk evaluation with deterministic tie-breaking (containment $\to$ LCS $\to$ lexicographical chunk ID) preventing cross-chunk synthetic concatenation.
+  - Configurable dual-threshold decision rule (`containment >= 0.5`, `lcs >= 0.3`) and aggregate score bounded in `[0.0, 1.0]` with `has_claims` tracking.
+  - Rebase merge workflow verified via PR #32 preserving 3 distinct feature-branch commits on `main`: `2aaca49`, `5b5be8f`, and `edf5cc5`.
+  - Required CI verified on PR #32: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40679783719/job/122787249169) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40679783719/job/122787248638).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 51 commits reachable from `main`.
 
 ---
 
@@ -412,7 +423,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/nli_evaluator.py`, `tests/unit/test_nli_evaluator.py`
 - **Acceptance Criteria**: Returns probability distribution across NLI labels and computes aggregate Hallucination Score.
 - **Verification Command**: `pytest tests/unit/test_nli_evaluator.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

@@ -449,8 +449,20 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/storage/database.py`, `reliability_lab/storage/repository.py`, `tests/unit/test_storage.py`
 - **Acceptance Criteria**: Schema stores configuration hashes, run timestamps, and per-query score breakdowns.
 - **Verification Command**: `pytest tests/unit/test_storage.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `30 passed in 0.46s` (`pytest tests/unit/test_storage.py -v`, exit code 0).
+  - Documentation and integration regression tests: `29 passed in 0.72s` (`pytest tests/unit/test_documentation.py tests/integration/test_benchmark_runner.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (47 files already formatted), `mypy reliability_lab` (Success: no issues found in 21 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (499 passed in 9.02s, 94% coverage on `database.py`, 91% coverage on `repository.py`, 93% total package coverage, exit code 0).
+  - `Database`, `ExperimentRepository`, `StoredRun`, `StoredRunSummary`, `compute_config_hash`, `canonicalize_config`, and custom storage exceptions implemented and exported from `reliability_lab.storage`.
+  - Normalized relational schema with foreign key cascades: `index_configurations`, `experiment_runs`, `run_metrics`, `query_results`, `query_metric_scores`, and indexes.
+  - Zero external dependencies: pure standard-library `sqlite3` without ORM coupling; ADR-005 preserved with zero external dependencies in core.
+  - Deterministic configuration hashing via canonical JSON serialization and SHA-256 digests.
+  - Transactional ACID boundaries with idempotent replay on exact duplicates and explicit exception raising on conflicting duplicate runs or hash collisions.
+  - Rebase merge workflow verified via PR #36 preserving 3 distinct feature-branch commits on `main`: `812a9b8`, `caf7640`, and `49aee42`.
+  - Required CI verified on PR #36: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40695551765/job/122841239250) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40695551765/job/122841239695).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 59 commits reachable from `main`.
 
 ---
 
@@ -460,7 +472,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/storage/regression.py`, `tests/unit/test_regression.py`
 - **Acceptance Criteria**: Computes $\Delta \text{MRR}$ and $\Delta \text{NDCG}$; flags queries exceeding regression tolerance.
 - **Verification Command**: `pytest tests/unit/test_regression.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

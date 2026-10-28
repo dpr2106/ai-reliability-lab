@@ -37,6 +37,7 @@ git rev-list --count origin/main
 | GROUND-003 Baseline (PR #33) | `25d115288eaedc232ec345ffa66c5b8d1977421e` | 52 | 300 | 248 | Verified baseline for GROUND-003 following PR #33 governance finalization |
 | GROUND-003 Rebase Merge (PR #34) | `8abb88963692e9e975c95aec8256117d5506ba23` | 55 | 300 | 245 | Rebase-merge verified: 3 commits preserved individually on main |
 | EXP-001 Baseline (PR #35) | `803779ca20c7949daa0a2b25e2433c941d544325` | 56 | 300 | 244 | Verified baseline for EXP-001 following PR #35 governance finalization |
+| EXP-001 Rebase Merge (PR #36) | `49aee42ad4f992f5d09d3da2eecc05173919acb2` | 59 | 300 | 241 | Rebase-merge verified: 3 commits preserved individually on main |
 
 ---
 

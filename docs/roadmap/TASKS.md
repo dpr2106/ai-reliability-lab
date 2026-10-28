@@ -213,11 +213,11 @@ This document is the canonical single source of truth for all engineering tasks.
 ### [EVAL-001] Set-Based Retrieval Metrics: Recall@K, Precision@K, HitRate@K
 - **Objective**: Implement exact set-based retrieval diagnostics with hand-calculated unit tests.
 - **Priority**: P0 | **Dependencies**: `FOUND-003`, `DATA-001`
-- **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`, `tests/unit/test_retrieval_metrics.py`
+- **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`, `reliability_lab/evaluation/__init__.py`, `tests/unit/test_retrieval_metrics.py`
 - **Acceptance Criteria**: Unit tests match hand calculations for empty results, $K > N$, and zero-ground-truth edge cases.
 - **Verification Command**: `pytest tests/unit/test_retrieval_metrics.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: Implemented on `feat/EVAL-001-set-based-retrieval-metrics`. 56 focused unit tests passed, 230 full suite passed, 94% package coverage (100% on retrieval_metrics.py). Validated Recall@K, Precision@K, and HitRate@K with hand calculations, edge cases, k cutoff invariants, and real golden benchmark dataset integration.
 
 ---
 

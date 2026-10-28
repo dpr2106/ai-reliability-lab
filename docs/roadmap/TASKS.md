@@ -378,8 +378,20 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/citation_metrics.py`, `tests/unit/test_citation_metrics.py`
 - **Acceptance Criteria**: Calculates Citation Precision and Citation Recall against ground truth citations.
 - **Verification Command**: `pytest tests/unit/test_citation_metrics.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `26 passed in 0.16s` (`pytest tests/unit/test_citation_metrics.py -v`, exit code 0).
+  - Core model & dataset regression tests: `94 passed in 2.59s` (`pytest tests/unit/test_core_models.py tests/unit/test_dataset_schema.py tests/integration/test_benchmark_runner.py -v`, exit code 0).
+  - Documentation tests: `6 passed in 0.10s` (`pytest tests/unit/test_documentation.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (39 files already formatted), `mypy reliability_lab` (Success: no issues found in 16 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (414 passed in 8.21s, 96% coverage on `reliability_lab/evaluation/citation_metrics.py`, 94% total package coverage, exit code 0).
+  - Deterministic `CitationParser` extracts `[CIT-xxx]`, `[CHK-xxx]`, and composite `[CIT-001, CIT-002]` citation markers while ignoring unrelated bracketed prose (`[see above]`, `[123]`) and detecting malformed citation candidates (`[CIT-]`, `[citation: 1]`).
+  - Reference resolution validates whether referenced chunk IDs exist within the actual retrieved candidate set (`Sequence[RetrievalResult]`).
+  - Citation Precision and Citation Recall calculated with strict deduplication preventing marker repetition inflation, and deterministic zero-denominator contracts.
+  - Backward-compatible citation schema preservation: `load_benchmark_dataset()` preserves structured `citation_records` and `citation_to_chunk_id` in `Query.metadata` and rejects conflicting mappings, while preserving `Query.required_citations: list[str]`.
+  - Rebase merge workflow verified via PR #30 preserving 4 distinct feature-branch commits on `main`: `b679d9b`, `d539347`, `8ffa833`, and `a5d35e8`.
+  - Required CI verified on PR #30: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40677368106/job/122779097224) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40677368106/job/122779096920).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 47 commits reachable from `main`.
 
 ---
 
@@ -389,7 +401,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/groundedness.py`, `tests/unit/test_groundedness.py`
 - **Acceptance Criteria**: Accurately flags completely unsupported sentences vs fully grounded sentences.
 - **Verification Command**: `pytest tests/unit/test_groundedness.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

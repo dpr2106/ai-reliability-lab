@@ -282,12 +282,15 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/benchmark_runner.py`, `tests/integration/test_benchmark_runner.py`
 - **Acceptance Criteria**: Produces an `EvaluationReport` with mean Recall@5, MRR@5, NDCG@5, and latency percentiles.
 - **Verification Command**: `pytest tests/integration/test_benchmark_runner.py -v`
-- **Status**: `IN_REVIEW`
+- **Status**: `DONE`
 - **Verification Evidence**:
   - Focused integration tests: `23 passed in 0.52s` (`pytest tests/integration/test_benchmark_runner.py -v`, exit code 0).
   - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (31 files already formatted), `mypy reliability_lab` (Success: no issues found in 12 source files).
   - Full test suite & coverage: `pytest --cov=reliability_lab` (309 passed in 5.13s, 93% package coverage, exit code 0).
   - Retrieval benchmark runner executed over 16 queries and 25 corpus chunks: produces complete `EvaluationReport` with mean Recall@5, Precision@5, HitRate@5, MRR@5, NDCG@5, latency percentiles (`mean_latency_ms`, `latency_p50_ms`, `latency_p90_ms`, `latency_p95_ms`, `latency_p99_ms`), failure diagnostics (`zero_hit`, `missed_relevant_chunk_ids`, `missed_critical_chunk_ids`, `first_relevant_rank`), and full dictionary / JSON round-trip serialization.
+  - Rebase merge workflow verified via PR #22 preserving 5 distinct feature-branch commits on `main`: `7d16a87`, `1b2a1a3`, `6f23e22`, `c747e8a`, and `15c3cc5`.
+  - Required CI verified on PR #22: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40638366380/job/122650576602) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40638366380/job/122650576749).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 28 commits reachable from `main`.
 
 ---
 

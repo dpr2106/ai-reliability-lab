@@ -2,7 +2,7 @@
 
 ## Verified Operational State
 - **Base Branch**: `main`
-- **Active Milestone**: Milestone 4 — Cranfield Retrieval Evaluation Metrics
+- **Active Milestone**: Milestone 5 — Dense Retrieval, FAISS & Hybrid Ranking
 - **Test Suite Baseline**: 309 passed in 5.13s, 93% coverage (verified baseline from EVAL-003)
 
 ## PR Review & Gating Architecture State
@@ -12,6 +12,5 @@
 
 ## Task Pointers
 - **Next READY Task**: `DENSE-001`
-- **Active Task**: `EVAL-003`
 
 Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. This snapshot intentionally excludes a purported latest merge SHA, which would become stale and could refer to the commit containing this file.

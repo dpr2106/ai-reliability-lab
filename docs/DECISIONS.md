@@ -31,7 +31,17 @@
 - **Consequences**: Ensures maximum portability, clean hexagonal architecture, zero vendor/library lock-in for core entities, and complete alignment between documentation and implementation.
 
 ## ADR-006: Squash-Only Merge Strategy & Linear History Enforcement
-- **Status**: Accepted
+- **Status**: Superseded by ADR-007
 - **Context**: Multiple merge strategies (merge commits, rebase merges, squash merges) create inconsistent Git graphs. Inadvertent merge commits introduce nonlinear branch clutter and obscure per-task atomic changes on `main`.
 - **Decision**: Configure GitHub repository settings to exclusively allow squash merges (`allow_squash_merge: true`, `allow_merge_commit: false`, `allow_rebase_merge: false`). Enforce linear history in branch protection (`required_linear_history: true`).
 - **Consequences**: Ensures a clean, 1-commit-per-task linear Git history on `main`, guarantees PR links in commit headlines, and eliminates accidental merge commits.
+
+## ADR-007: Rebase-Only Merge Strategy & Commit Preservation on Main
+- **Status**: Accepted
+- **Context**: ADR-006 configured squash-only merging to guarantee a clean linear history. However, squash merging collapses all feature-branch commits into a single commit upon merge, erasing distinct, reviewable engineering milestones (such as separate test setup, core implementation, refactoring, and documentation commits). The project requires at least 300 genuine, meaningful engineering commits reachable from `main`. Continuing with squash-only merging obscures granular commit provenance and would require hundreds of micro-PRs.
+- **Decision**: Configure GitHub repository settings to exclusively allow rebase merges (`allow_rebase_merge: true`, `allow_squash_merge: false`, `allow_merge_commit: false`). Preserve strict branch protection requiring linear history (`required_linear_history: true`), strict CI checks (`test-and-lint (3.11)` and `test-and-lint (3.12)`), and prohibition of direct and force pushes. Automate merging using `gh pr merge --auto --rebase --delete-branch`.
+- **Consequences**:
+  - Genuine, meaningful commits authored on feature branches are preserved in full on `main`, each retaining its individual author timestamp, commit message, and diff history.
+  - Linear history is preserved without non-linear merge bubbles or merge commits.
+  - Developers must maintain disciplined, reviewable commit hygiene on feature branches (no "fix typo" or "wip" noise; every commit must be coherent, atomic, and pass lint/tests).
+  - Squash merging is disabled to prevent accidental squashing of multi-commit engineering tasks.

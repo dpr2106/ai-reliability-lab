@@ -63,7 +63,13 @@ def load_corpus(path: str | Path) -> list[Chunk]:
         if not isinstance(data, dict):
             raise ValueError(f"Line {line_num} of {file_path.name} must be a JSON object.")
 
-        chunk = Chunk.from_dict(data)
+        try:
+            chunk = Chunk.from_dict(data)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid chunk record on line {line_num} of {file_path.name}: {exc}"
+            ) from exc
+
         if chunk.chunk_id in seen_ids:
             raise ValueError(
                 f"Duplicate chunk_id '{chunk.chunk_id}' on line {line_num} of {file_path.name}."

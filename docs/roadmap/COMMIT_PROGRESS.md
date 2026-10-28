@@ -22,6 +22,7 @@ git rev-list --count origin/main
 | Initial Audit (pre-GOV-006) | `41119a073f4e857ddca76fa78e622b724490f055` | 19 | 300 | 281 | Verified starting count following PR #18 |
 | Governance Scaffolding (PR #19) | `9de7e1951f28b499e74d1a4983fb08d98d633c77` | 20 | 300 | 280 | PR #19 merged under final squash policy |
 | Rebase Verification (PR #20) | `4b192ad219d36bb66e01a884efb88950d859424d` | 22 | 300 | 278 | Rebase-merge verified: 2 commits preserved individually on main |
+| EVAL-003 Baseline (PR #21) | `c9cb14aa8074a66aa39879a761cb87ce530b4afc` | 23 | 300 | 277 | Verified baseline for EVAL-003 after PR #21 rebase-merge |
 
 ---
 

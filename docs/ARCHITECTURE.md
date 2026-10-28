@@ -83,3 +83,56 @@ Built with standard library `sqlite3` without external ORMs, providing normalize
    stored_run = repo.get_run(report.report_id)
    reconstructed_report = stored_run.to_report()
    ```
+
+## Regression Detection Engine & Metric Diffing (`reliability_lab/storage/regression.py`)
+Deterministic, rule-based regression detection comparing a baseline experiment run against a candidate run to detect ranking degradation across aggregate metrics and per-query results:
+
+1. **Signed Metric Delta & Degradation Formulation**:
+   - For any metric $m$: $\Delta_m = m_{\text{candidate}} - m_{\text{baseline}}$.
+   - For higher-is-better retrieval metrics (Recall, MRR, NDCG, Precision, Hit Rate, MAP):
+     Degradation magnitude: $D_m = m_{\text{baseline}} - m_{\text{candidate}} = -\Delta_m$.
+   - A metric is classified as regressed when degradation strictly exceeds the configured tolerance: $D_m > \tau_m$.
+   - Equality ($D_m = \tau_m$) is protected against floating-point inaccuracies (`math.isclose`) and is never reported as a regression.
+
+2. **Tolerance Configuration**:
+   - Global default tolerance: $\tau = 0.02$ (`DEFAULT_TOLERANCE`).
+   - Per-metric overrides: e.g. `tolerance_overrides={"mrr@5": 0.01}`. Overrides are validated against non-finite floats, booleans, and negative values (`validate_tolerance()`).
+
+3. **Status Classification Contract**:
+   - `PASS`: The comparison is complete (all baseline queries evaluated) and no supported aggregate or per-query metric regressed beyond tolerance.
+   - `REGRESSION`: At least one aggregate or per-query metric degradation strictly exceeds tolerance.
+   - `INCOMPLETE`: Baseline and candidate query sets diverge (e.g. baseline-only or candidate-only queries), or required metrics are missing. Missing queries are never zero-imputed. If any observed metric regressed, `REGRESSION` takes precedence; otherwise, status remains `INCOMPLETE` with actionable comparability warnings.
+
+4. **Aggregate Metric Aliasing & Deduplication**:
+   - Canonical metric normalization strips aggregate prefixes (`mean_mrr@5` -> `mrr@5`).
+   - Aliases representing the same metric are deduplicated. Conflicting scores between aliases (> 1e-5) raise `IncomparableRunsError`.
+
+5. **Per-Query Diagnostics & Deterministic Ordering**:
+   - Queries are evaluated across common canonical ranking metrics.
+   - Per-query metric deltas record baseline, candidate, signed delta, degradation, tolerance, and regression status.
+   - Worst degradations are surfaced deterministically, ordered descending by maximum degradation magnitude, then by `query_id`.
+
+6. **Usage**:
+   ```python
+   from reliability_lab.storage import ExperimentRepository, RegressionDetector, RegressionStatus
+
+   repo = ExperimentRepository("experiments.db")
+   detector = RegressionDetector(repo)
+
+   result = detector.compare_runs(
+       baseline_run_id="run-baseline-001",
+       candidate_run_id="run-candidate-002",
+       tolerance=0.02,
+       tolerance_overrides={"mrr@5": 0.01},
+   )
+
+   if result.status == RegressionStatus.REGRESSION:
+       print("Regressed aggregates:", result.regressed_aggregate_metrics)
+       for reg in result.worst_query_regressions:
+           print(f"Query {reg.query_id} regressed metrics: {reg.regressed_metrics}")
+   ```
+
+7. **Limitations**:
+   - Comparisons across different metric cutoffs (e.g. `mrr@5` vs `mrr@10`) or dataset references raise comparability warnings or are omitted from common metric sets.
+   - Initial regression detection focuses on retrieval ranking metrics; latency and cost metrics are preserved in query diagnostics but not evaluated under ranking directionality.
+

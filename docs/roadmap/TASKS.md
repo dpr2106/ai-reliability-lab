@@ -302,7 +302,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/embeddings.py`, `tests/unit/test_embeddings.py`
 - **Acceptance Criteria**: Batch embedding generation with dimension checks, device fallback, and L2 normalization.
 - **Verification Command**: `pytest tests/unit/test_embeddings.py -v`
-- **Status**: `IN_REVIEW`
+- **Status**: `DONE`
 - **Verification Evidence**:
   - Focused unit tests: `31 passed in 0.71s` (`pytest tests/unit/test_embeddings.py -v`, exit code 0).
   - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (33 files already formatted), `mypy reliability_lab` (Success: no issues found in 13 source files).
@@ -313,6 +313,9 @@ This document is the canonical single source of truth for all engineering tasks.
   - Device resolution: automatic CPU fallback when requested CUDA/MPS is unavailable.
   - Offline support: `local_files_only=True` prevents network access and raises actionable `FileNotFoundError` if weights are missing.
   - Optional dependency isolation: `reliability-lab[dense]` extras configured in `pyproject.toml` while keeping lightweight Tier 1 BM25 execution unaffected.
+  - Rebase merge workflow verified via PR #24 preserving 4 distinct feature-branch commits on `main`: `be5be7f`, `6d99ddf`, `c0cce2a`, and `181cfb4`.
+  - Required CI verified on PR #24: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40640232072/job/122656417671) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40640232072/job/122656417639).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 33 commits reachable from `main`.
 
 ---
 

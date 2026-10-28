@@ -12,6 +12,5 @@
 
 ## Task Pointers
 - **Next READY Task**: `DENSE-002`
-- **Active Task**: `DENSE-001`
 
 Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. This snapshot intentionally excludes a purported latest merge SHA, which would become stale and could refer to the commit containing this file.

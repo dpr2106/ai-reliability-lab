@@ -204,14 +204,32 @@ def load_benchmark_dataset(
 
         # Extract citations
         required_citations: list[str] = []
+        citation_records: list[dict[str, Any]] = []
+        citation_to_chunk_id: dict[str, str] = {}
         if "required_citations" in record and isinstance(record["required_citations"], list):
             for item in record["required_citations"]:
                 if isinstance(item, dict):
-                    cit_id = str(item.get("citation_id") or item.get("chunk_id") or "")
+                    cit_id = str(item.get("citation_id") or item.get("chunk_id") or "").strip()
                     if cit_id:
                         required_citations.append(cit_id)
+                        citation_records.append(dict(item))
+                        chunk_id = str(item.get("chunk_id", "")).strip()
+                        if chunk_id:
+                            existing_chunk = citation_to_chunk_id.get(cit_id)
+                            if existing_chunk is not None and existing_chunk != chunk_id:
+                                raise ValueError(
+                                    f"Query '{query_id}' has conflicting chunk_id mapping for "
+                                    f"citation '{cit_id}': '{existing_chunk}' vs '{chunk_id}'"
+                                )
+                            citation_to_chunk_id[cit_id] = chunk_id
                 elif isinstance(item, str) and item.strip():
                     required_citations.append(item.strip())
+
+        query_metadata = dict(record.get("metadata", {}))
+        if citation_records:
+            query_metadata["citation_records"] = citation_records
+        if citation_to_chunk_id:
+            query_metadata["citation_to_chunk_id"] = citation_to_chunk_id
 
         query = Query(
             query_id=query_id,
@@ -220,7 +238,7 @@ def load_benchmark_dataset(
             relevance_grades=relevance_grades,
             ground_truth_answer=record.get("ground_truth_answer"),
             required_citations=required_citations,
-            metadata=dict(record.get("metadata", {})),
+            metadata=query_metadata,
         )
         queries.append(query)
 

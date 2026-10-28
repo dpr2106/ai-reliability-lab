@@ -195,8 +195,16 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `data/benchmarks/schema.json`, `data/benchmarks/sample_corpus.jsonl`, `data/benchmarks/sample_benchmark.jsonl`, `tests/unit/test_dataset_schema.py`
 - **Acceptance Criteria**: At least 15 verified queries with graded relevance (0=irrelevant, 1=relevant, 2=critical evidence), grounded in a deterministic 25-chunk corpus fixture (`sample_corpus.jsonl`) required for independent verification of source provenance and exact verbatim citations.
 - **Verification Command**: `pytest tests/unit/test_dataset_schema.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Implemented on `feat/DATA-001-golden-benchmark-dataset`. 10 focused schema and integrity tests passed, 174 full suite passed, 94% package coverage. Validated JSON Schema Draft 2020-12, 25-chunk verified sample corpus, 16 multi-scenario benchmark queries, 100% verbatim citation quotes, and zero broken references.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused schema and dataset tests: `10 passed in 0.18s` (`pytest tests/unit/test_dataset_schema.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (25 files already formatted), `mypy reliability_lab` (Success: no issues found in 9 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (174 passed in 15.68s, 94% package coverage, exit code 0).
+  - PR #13 was squash-merged to `main` as commit `eebfcc7d64b9a105aa985afbf30b00df4d7a9226`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40630175988/job/122624479419) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40630175988/job/122624479239); both completed successfully before merge.
+  - JSON Schema Draft 2020-12 verified at `data/benchmarks/schema.json` with strict type bounds, enum grades `[0, 1, 2]`, rationale strings, and explicit citation mappings.
+  - Deterministic 25-chunk source corpus across 5 synthetic documents created at `data/benchmarks/sample_corpus.jsonl` with full character span and page metadata.
+  - 16 verified gold queries at `data/benchmarks/sample_benchmark.jsonl` spanning direct lookup, multi-evidence synthesis, lexical distractors, near-duplicate terms, and numeric units; all required citations verified verbatim against source chunk content.
 
 ---
 
@@ -208,7 +216,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`, `tests/unit/test_retrieval_metrics.py`
 - **Acceptance Criteria**: Unit tests match hand calculations for empty results, $K > N$, and zero-ground-truth edge cases.
 - **Verification Command**: `pytest tests/unit/test_retrieval_metrics.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

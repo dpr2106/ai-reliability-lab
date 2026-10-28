@@ -234,8 +234,15 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/retrieval_metrics.py`, `reliability_lab/evaluation/__init__.py`, `tests/unit/test_retrieval_metrics.py`
 - **Acceptance Criteria**: NDCG@K matches standard reference calculations for arbitrary graded gains.
 - **Verification Command**: `pytest tests/unit/test_retrieval_metrics.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: Implemented on `feat/EVAL-002-positional-retrieval-metrics`. 112 focused unit tests passed, 286 full suite passed, 94% package coverage (99% on retrieval_metrics.py). Validated MRR@K and graded NDCG@K using logarithmic discounting, exponential gain (2**rel - 1), duplicate rank preservation with zero gain, and real benchmark integration.
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `112 passed in 0.55s` (`pytest tests/unit/test_retrieval_metrics.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (28 files already formatted), `mypy reliability_lab` (Success: no issues found in 11 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (286 passed in 11.41s, 94% package coverage, 99% coverage on `reliability_lab/evaluation/retrieval_metrics.py`, exit code 0).
+  - PR #17 was squash-merged to `main` as commit `7f6c41e038790507c30b5c350d9124a48cbe8f24`.
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40634334439/job/122637700509) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40634334439/job/122637700836); both completed successfully before merge.
+  - Positional metrics suite implemented with standard-library-only interfaces adhering to ADR-005: `MRRAtK` and `NDCGAtK` implementing `BaseMetric` with configurable positive cutoff `k` (default 5).
+  - Mathematical correctness & edge cases verified: logarithmic discounting $\log_2(i + 1)$, exponential gain $2^{rel} - 1$, duplicate retrieved chunk IDs preserve rank discount with zero gain, and empty retrieval or zero ground truth safely returns 0.0 without division by zero.
 
 ---
 
@@ -245,7 +252,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/benchmark_runner.py`, `tests/integration/test_benchmark_runner.py`
 - **Acceptance Criteria**: Produces an `EvaluationReport` with mean Recall@5, MRR@5, NDCG@5, and latency percentiles.
 - **Verification Command**: `pytest tests/integration/test_benchmark_runner.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

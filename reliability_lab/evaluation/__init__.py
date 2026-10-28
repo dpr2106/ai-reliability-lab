@@ -31,6 +31,16 @@ from reliability_lab.evaluation.groundedness import (
     compute_token_lcs_score,
     extract_claim_spans,
 )
+from reliability_lab.evaluation.nli_evaluator import (
+    BaseNLIBackend,
+    ClaimNLIResult,
+    HuggingFaceNLIBackend,
+    NLIEntailmentEvaluator,
+    NLIHallucinationMetric,
+    NLILabel,
+    NLIResult,
+    validate_nli_distribution,
+)
 from reliability_lab.evaluation.retrieval_metrics import (
     BaseSetRetrievalMetric,
     HitRateAtK,
@@ -42,6 +52,7 @@ from reliability_lab.evaluation.retrieval_metrics import (
 
 __all__ = [
     "BaseCitationMetric",
+    "BaseNLIBackend",
     "BaseSetRetrievalMetric",
     "BenchmarkRunner",
     "CitationEvaluator",
@@ -51,12 +62,18 @@ __all__ = [
     "CitationRecall",
     "CitationValidationResult",
     "ClaimGroundingResult",
+    "ClaimNLIResult",
     "GroundednessEvaluator",
     "GroundednessResult",
     "HitRateAtK",
+    "HuggingFaceNLIBackend",
     "LexicalGroundednessMetric",
     "MRRAtK",
     "NDCGAtK",
+    "NLIEntailmentEvaluator",
+    "NLIHallucinationMetric",
+    "NLILabel",
+    "NLIResult",
     "PrecisionAtK",
     "RecallAtK",
     "RetrievalBenchmarkRunner",
@@ -72,4 +89,5 @@ __all__ = [
     "load_corpus",
     "parse_citation_markers",
     "resolve_citation_reference",
+    "validate_nli_distribution",
 ]

@@ -423,8 +423,21 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/nli_evaluator.py`, `tests/unit/test_nli_evaluator.py`
 - **Acceptance Criteria**: Returns probability distribution across NLI labels and computes aggregate Hallucination Score.
 - **Verification Command**: `pytest tests/unit/test_nli_evaluator.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `28 passed in 0.29s` (`pytest tests/unit/test_nli_evaluator.py -v`, exit code 0).
+  - Groundedness & citation regression tests: `87 passed in 0.55s` (`pytest tests/unit/test_nli_evaluator.py tests/unit/test_groundedness.py tests/unit/test_citation_metrics.py tests/unit/test_documentation.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (43 files already formatted), `mypy reliability_lab` (Success: no issues found in 18 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (469 passed in 5.44s, 83% coverage on `reliability_lab/evaluation/nli_evaluator.py`, 93% total package coverage, exit code 0).
+  - `NLILabel` (`ENTAILMENT`, `NEUTRAL`, `CONTRADICTION`), `BaseNLIBackend`, `HuggingFaceNLIBackend`, `MockNLIBackend`, `ClaimNLIResult`, `NLIResult`, `NLIEntailmentEvaluator`, `NLIHallucinationMetric`, and `validate_nli_distribution` implemented and exported from `reliability_lab.evaluation`.
+  - Hallucination Score defined transparently: $s_i = \max_{c \in E_i} P(\text{entailment} \mid c, \text{claim}_i)$, $h_i = 1 - s_i$, $H_{\text{answer}} = \frac{1}{N}\sum_{i=1}^N h_i$.
+  - Empty-input contracts verified: no claims $\to$ $H_{\text{answer}}=0.0$ (`has_claims=False`); claims without evidence $\to$ $H_{\text{answer}}=1.0$ (`no_evidence_available=True`).
+  - Deterministic tie-breaking on equal entailment probabilities using lexicographically smallest `chunk_id`.
+  - Claim extraction reuses `extract_claim_spans()` preserving exact character spans and answer slice provenance.
+  - Optional dependency isolation verified: `[nli]` extra added in `pyproject.toml` (`transformers>=4.30.0`, `torch>=2.0.0`), lazy import guarantees zero model downloads or torch/transformers initialization on import; deterministic tests run with zero network/disk weight dependencies via `MockNLIBackend`.
+  - Rebase merge workflow verified via PR #34 preserving 3 distinct feature-branch commits on `main`: `135ef45`, `a699c81`, and `8abb889`.
+  - Required CI verified on PR #34: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40689587840/job/122820677532) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40689587840/job/122820677258).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 55 commits reachable from `main`.
 
 ---
 
@@ -436,7 +449,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/storage/database.py`, `reliability_lab/storage/repository.py`, `tests/unit/test_storage.py`
 - **Acceptance Criteria**: Schema stores configuration hashes, run timestamps, and per-query score breakdowns.
 - **Verification Command**: `pytest tests/unit/test_storage.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

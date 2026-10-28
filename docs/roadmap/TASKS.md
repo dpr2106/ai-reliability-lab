@@ -472,8 +472,21 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/storage/regression.py`, `tests/unit/test_regression.py`
 - **Acceptance Criteria**: Computes $\Delta \text{MRR}$ and $\Delta \text{NDCG}$; flags queries exceeding regression tolerance.
 - **Verification Command**: `pytest tests/unit/test_regression.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `20 passed in 0.14s` (`pytest tests/unit/test_regression.py -v`, exit code 0).
+  - Storage, documentation, and benchmark runner regression tests: `79 passed in 0.71s` (`pytest tests/unit/test_regression.py tests/unit/test_storage.py tests/unit/test_documentation.py tests/integration/test_benchmark_runner.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (49 files already formatted), `mypy reliability_lab` (Success: no issues found in 22 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (519 passed in 8.65s, 94% coverage on `reliability_lab/storage/regression.py`, 93% total package coverage, exit code 0).
+  - `RegressionDetector`, `RegressionResult`, `MetricDelta`, `QueryMetricDelta`, `QueryRegression`, `RegressionStatus`, `MetricDirection`, `RegressionError`, `IncomparableRunsError`, `InvalidToleranceError`, `normalize_metric_name`, `is_ranking_metric`, `is_degradation_regressed`, and `validate_tolerance` implemented and exported from `reliability_lab.storage`.
+  - Signed delta ($\Delta_m = m_{\text{candidate}} - m_{\text{baseline}}$) and degradation magnitude ($D_m = m_{\text{baseline}} - m_{\text{candidate}} = -\Delta_m$) for ranking metrics.
+  - Deterministic threshold check ($D_m > \tau_m$) with floating-point equality protection via `math.isclose` (equality is strictly non-regressed).
+  - Configurable global tolerance (default $\tau = 0.02$) and per-metric overrides, validated against booleans, negative numbers, and non-finite floats.
+  - Status classification (`PASS`, `REGRESSION`, `INCOMPLETE`) with fail-safe query-set mismatch handling (never zero-imputing missing queries).
+  - Aggregate metric alias normalization and deduplication (`mean_mrr@5` -> `mrr@5`) with conflict detection (> 1e-5).
+  - Rebase merge workflow verified via PR #38 preserving 3 distinct feature-branch commits on `main`: `e1d6c87`, `ac19eec`, and `536d7c8`.
+  - Required CI verified on PR #38: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40699587103/job/122855440621) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40699587103/job/122855441208).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 63 commits reachable from `main`.
 
 ---
 
@@ -485,7 +498,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/cli/main.py`, `tests/unit/test_cli.py`
 - **Acceptance Criteria**: Returns non-zero exit code if regression threshold is violated.
 - **Verification Command**: `pytest tests/unit/test_cli.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

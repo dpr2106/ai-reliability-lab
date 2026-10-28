@@ -30,6 +30,7 @@ git rev-list --count origin/main
 | DENSE-002 Rebase Merge (PR #26) | `602d3b76d3222f98a228ec0486098977c5676638` | 38 | 300 | 262 | Rebase-merge verified: 4 commits preserved individually on main |
 | DENSE-003 Baseline (PR #27) | `7cbaa15b626c4be806b483f2dddbcaebd8a1056e` | 39 | 300 | 261 | Verified baseline for DENSE-003 following PR #27 governance finalization |
 | DENSE-003 Rebase Merge (PR #28) | `5ef45895a8a460cccbd0c6653625b2b98124f779` | 42 | 300 | 258 | Rebase-merge verified: 3 commits preserved individually on main |
+| GROUND-001 Baseline (PR #29) | `fb142aecdf49e38f7d47f74bb072d9b992f1d38d` | 43 | 300 | 257 | Verified baseline for GROUND-001 following PR #29 governance finalization |
 
 ---
 

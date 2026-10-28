@@ -16,6 +16,7 @@ dependencies = [
     "pydantic>=2.7.0",
     "typing-extensions>=4.10.0",
     "pymupdf>=1.24.0",
+    "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,10 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+]
+dense = [
+    "sentence-transformers>=3.0.0",
+    "torch>=2.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -57,7 +62,16 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
-module = ["pymupdf", "pymupdf.*", "fitz", "fitz.*"]
+module = [
+    "pymupdf",
+    "pymupdf.*",
+    "fitz",
+    "fitz.*",
+    "sentence_transformers",
+    "sentence_transformers.*",
+    "torch",
+    "torch.*",
+]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

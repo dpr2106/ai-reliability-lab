@@ -178,6 +178,14 @@ class Query:
             return 1
         return 0
 
+    @property
+    def citation_to_chunk_map(self) -> dict[str, str]:
+        """Return mapping from citation ID to source chunk ID if present in metadata."""
+        mapping = self.metadata.get("citation_to_chunk_id")
+        if isinstance(mapping, dict):
+            return {str(k): str(v) for k, v in mapping.items()}
+        return {}
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize query to a dictionary."""
         return {

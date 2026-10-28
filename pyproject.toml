@@ -30,6 +30,9 @@ dense = [
     "sentence-transformers>=3.0.0",
     "torch>=2.0.0",
 ]
+faiss = [
+    "faiss-cpu>=1.7.4",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -71,6 +74,7 @@ module = [
     "sentence_transformers.*",
     "torch",
     "torch.*",
+    "faiss",
 ]
 ignore_missing_imports = true
 

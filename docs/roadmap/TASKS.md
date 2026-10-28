@@ -349,8 +349,24 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/indexing/hybrid.py`, `tests/unit/test_hybrid.py`
 - **Acceptance Criteria**: Implements $RRF(d) = \sum \frac{1}{k + r_i(d)}$; unit tests verify fused ranking matches math.
 - **Verification Command**: `pytest tests/unit/test_hybrid.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Focused unit tests: `25 passed in 0.57s` (`pytest tests/unit/test_hybrid.py -v`, exit code 0).
+  - BM25 regression tests: `53 passed in 0.37s` (`pytest tests/unit/test_bm25_index.py -v`, exit code 0).
+  - FAISS regression tests: `23 passed in 0.72s` (`pytest tests/unit/test_faiss_index.py -v`, exit code 0).
+  - Documentation tests: `6 passed in 0.18s` (`pytest tests/unit/test_documentation.py -v`, exit code 0).
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (37 files already formatted), `mypy reliability_lab` (Success: no issues found in 15 source files).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (388 passed in 13.41s, 97% coverage on `reliability_lab/indexing/hybrid.py`, 93% total package coverage, exit code 0).
+  - `HybridRetriever` implemented supporting unweighted Reciprocal Rank Fusion $\operatorname{RRF}(d) = \sum \frac{1}{k + r_m(d)}$ with configurable $k$ (default 60), ranking solely on rank positions to eliminate score-scale discrepancies.
+  - Mathematical correctness verified against hand calculations for multi-hit candidates ($1/61 + 1/62 = 0.032522...$) and single-hit candidates ($1/62$).
+  - Strict deduplication by `chunk_id` with cross-retriever provenance conflict detection, preserving original `Chunk` domain entity and rich JSON-serializable diagnostic metadata.
+  - Deterministic 4-level tie-breaking hierarchy (fused score -> retriever count consensus -> minimum individual rank -> chunk ID).
+  - Lifecycle defense verified: unindexed retrieval raises `RuntimeError`, child indexing failures leave hybrid unindexed.
+  - End-to-end integration verified with `RetrievalBenchmarkRunner` across golden benchmark and corpus.
+  - Real-backend integration verified combining actual `BM25Retriever` and `FaissVectorRetriever`.
+  - Rebase merge workflow verified via PR #28 preserving 3 distinct feature-branch commits on `main`: `88ef512`, `f834c52`, and `5ef4589`.
+  - Required CI verified on PR #28: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40645878099/job/122674442819) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40645878099/job/122674443067).
+  - Main branch commit count verified via `git rev-list --count origin/main`: 42 commits reachable from `main`.
 
 ---
 
@@ -362,7 +378,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/evaluation/citation_metrics.py`, `tests/unit/test_citation_metrics.py`
 - **Acceptance Criteria**: Calculates Citation Precision and Citation Recall against ground truth citations.
 - **Verification Command**: `pytest tests/unit/test_citation_metrics.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

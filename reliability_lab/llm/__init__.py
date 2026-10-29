@@ -16,6 +16,15 @@ from reliability_lab.llm.exceptions import (
     LLMProviderUnavailableError,
     LLMRateLimitError,
 )
+from reliability_lab.llm.judge import (
+    ClaimJudgeResult,
+    CorrelationReport,
+    JudgeConfig,
+    JudgeResult,
+    JudgeVerdict,
+    LLMJudge,
+    calculate_llm_nli_correlation,
+)
 from reliability_lab.llm.models import (
     LLMGenerationConfig,
     LLMMessage,
@@ -26,12 +35,18 @@ from reliability_lab.llm.rate_limiter import RateLimiter
 
 __all__ = [
     "BaseLLMClient",
+    "ClaimJudgeResult",
+    "CorrelationReport",
     "GeminiLLMClient",
+    "JudgeConfig",
+    "JudgeResult",
+    "JudgeVerdict",
     "LLMAuthenticationError",
     "LLMContextLengthExceededError",
     "LLMError",
     "LLMGenerationConfig",
     "LLMInvalidRequestError",
+    "LLMJudge",
     "LLMMessage",
     "LLMProviderUnavailableError",
     "LLMRateLimitError",
@@ -39,5 +54,6 @@ __all__ = [
     "MockLLMClient",
     "RateLimiter",
     "TokenUsage",
+    "calculate_llm_nli_correlation",
     "get_llm_client",
 ]

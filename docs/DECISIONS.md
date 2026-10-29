@@ -55,3 +55,13 @@
   - Maintains strict separation of concerns: Python domain logic (`reliability_lab/`) remains the authoritative source of truth for metrics, regression mathematics, and persistence, accessed via clean REST API contracts.
   - The browser never accesses the raw SQLite database directly; all operations pass through validated repository interfaces and safety checks.
   - CLI and library users remain unencumbered by web framework dependencies unless installing `.[web]`.
+
+## ADR-009: Provider-Independent Abstract LLM Client Architecture with Gemini Integration and Deterministic Mock Fallbacks
+- **Status**: Accepted
+- **Context**: Milestone 9 introduces answer generation, prompt-based evaluation, and comparative LLM-as-a-judge studies (LLM-002). Directly coupling evaluation pipelines to proprietary vendor SDKs introduces API version churn, requires live external credentials in CI, risks flaky test execution due to network latency and upstream rate limits, and incurs unpredictable inference costs. The architecture requires a unified, provider-agnostic interface that behaves identically whether backed by real cloud APIs or local deterministic mocks.
+- **Decision**: Define a provider-independent abstract client interface (`BaseLLMClient`) in `reliability_lab/llm/` supporting standardized message structures, generation parameters, latency tracking, and token usage accounting. Implement `MockLLMClient` for 100% offline, deterministic testing with configurable response queues, regex/keyword matchers, and programmable error triggers. Implement `GeminiLLMClient` supporting Gemini Flash models (`gemini-1.5-flash`, `gemini-2.0-flash`) using resilient HTTP transport via `httpx`, bounded exponential backoff retries on transient 429/503 status codes, token-bucket rate limiting, structured JSON modes, and safe mock fallback when credentials are not configured. Provide a unified `get_llm_client()` factory function.
+- **Consequences**:
+  - Test suites and CI runners execute hermetically without external network calls, API keys, or cloud costs.
+  - Live Gemini generation is supported out of the box when `GEMINI_API_KEY` is provided, with built-in retry and rate limiting protection.
+  - Future providers (OpenAI, Anthropic, or local vLLM/Ollama engines) can be added seamlessly by extending `BaseLLMClient`.
+

@@ -148,4 +148,15 @@ Per ADR-008, the diagnostic web interface is built using a modern decoupled arch
   - `Citation Audit Studio` (`/citation-audit`): Answer text inspection, inline citation mapping, precision/recall metrics, and evidence target resolution.
 - **Backend Adapter**: Lightweight FastAPI service (`reliability_lab.api`) running via Uvicorn. Exposes REST endpoints reading from SQLite (`ExperimentRepository`), calling `RegressionDetector` for diffing, and using `CitationEvaluator` for citation auditing.
 
+---
+
+## Abstract LLM Client & Gemini Flash Integration (LLM-001)
+
+Per ADR-009, generative answer generation and LLM-as-a-judge capabilities are built on a provider-independent contract:
+- **Core Interface** (`reliability_lab.llm.client.BaseLLMClient`): Defines `generate()` and `generate_json()` contracts taking `LLMMessage` turns and `LLMGenerationConfig`, returning structured `LLMResponse` containers with latency metrics and `TokenUsage`.
+- **Deterministic Mock Provider** (`reliability_lab.llm.client.MockLLMClient`): 100% offline, zero-network mock client supporting canned regex/substring responses, sequential response queues, error simulation, and call recording for hermetic testing.
+- **Gemini Flash Adapter** (`reliability_lab.llm.client.GeminiLLMClient`): Direct integration with Google's Generative Language REST API using `httpx`, bounded exponential backoff retries on transient 429/503 errors, token-bucket/sliding-window rate limiting (`RateLimiter`), structured JSON mode, and safe mock fallback when credentials are not present.
+- **Factory** (`reliability_lab.llm.client.get_llm_client`): Unified factory instantiation supporting `'auto'`, `'gemini'`, and `'mock'` provider modes.
+
+
 

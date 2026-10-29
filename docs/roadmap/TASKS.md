@@ -498,12 +498,17 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/cli/main.py`, `reliability_lab/cli/__init__.py`, `tests/unit/test_cli.py`, `pyproject.toml`, `README.md`
 - **Acceptance Criteria**: Returns non-zero exit code if regression threshold is violated.
 - **Verification Command**: `pytest tests/unit/test_cli.py -v`
-- **Status**: `IN_REVIEW`
+- **Status**: `DONE`
 - **Verification Evidence**:
-  - Implementation PR active; console entrypoint `reliability-lab = "reliability_lab.cli.main:main"` added to `pyproject.toml`.
-  - Focused unit tests passing: `pytest tests/unit/test_cli.py -v` (27 passed, exit code 0).
+  - Implementation PR #40 merged via rebase with commit SHA `d8c970a71fa59d3cf53cefcc1340064c28989770` on `main`.
+  - Required CI verified on PR #40: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40858500355/job/123395448066) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40858500355/job/123395447862).
+  - Focused test suite: `pytest tests/unit/test_cli.py -v` (27 passed in 1.64s, exit code 0).
+  - Full test suite & coverage: `pytest --cov=reliability_lab` (546 passed in 14.37s, 93% package coverage, 88% on `reliability_lab/cli/main.py`, exit code 0).
   - Code quality: `ruff check .` clean, `ruff format --check .` clean, `mypy reliability_lab` clean.
-  - End-to-end command smoke test verified: `run-benchmark` persists runs to SQLite, `assert-regression` produces deterministic exit codes: PASS (0), REGRESSION (1), INCOMPLETE (2), and operational error (3).
+  - Console entrypoint `reliability-lab` registered in `pyproject.toml` and verified via `pip install -e .`.
+  - Commands verified: `reliability-lab run-benchmark` executes and stores runs in SQLite, `reliability-lab assert-regression` produces deterministic exit codes: PASS (0), REGRESSION (1), INCOMPLETE (2), and operational error (3).
+  - Rebase merge workflow verified via PR #40 preserving 3 distinct feature commits on `main`: `4561979`, `db8ea75`, and `d8c970a`.
+  - Main branch commit count verified via `git rev-list --count origin/main`: 67 commits reachable from `main`.
 
 ---
 

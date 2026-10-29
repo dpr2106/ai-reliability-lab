@@ -42,6 +42,8 @@ git rev-list --count origin/main
 | EXP-002 Rebase Merge (PR #38) | `536d7c8276c8a59a699ba92debdc97d00980fef8` | 63 | 300 | 237 | Rebase-merge verified: 3 commits preserved individually on main |
 | UI-001 Baseline (PR #39) | `8f4921ba2a1472c31df4c1079c66234a7490cb9a` | 64 | 300 | 236 | Verified baseline for UI-001 following PR #39 governance finalization |
 | UI-001 Rebase Merge (PR #40) | `d8c970a71fa59d3cf53cefcc1340064c28989770` | 67 | 300 | 233 | Rebase-merge verified: 3 commits preserved individually on main |
+| UI-002 Baseline (PR #41) | `42f4921b853f7755b96e2cef52343488128ae619` | 68 | 300 | 232 | Verified baseline for UI-002 following PR #41 governance finalization |
+| UI-002 Rebase Merge (PR #42) | `f770e2baffb6aa8cc61805cb6c9849b20f635a72` | 73 | 300 | 227 | Rebase-merge verified: 5 commits preserved individually on main |
 
 ---
 

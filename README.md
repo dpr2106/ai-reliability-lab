@@ -97,3 +97,32 @@ reliability-lab assert-regression \
 - When running `run-benchmark`, the CLI outputs a unique `run_id` (UUID format). Save this ID to track baseline and candidate runs.
 - Baseline and candidate runs must reside in the same `--database` path for comparison. Attempting to compare runs stored across different databases returns exit code `3` (`RunNotFoundError`).
 
+---
+
+## Diagnostics Studio (SvelteKit + FastAPI)
+
+AI Reliability Lab provides an interactive, dark-themed diagnostics studio for deep failure analysis, side-by-side run diffing, and citation auditing.
+
+### 1. Start the API Adapter
+```bash
+# Set path to experiments database (defaults to .reliability-lab/experiments.sqlite3)
+export RELIABILITY_LAB_DB=".reliability-lab/experiments.sqlite3"
+
+# Start the FastAPI service
+uvicorn reliability_lab.api.main:app --reload --port 8000
+```
+
+### 2. Start the SvelteKit Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser to access:
+- **Run Explorer** (`/`): Search, filter, and inspect benchmark runs.
+- **Run Diagnostics** (`/runs/[run_id]`): Detailed aggregate metrics and per-query failure trace drill-downs.
+- **Run Comparison** (`/compare`): Side-by-side regression diffing with tolerance slider and gate status banner.
+- **Citation Audit** (`/citation-audit`): Verify inline citations, resolution maps, precision, and recall across answers.
+
+

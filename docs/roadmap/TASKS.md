@@ -522,7 +522,7 @@ This document is the canonical single source of truth for all engineering tasks.
   pytest tests/unit/test_api.py -v
   cd frontend && npm run check && npm run test && npm run build
   ```
-- **Status**: `IN_REVIEW`
+- **Status**: `DONE`
 - **Verification Evidence**:
   - `pytest tests/unit/test_api.py -v`: 15 passed in 0.24s (exit code 0).
   - Full Python suite: `pytest`: 561 passed in 11.33s (exit code 0).
@@ -532,6 +532,8 @@ This document is the canonical single source of truth for all engineering tasks.
   - Frontend typecheck: `npm run check`: `svelte-check found 0 errors and 0 warnings` (exit code 0).
   - Frontend unit tests: `npm run test`: `6 passed in 883ms` (exit code 0).
   - Frontend build: `npm run build`: `built in 647ms` (exit code 0).
+  - PR #42 merged to `main` via rebase merge, preserving 5 commits (`71f7bc5508e1706629e2c5b5f1e25e593d37355f` through `f770e2baffb6aa8cc61805cb6c9849b20f635a72`).
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40866649511/job/123422980555) (37s) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40866649511/job/123422980814) (42s); both completed successfully before merge.
 
 
 ---

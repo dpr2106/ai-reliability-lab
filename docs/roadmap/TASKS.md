@@ -543,11 +543,17 @@ This document is the canonical single source of truth for all engineering tasks.
 ### [LLM-001] Abstract LLM Client & Gemini Flash Wrapper
 - **Objective**: Pluggable interface for answer generation and evaluation with rate limiting and mock fallbacks.
 - **Priority**: P2 | **Dependencies**: `FOUND-003`
-- **Scope / Expected Files**: `reliability_lab/llm/client.py`, `tests/unit/test_llm_client.py`
+- **Scope / Expected Files**: `reliability_lab/llm/client.py`, `reliability_lab/llm/__init__.py`, `reliability_lab/llm/models.py`, `reliability_lab/llm/rate_limiter.py`, `reliability_lab/llm/exceptions.py`, `tests/unit/test_llm_client.py`
 - **Acceptance Criteria**: Works with API key when present; falls back gracefully to deterministic mocks in tests.
 - **Verification Command**: `pytest tests/unit/test_llm_client.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**:
+  - `pytest tests/unit/test_llm_client.py -v`: 27 passed in 2.18s (exit code 0).
+  - Full Python suite: `pytest`: 588 passed in 26.98s (exit code 0).
+  - `ruff check .`: `All checks passed!` (exit code 0).
+  - `ruff format --check .`: `63 files already formatted` (exit code 0).
+  - `mypy reliability_lab`: `Success: no issues found in 32 source files` (exit code 0).
+  - Hermetic testing: Zero external network egress; validated with `MockLLMClient` and `httpx.MockTransport`.
 
 ---
 
@@ -570,7 +576,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `Dockerfile`, `docker-compose.yml`, `scripts/run_benchmarks.sh`
 - **Acceptance Criteria**: Docker image builds cleanly and runs the test suite and dashboard.
 - **Verification Command**: Docker build and execution verification.
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

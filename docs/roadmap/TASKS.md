@@ -565,8 +565,11 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/llm/judge.py`, `tests/unit/test_llm_judge.py`
 - **Acceptance Criteria**: Schema-validated JSON output; calculates correlation between LLM judge and local NLI scores.
 - **Verification Command**: `pytest tests/unit/test_llm_judge.py -v`
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Rebase Merge Commits: `9deedab`, `7226646`, `9449e84` on `main` ([PR #46](https://github.com/dpr2106/ai-reliability-lab/pull/46))
+  - GitHub Actions Run: [40874098043](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40874098043) (Success on Python 3.11 & 3.12)
+  - Test Suite: 609 passed, 1 warning in 20.13s, 93% total package coverage (21 unit tests in `tests/unit/test_llm_judge.py`)
 
 ---
 

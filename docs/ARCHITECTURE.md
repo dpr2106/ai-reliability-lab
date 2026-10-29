@@ -155,8 +155,25 @@ Per ADR-008, the diagnostic web interface is built using a modern decoupled arch
 Per ADR-009, generative answer generation and LLM-as-a-judge capabilities are built on a provider-independent contract:
 - **Core Interface** (`reliability_lab.llm.client.BaseLLMClient`): Defines `generate()` and `generate_json()` contracts taking `LLMMessage` turns and `LLMGenerationConfig`, returning structured `LLMResponse` containers with latency metrics and `TokenUsage`.
 - **Deterministic Mock Provider** (`reliability_lab.llm.client.MockLLMClient`): 100% offline, zero-network mock client supporting canned regex/substring responses, sequential response queues, error simulation, and call recording for hermetic testing.
-- **Gemini Flash Adapter** (`reliability_lab.llm.client.GeminiLLMClient`): Direct integration with Google's Generative Language REST API using `httpx`, bounded exponential backoff retries on transient 429/503 errors, token-bucket/sliding-window rate limiting (`RateLimiter`), structured JSON mode, and safe mock fallback when credentials are not present.
+- **Gemini Flash Adapter** (`reliability_lab.llm.client.GeminiLLMClient`): Direct integration with Google's Generative Language REST API using `httpx`, bounded exponential backoff retries on transient 429/503 errors, token-bucket/sliding-window rate limiting (`RateLimiter`), structured JSON mode, and safe mock fallback when credentials are not present. Defaults to `gemini-2.5-flash`.
 - **Factory** (`reliability_lab.llm.client.get_llm_client`): Unified factory instantiation supporting `'auto'`, `'gemini'`, and `'mock'` provider modes.
+
+---
+
+## Structured LLM Judge, Faithfulness Evaluation & NLI Correlation (LLM-002)
+
+Per ADR-010, the evaluation subsystem provides automated LLM-as-a-judge capabilities coupled with statistical correlation analysis against local NLI models:
+- **Judge Engine** (`reliability_lab.llm.judge.LLMJudge`):
+  - Deterministically extracts sentence-level claim spans using `extract_claim_spans()` from `reliability_lab.evaluation.groundedness`.
+  - Normalizes evidence chunks into isolated XML delimiters (`<evidence id="...">`) with prompt injection defenses (escapes closing tags and instructs the model to ignore instructions within evidence).
+  - Enforces schema-validated JSON outputs specifying categorical verdicts (`JudgeVerdict`: `SUPPORTED`, `PARTIALLY_SUPPORTED`, `UNSUPPORTED`, `CONTRADICTED`, `INSUFFICIENT_EVIDENCE`), calibrated faithfulness scores in `[0.0, 1.0]`, and cited chunk IDs.
+  - Strict evidence verification: strips hallucinated or unprovided chunk citations; demotes claims to `UNSUPPORTED` when citation provenance fails.
+  - Batch evaluation (`evaluate_batch`) and joint citation evaluation (`evaluate_with_citations`) interfacing cleanly with `CitationEvaluator`.
+- **Directional NLI Correlation** (`calculate_llm_nli_correlation`):
+  - Aligns LLM unsupportedness risk ($1.0 - \text{faithfulness\_score}$) with local NLI unsupportedness risk (`unsupported_risk` from `ClaimNLIResult`).
+  - Calculates Pearson correlation ($r$) and Spearman rank correlation ($\rho$) with fractional average ranks for tied values.
+  - Returns `None` with actionable warnings for zero-variance degenerate distributions and sample sizes $N < 3$ without fabricating misleading correlation coefficients.
+
 
 
 

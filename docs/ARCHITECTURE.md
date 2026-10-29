@@ -136,3 +136,16 @@ Deterministic, rule-based regression detection comparing a baseline experiment r
    - Comparisons across different metric cutoffs (e.g. `mrr@5` vs `mrr@10`) or dataset references raise comparability warnings or are omitted from common metric sets.
    - Initial regression detection focuses on retrieval ranking metrics; latency and cost metrics are preserved in query diagnostics but not evaluated under ranking directionality.
 
+---
+
+## Diagnostics Studio & Web Interface (UI-002)
+
+Per ADR-008, the diagnostic web interface is built using a modern decoupled architecture:
+- **Frontend**: SvelteKit (Svelte 5 runes mode) with TypeScript, dark theme, and Vite.
+  - `Run Explorer` (`/`): Paginated experiment list with filter, sort, and dual-run comparison selection.
+  - `Run Details & Diagnostics` (`/runs/[run_id]`): Detailed aggregate metrics grid, configuration JSON viewer, and per-query failure trace drill-down.
+  - `Run Comparison & Gating` (`/compare`): Side-by-side metric diffing, tolerance adjustment, gate status banners (`PASS`, `REGRESSION`, `INCOMPLETE`), and worst degradations list.
+  - `Citation Audit Studio` (`/citation-audit`): Answer text inspection, inline citation mapping, precision/recall metrics, and evidence target resolution.
+- **Backend Adapter**: Lightweight FastAPI service (`reliability_lab.api`) running via Uvicorn. Exposes REST endpoints reading from SQLite (`ExperimentRepository`), calling `RegressionDetector` for diffing, and using `CitationEvaluator` for citation auditing.
+
+

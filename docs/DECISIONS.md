@@ -45,3 +45,13 @@
   - Linear history is preserved without non-linear merge bubbles or merge commits.
   - Developers must maintain disciplined, reviewable commit hygiene on feature branches (no "fix typo" or "wip" noise; every commit must be coherent, atomic, and pass lint/tests).
   - Squash merging is disabled to prevent accidental squashing of multi-commit engineering tasks.
+
+## ADR-008: Svelte/SvelteKit Frontend with FastAPI Adapter for Diagnostic Studio
+- **Status**: Accepted
+- **Context**: The original roadmap specified Streamlit for UI-002. However, Streamlit couples UI state to server-side script re-execution, lacks fine-grained reactive DOM control for dense diagnostics, prevents clean separation of API contracts from presentation, and cannot easily support modern component systems or responsive client-side interactions. The project requires a professional, industrial-grade diagnostic studio with custom layout hierarchy, fast client-side sorting/filtering, side-by-side run comparisons, and interactive citation audits.
+- **Decision**: Build the frontend as a dedicated Svelte/SvelteKit application (`frontend/`) written in strict TypeScript. Expose the existing Python SQLite experiment repository, regression detection engine, and citation evaluation capabilities via a lightweight, typed FastAPI local backend (`reliability_lab/api/`). Keep `web` dependencies (`fastapi`, `uvicorn`, `httpx`) isolated in an optional dependency group in `pyproject.toml`.
+- **Consequences**:
+  - Delivers a high-performance, responsive, accessible web interface with full control over design system primitives, reactive state, and failure visualizations.
+  - Maintains strict separation of concerns: Python domain logic (`reliability_lab/`) remains the authoritative source of truth for metrics, regression mathematics, and persistence, accessed via clean REST API contracts.
+  - The browser never accesses the raw SQLite database directly; all operations pass through validated repository interfaces and safety checks.
+  - CLI and library users remain unencumbered by web framework dependencies unless installing `.[web]`.

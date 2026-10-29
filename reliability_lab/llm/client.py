@@ -80,6 +80,11 @@ class BaseLLMClient(ABC):
         """Name or identifier of the underlying generative model."""
         ...
 
+    @property
+    def is_mock(self) -> bool:
+        """Indicate whether generations originate from a mock provider."""
+        return False
+
     @abstractmethod
     def generate(
         self,
@@ -147,6 +152,10 @@ class MockLLMClient(BaseLLMClient):
     @property
     def model_name(self) -> str:
         return self._model_name
+
+    @property
+    def is_mock(self) -> bool:
+        return True
 
     @property
     def call_count(self) -> int:
@@ -239,7 +248,7 @@ class GeminiLLMClient(BaseLLMClient):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.5-flash",
         timeout: float = 30.0,
         max_retries: int = 3,
         base_backoff_seconds: float = 0.5,
@@ -277,6 +286,10 @@ class GeminiLLMClient(BaseLLMClient):
     @property
     def model_name(self) -> str:
         return self._model
+
+    @property
+    def is_mock(self) -> bool:
+        return self._mock_delegate is not None
 
     def _format_payload(
         self,
@@ -476,7 +489,7 @@ class GeminiLLMClient(BaseLLMClient):
 def get_llm_client(
     provider: str = "auto",
     api_key: str | None = None,
-    model: str = "gemini-1.5-flash",
+    model: str = "gemini-2.5-flash",
     **kwargs: Any,
 ) -> BaseLLMClient:
     """Factory creating an LLM client instance based on configuration and available credentials.

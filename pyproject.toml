@@ -19,6 +19,9 @@ dependencies = [
     "numpy>=1.24.0",
 ]
 
+[project.scripts]
+reliability-lab = "reliability_lab.cli.main:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",

@@ -159,7 +159,8 @@ class TestGeminiLLMClient:
     def test_missing_api_key_with_mock_fallback(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             client = GeminiLLMClient(api_key=None, mock_fallback=True)
-            assert client.model_name == "gemini-1.5-flash"
+            assert client.model_name == "gemini-2.5-flash"
+            assert client.is_mock is True
             resp = client.generate("Hello fallback")
             assert resp.text == "Mock generation response"
 
@@ -396,7 +397,8 @@ class TestFactoryFunction:
     def test_factory_gemini_provider(self) -> None:
         client = get_llm_client(provider="gemini", api_key="secret-key")
         assert isinstance(client, GeminiLLMClient)
-        assert client.model_name == "gemini-1.5-flash"
+        assert client.model_name == "gemini-2.5-flash"
+        assert client.is_mock is False
 
     def test_factory_auto_with_env_key(self) -> None:
         with patch.dict("os.environ", {"GEMINI_API_KEY": "env-secret"}):

@@ -512,14 +512,27 @@ This document is the canonical single source of truth for all engineering tasks.
 
 ---
 
-### [UI-002] Streamlit Run Explorer & Failure Diagnostics Dashboard
-- **Objective**: Visual diagnostic studio for side-by-side run comparisons, retrieval failure inspection, and citation auditing.
+### [UI-002] Svelte Run Explorer & Failure Diagnostics Studio
+- **Objective**: Modern visual diagnostic studio for side-by-side run comparisons, retrieval failure inspection, and citation auditing built with SvelteKit and FastAPI.
 - **Priority**: P2 | **Dependencies**: `EXP-001`
-- **Scope / Expected Files**: `app/app.py`, `app/pages/run_explorer.py`, `app/pages/citation_audit.py`
-- **Acceptance Criteria**: Satisfies permanent UI/UX quality standards; runs locally without runtime errors.
-- **Verification Command**: Headless smoke test of Streamlit pages.
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Scope / Expected Files**: `frontend/`, `reliability_lab/api/`, `tests/unit/test_api.py`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`
+- **Acceptance Criteria**: Decoupled architecture with SvelteKit frontend (TypeScript, dark theme, runes) and FastAPI backend adapter; runs locally with full static check coverage and zero test failures.
+- **Verification Command**:
+  ```bash
+  pytest tests/unit/test_api.py -v
+  cd frontend && npm run check && npm run test && npm run build
+  ```
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**:
+  - `pytest tests/unit/test_api.py -v`: 15 passed in 0.24s (exit code 0).
+  - Full Python suite: `pytest`: 561 passed in 11.33s (exit code 0).
+  - `ruff check .`: `All checks passed!` (exit code 0).
+  - `ruff format --check .`: `57 files already formatted` (exit code 0).
+  - `mypy reliability_lab`: `Success: no issues found in 27 source files` (exit code 0).
+  - Frontend typecheck: `npm run check`: `svelte-check found 0 errors and 0 warnings` (exit code 0).
+  - Frontend unit tests: `npm run test`: `6 passed in 883ms` (exit code 0).
+  - Frontend build: `npm run build`: `built in 647ms` (exit code 0).
+
 
 ---
 
@@ -531,7 +544,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/llm/client.py`, `tests/unit/test_llm_client.py`
 - **Acceptance Criteria**: Works with API key when present; falls back gracefully to deterministic mocks in tests.
 - **Verification Command**: `pytest tests/unit/test_llm_client.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

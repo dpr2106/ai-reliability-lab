@@ -11,6 +11,7 @@
 - **Code Review Status**: CI checks are the required merge gates. An empty webhooks API response does not establish that no GitHub Apps are installed. Copilot could not review PR #3 because its review quota was exhausted. An absent or unperformed review must not be reported as passed.
 
 ## Task Pointers
-- **Next READY Task**: `UI-001`
+- **Active Task**: `UI-001`
+- **Next READY Task**: `UI-002`
 
 Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. This snapshot intentionally excludes a purported latest merge SHA, which would become stale and could refer to the commit containing this file.

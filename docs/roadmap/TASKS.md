@@ -495,11 +495,15 @@ This document is the canonical single source of truth for all engineering tasks.
 ### [UI-001] Headless CLI for Benchmarking & Regression Gating
 - **Objective**: Provide CI-ready commands: `reliability-lab run-benchmark` and `reliability-lab assert-regression`.
 - **Priority**: P1 | **Dependencies**: `EXP-002`
-- **Scope / Expected Files**: `reliability_lab/cli/main.py`, `tests/unit/test_cli.py`
+- **Scope / Expected Files**: `reliability_lab/cli/main.py`, `reliability_lab/cli/__init__.py`, `tests/unit/test_cli.py`, `pyproject.toml`, `README.md`
 - **Acceptance Criteria**: Returns non-zero exit code if regression threshold is violated.
 - **Verification Command**: `pytest tests/unit/test_cli.py -v`
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**:
+  - Implementation PR active; console entrypoint `reliability-lab = "reliability_lab.cli.main:main"` added to `pyproject.toml`.
+  - Focused unit tests passing: `pytest tests/unit/test_cli.py -v` (27 passed, exit code 0).
+  - Code quality: `ruff check .` clean, `ruff format --check .` clean, `mypy reliability_lab` clean.
+  - End-to-end command smoke test verified: `run-benchmark` persists runs to SQLite, `assert-regression` produces deterministic exit codes: PASS (0), REGRESSION (1), INCOMPLETE (2), and operational error (3).
 
 ---
 
@@ -509,7 +513,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `app/app.py`, `app/pages/run_explorer.py`, `app/pages/citation_audit.py`
 - **Acceptance Criteria**: Satisfies permanent UI/UX quality standards; runs locally without runtime errors.
 - **Verification Command**: Headless smoke test of Streamlit pages.
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

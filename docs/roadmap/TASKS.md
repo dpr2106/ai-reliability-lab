@@ -546,7 +546,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/llm/client.py`, `reliability_lab/llm/__init__.py`, `reliability_lab/llm/models.py`, `reliability_lab/llm/rate_limiter.py`, `reliability_lab/llm/exceptions.py`, `tests/unit/test_llm_client.py`
 - **Acceptance Criteria**: Works with API key when present; falls back gracefully to deterministic mocks in tests.
 - **Verification Command**: `pytest tests/unit/test_llm_client.py -v`
-- **Status**: `IN_REVIEW`
+- **Status**: `DONE`
 - **Verification Evidence**:
   - `pytest tests/unit/test_llm_client.py -v`: 27 passed in 2.18s (exit code 0).
   - Full Python suite: `pytest`: 588 passed in 26.98s (exit code 0).
@@ -554,6 +554,8 @@ This document is the canonical single source of truth for all engineering tasks.
   - `ruff format --check .`: `63 files already formatted` (exit code 0).
   - `mypy reliability_lab`: `Success: no issues found in 32 source files` (exit code 0).
   - Hermetic testing: Zero external network egress; validated with `MockLLMClient` and `httpx.MockTransport`.
+  - PR #44 merged to `main` via rebase merge, preserving 5 commits (`f806dd5` through `0d0f88a`).
+  - Required CI: [`test-and-lint (3.11)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40869554190/job/123432821038) (39s) and [`test-and-lint (3.12)` passed](https://github.com/dpr2106/ai-reliability-lab/actions/runs/40869554190/job/123432820614) (47s); both completed successfully before merge.
 
 ---
 
@@ -563,7 +565,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/llm/judge.py`, `tests/unit/test_llm_judge.py`
 - **Acceptance Criteria**: Schema-validated JSON output; calculates correlation between LLM judge and local NLI scores.
 - **Verification Command**: `pytest tests/unit/test_llm_judge.py -v`
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

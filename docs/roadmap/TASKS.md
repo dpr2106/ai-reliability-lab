@@ -565,7 +565,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `reliability_lab/llm/judge.py`, `tests/unit/test_llm_judge.py`
 - **Acceptance Criteria**: Schema-validated JSON output; calculates correlation between LLM judge and local NLI scores.
 - **Verification Command**: `pytest tests/unit/test_llm_judge.py -v`
-- **Status**: `READY`
+- **Status**: `IN_REVIEW`
 - **Verification Evidence**: None
 
 ---

@@ -1,0 +1,100 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: reliability-lab-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - RELIABILITY_LAB_DB=/data/experiments.sqlite3
+    volumes:
+      - reliability-lab-data:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://127.0.0.1:8000
+    container_name: reliability-lab-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5173
+      - NODE_ENV=production
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:5173/').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: reliability-lab-tests
+    profiles:
+      - test
+    command: >
+      sh -c "
+        ruff check . &&
+        ruff format --check . &&
+        mypy reliability_lab &&
+        pytest --cov=reliability_lab -v
+      "
+
+  benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: reliability-lab-benchmark
+    profiles:
+      - benchmark
+    environment:
+      - RELIABILITY_LAB_DB=/data/experiments.sqlite3
+      - CORPUS=data/benchmarks/sample_corpus.jsonl
+      - DATASET=data/benchmarks/sample_benchmark.jsonl
+      - TOP_K=5
+      - EXPERIMENT_NAME=container-benchmark-run
+      - LLM_PROVIDER=mock
+      - MODEL=gemini-2.5-flash
+      - RUN_RAG_EVALUATION=true
+      - SKIP_NLI=true
+    volumes:
+      - reliability-lab-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+    command:
+      - "bash"
+      - "scripts/run_benchmarks.sh"
+
+volumes:
+  reliability-lab-data:
+    name: reliability-lab-data
+

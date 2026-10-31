@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python virtual environment and bytecode
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and quality tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Frontend builds, cache, and node_modules
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# Local databases, storage, and runtime state
+.reliability-lab/
+*.sqlite3
+*.sqlite3-journal
+*.log
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+

@@ -1,0 +1,850 @@
+{
+  "metadata": {
+    "environment": {
+      "os": "Windows 11",
+      "architecture": "AMD64",
+      "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+      "python_version": "3.13.3",
+      "numpy_version": "2.5.4",
+      "faiss_version": "1.15.1",
+      "torch_version": "2.15.0+cpu",
+      "sentence_transformers_version": "6.2.0",
+      "transformers_version": "5.22.1"
+    },
+    "corpus_path": "data/benchmarks/sample_corpus.jsonl",
+    "corpus_size": 25,
+    "dataset_path": "data/benchmarks/sample_benchmark.jsonl",
+    "query_count": 16,
+    "top_k": 5,
+    "repetitions": 5,
+    "timestamp": "2026-10-31T13:15:43Z"
+  },
+  "retrievers": {
+    "bm25": {
+      "metrics": {
+        "recall@5": 0.8541666666666666,
+        "mean_recall@5": 0.8541666666666666,
+        "precision@5": 0.35000000000000003,
+        "mean_precision@5": 0.35000000000000003,
+        "hit_rate@5": 1.0,
+        "mean_hit_rate@5": 1.0,
+        "mrr@5": 0.96875,
+        "mean_mrr@5": 0.96875,
+        "ndcg@5": 0.911290935493601,
+        "mean_ndcg@5": 0.911290935493601,
+        "mean_latency_ms": 0.09507625045444001,
+        "latency_p50_ms": 0.09210000280290842,
+        "latency_p90_ms": 0.1205300010042265,
+        "latency_p95_ms": 0.12449000059859826,
+        "latency_p99_ms": 0.13458999972499436,
+        "min_latency_ms": 0.0712000037310645,
+        "max_latency_ms": 0.14170000213198364,
+        "zero_hit_rate": 0.0,
+        "total_queries": 16.0
+      },
+      "query_count": 16,
+      "repetitions": 5,
+      "per_query": [
+        {
+          "query_id": "Q-001",
+          "query_text": "What are the default parameter values for k1 and b in the Okapi BM25 implementation?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-001",
+            "CHK-HYB-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-001",
+            "CHK-LAT-001",
+            "CHK-HYB-002",
+            "CHK-CRAN-005",
+            "CHK-LAT-003"
+          ]
+        },
+        {
+          "query_id": "Q-002",
+          "query_text": "How does SlidingWindowChunker guarantee that chunk generation will not encounter an infinite loop?",
+          "relevant_chunk_ids": [
+            "CHK-ING-003",
+            "CHK-ING-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-003",
+            "CHK-CRAN-004",
+            "CHK-SAF-001",
+            "CHK-HYB-001",
+            "CHK-ING-005"
+          ]
+        },
+        {
+          "query_id": "Q-003",
+          "query_text": "What mathematical formula is used to calculate Discounted Cumulative Gain (DCG@K) for graded relevance?",
+          "relevant_chunk_ids": [
+            "CHK-CRAN-003",
+            "CHK-CRAN-001",
+            "CHK-CRAN-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-003",
+            "CHK-CRAN-004",
+            "CHK-CRAN-001",
+            "CHK-HYB-005",
+            "CHK-HYB-002"
+          ]
+        },
+        {
+          "query_id": "Q-004",
+          "query_text": "What is the specific difference between intrinsic and extrinsic hallucinations in question answering?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-003",
+            "CHK-SAF-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-003",
+            "CHK-CRAN-002",
+            "CHK-HYB-005",
+            "CHK-CRAN-005",
+            "CHK-LAT-001"
+          ]
+        },
+        {
+          "query_id": "Q-005",
+          "query_text": "How does IndexFlatIP differ from IndexHNSWFlat in FAISS vector retrieval?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-004",
+            "CHK-HYB-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-004",
+            "CHK-HYB-003",
+            "CHK-HYB-005",
+            "CHK-CRAN-005",
+            "CHK-HYB-001"
+          ]
+        },
+        {
+          "query_id": "Q-006",
+          "query_text": "What is the p99 latency target and corpus scale limit for in-memory BM25 retrieval?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-001",
+            "CHK-LAT-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-001",
+            "CHK-LAT-003",
+            "CHK-HYB-005",
+            "CHK-HYB-001",
+            "CHK-LAT-004"
+          ]
+        },
+        {
+          "query_id": "Q-007",
+          "query_text": "How is citation recall defined and distinguished from retrieval recall?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-002",
+            "CHK-CRAN-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-002",
+            "CHK-SAF-004",
+            "CHK-HYB-001",
+            "CHK-CRAN-001",
+            "CHK-CRAN-003"
+          ]
+        },
+        {
+          "query_id": "Q-008",
+          "query_text": "What is the exact formula for Robertson-Sp\u00e4rck Jones inverse document frequency in the hybrid index?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-002",
+            "CHK-HYB-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-002",
+            "CHK-CRAN-005",
+            "CHK-LAT-002",
+            "CHK-LAT-003",
+            "CHK-HYB-001"
+          ]
+        },
+        {
+          "query_id": "Q-009",
+          "query_text": "Under what conditions does Chunk.page_number get set to None during document chunking?",
+          "relevant_chunk_ids": [
+            "CHK-ING-005",
+            "CHK-ING-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-005",
+            "CHK-ING-003",
+            "CHK-HYB-005",
+            "CHK-CRAN-004",
+            "CHK-ING-002"
+          ]
+        },
+        {
+          "query_id": "Q-010",
+          "query_text": "What ordered sequence of separators is used by RecursiveCharacterChunker?",
+          "relevant_chunk_ids": [
+            "CHK-ING-004",
+            "CHK-ING-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-004",
+            "CHK-ING-002",
+            "CHK-ING-005",
+            "CHK-CRAN-002",
+            "CHK-CRAN-003"
+          ]
+        },
+        {
+          "query_id": "Q-011",
+          "query_text": "What inter-annotator agreement threshold is required for golden benchmark verification?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-005",
+            "CHK-SAF-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-005",
+            "CHK-CRAN-004",
+            "CHK-SAF-004",
+            "CHK-SAF-001",
+            "CHK-CRAN-001"
+          ]
+        },
+        {
+          "query_id": "Q-012",
+          "query_text": "How is Reciprocal Rank Fusion (RRF) formulated, and what smoothing constant is typically chosen?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-005",
+            "CHK-CRAN-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-005",
+            "CHK-CRAN-002",
+            "CHK-LAT-004",
+            "CHK-HYB-001",
+            "CHK-LAT-002"
+          ]
+        },
+        {
+          "query_id": "Q-013",
+          "query_text": "What performance regression threshold triggers a CI automated deployment failure?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-004",
+            "CHK-LAT-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-004",
+            "CHK-SAF-004",
+            "CHK-LAT-001",
+            "CHK-LAT-005",
+            "CHK-SAF-001"
+          ]
+        },
+        {
+          "query_id": "Q-014",
+          "query_text": "What vector dimension and normalization are used by the local dense embedding model?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-003",
+            "CHK-HYB-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-005",
+            "CHK-HYB-003",
+            "CHK-HYB-005",
+            "CHK-SAF-001",
+            "CHK-ING-001"
+          ]
+        },
+        {
+          "query_id": "Q-015",
+          "query_text": "What criteria define the three tiers of the relevance scale used in benchmark construction?",
+          "relevant_chunk_ids": [
+            "CHK-CRAN-004",
+            "CHK-CRAN-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-004",
+            "CHK-SAF-005",
+            "CHK-CRAN-003",
+            "CHK-HYB-005",
+            "CHK-CRAN-001"
+          ]
+        },
+        {
+          "query_id": "Q-016",
+          "query_text": "How does the in-memory BM25 index optimize memory consumption per 10,000 chunks?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-003",
+            "CHK-LAT-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-003",
+            "CHK-LAT-001",
+            "CHK-HYB-001",
+            "CHK-LAT-002",
+            "CHK-CRAN-001"
+          ]
+        }
+      ],
+      "indexing_time_ms": 3.329699997266289,
+      "config": {
+        "algorithm": "bm25",
+        "k1": 1.5,
+        "b": 0.75
+      }
+    },
+    "dense_faiss": {
+      "metrics": {
+        "recall@5": 0.9479166666666666,
+        "mean_recall@5": 0.9479166666666666,
+        "precision@5": 0.3875,
+        "mean_precision@5": 0.3875,
+        "hit_rate@5": 1.0,
+        "mean_hit_rate@5": 1.0,
+        "mrr@5": 1.0,
+        "mean_mrr@5": 1.0,
+        "ndcg@5": 0.9548433163367676,
+        "mean_ndcg@5": 0.9548433163367676,
+        "mean_latency_ms": 34.49156625010801,
+        "latency_p50_ms": 34.23445000225911,
+        "latency_p90_ms": 37.91792000483838,
+        "latency_p95_ms": 38.749825000195415,
+        "latency_p99_ms": 39.414356003908324,
+        "min_latency_ms": 30.275500001152977,
+        "max_latency_ms": 39.480399995227344,
+        "zero_hit_rate": 0.0,
+        "total_queries": 16.0
+      },
+      "query_count": 16,
+      "repetitions": 5,
+      "per_query": [
+        {
+          "query_id": "Q-001",
+          "query_text": "What are the default parameter values for k1 and b in the Okapi BM25 implementation?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-001",
+            "CHK-HYB-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-001",
+            "CHK-LAT-001",
+            "CHK-LAT-003",
+            "CHK-HYB-002",
+            "CHK-CRAN-004"
+          ]
+        },
+        {
+          "query_id": "Q-002",
+          "query_text": "How does SlidingWindowChunker guarantee that chunk generation will not encounter an infinite loop?",
+          "relevant_chunk_ids": [
+            "CHK-ING-003",
+            "CHK-ING-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-003",
+            "CHK-ING-005",
+            "CHK-ING-002",
+            "CHK-ING-004",
+            "CHK-LAT-002"
+          ]
+        },
+        {
+          "query_id": "Q-003",
+          "query_text": "What mathematical formula is used to calculate Discounted Cumulative Gain (DCG@K) for graded relevance?",
+          "relevant_chunk_ids": [
+            "CHK-CRAN-003",
+            "CHK-CRAN-001",
+            "CHK-CRAN-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-003",
+            "CHK-CRAN-004",
+            "CHK-CRAN-002",
+            "CHK-HYB-005",
+            "CHK-HYB-002"
+          ]
+        },
+        {
+          "query_id": "Q-004",
+          "query_text": "What is the specific difference between intrinsic and extrinsic hallucinations in question answering?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-003",
+            "CHK-SAF-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-003",
+            "CHK-SAF-001",
+            "CHK-SAF-005",
+            "CHK-CRAN-004",
+            "CHK-SAF-002"
+          ]
+        },
+        {
+          "query_id": "Q-005",
+          "query_text": "How does IndexFlatIP differ from IndexHNSWFlat in FAISS vector retrieval?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-004",
+            "CHK-HYB-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-004",
+            "CHK-CRAN-001",
+            "CHK-HYB-005",
+            "CHK-HYB-003",
+            "CHK-HYB-001"
+          ]
+        },
+        {
+          "query_id": "Q-006",
+          "query_text": "What is the p99 latency target and corpus scale limit for in-memory BM25 retrieval?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-001",
+            "CHK-LAT-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-001",
+            "CHK-HYB-001",
+            "CHK-LAT-003",
+            "CHK-CRAN-001",
+            "CHK-LAT-002"
+          ]
+        },
+        {
+          "query_id": "Q-007",
+          "query_text": "How is citation recall defined and distinguished from retrieval recall?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-002",
+            "CHK-CRAN-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-002",
+            "CHK-CRAN-001",
+            "CHK-LAT-001",
+            "CHK-SAF-004",
+            "CHK-CRAN-005"
+          ]
+        },
+        {
+          "query_id": "Q-008",
+          "query_text": "What is the exact formula for Robertson-Sp\u00e4rck Jones inverse document frequency in the hybrid index?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-002",
+            "CHK-HYB-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-002",
+            "CHK-HYB-005",
+            "CHK-HYB-001",
+            "CHK-CRAN-003",
+            "CHK-LAT-003"
+          ]
+        },
+        {
+          "query_id": "Q-009",
+          "query_text": "Under what conditions does Chunk.page_number get set to None during document chunking?",
+          "relevant_chunk_ids": [
+            "CHK-ING-005",
+            "CHK-ING-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-005",
+            "CHK-ING-002",
+            "CHK-ING-003",
+            "CHK-ING-001",
+            "CHK-ING-004"
+          ]
+        },
+        {
+          "query_id": "Q-010",
+          "query_text": "What ordered sequence of separators is used by RecursiveCharacterChunker?",
+          "relevant_chunk_ids": [
+            "CHK-ING-004",
+            "CHK-ING-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-004",
+            "CHK-ING-002",
+            "CHK-ING-003",
+            "CHK-ING-001",
+            "CHK-ING-005"
+          ]
+        },
+        {
+          "query_id": "Q-011",
+          "query_text": "What inter-annotator agreement threshold is required for golden benchmark verification?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-005",
+            "CHK-SAF-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-005",
+            "CHK-CRAN-004",
+            "CHK-SAF-004",
+            "CHK-CRAN-001",
+            "CHK-LAT-005"
+          ]
+        },
+        {
+          "query_id": "Q-012",
+          "query_text": "How is Reciprocal Rank Fusion (RRF) formulated, and what smoothing constant is typically chosen?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-005",
+            "CHK-CRAN-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-005",
+            "CHK-CRAN-002",
+            "CHK-CRAN-003",
+            "CHK-HYB-002",
+            "CHK-CRAN-004"
+          ]
+        },
+        {
+          "query_id": "Q-013",
+          "query_text": "What performance regression threshold triggers a CI automated deployment failure?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-004",
+            "CHK-LAT-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-004",
+            "CHK-SAF-004",
+            "CHK-LAT-005",
+            "CHK-CRAN-004",
+            "CHK-LAT-001"
+          ]
+        },
+        {
+          "query_id": "Q-014",
+          "query_text": "What vector dimension and normalization are used by the local dense embedding model?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-003",
+            "CHK-HYB-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-003",
+            "CHK-CRAN-005",
+            "CHK-HYB-005",
+            "CHK-HYB-001",
+            "CHK-CRAN-003"
+          ]
+        },
+        {
+          "query_id": "Q-015",
+          "query_text": "What criteria define the three tiers of the relevance scale used in benchmark construction?",
+          "relevant_chunk_ids": [
+            "CHK-CRAN-004",
+            "CHK-CRAN-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-004",
+            "CHK-CRAN-003",
+            "CHK-CRAN-002",
+            "CHK-SAF-005",
+            "CHK-HYB-005"
+          ]
+        },
+        {
+          "query_id": "Q-016",
+          "query_text": "How does the in-memory BM25 index optimize memory consumption per 10,000 chunks?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-003",
+            "CHK-LAT-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-003",
+            "CHK-LAT-001",
+            "CHK-LAT-002",
+            "CHK-HYB-001",
+            "CHK-HYB-004"
+          ]
+        }
+      ],
+      "indexing_time_ms": 848.8980999973137,
+      "config": {
+        "algorithm": "dense_faiss",
+        "model_name": "all-MiniLM-L6-v2",
+        "dimension": 384,
+        "index_type": "flat",
+        "metric": "inner_product",
+        "normalized": true
+      }
+    },
+    "hybrid_rrf": {
+      "metrics": {
+        "recall@5": 0.96875,
+        "mean_recall@5": 0.96875,
+        "precision@5": 0.4,
+        "mean_precision@5": 0.4,
+        "hit_rate@5": 1.0,
+        "mean_hit_rate@5": 1.0,
+        "mrr@5": 0.96875,
+        "mean_mrr@5": 0.96875,
+        "ndcg@5": 0.9494304301892812,
+        "mean_ndcg@5": 0.9494304301892812,
+        "mean_latency_ms": 35.61814749991754,
+        "latency_p50_ms": 35.259049996966496,
+        "latency_p90_ms": 37.933969996811356,
+        "latency_p95_ms": 39.36905499904241,
+        "latency_p99_ms": 44.952573002738056,
+        "min_latency_ms": 30.65989999595331,
+        "max_latency_ms": 45.688300000620075,
+        "zero_hit_rate": 0.0,
+        "total_queries": 16.0
+      },
+      "query_count": 16,
+      "repetitions": 5,
+      "per_query": [
+        {
+          "query_id": "Q-001",
+          "query_text": "What are the default parameter values for k1 and b in the Okapi BM25 implementation?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-001",
+            "CHK-HYB-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-001",
+            "CHK-LAT-001",
+            "CHK-HYB-002",
+            "CHK-LAT-003",
+            "CHK-CRAN-005"
+          ]
+        },
+        {
+          "query_id": "Q-002",
+          "query_text": "How does SlidingWindowChunker guarantee that chunk generation will not encounter an infinite loop?",
+          "relevant_chunk_ids": [
+            "CHK-ING-003",
+            "CHK-ING-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-003",
+            "CHK-ING-005",
+            "CHK-ING-004",
+            "CHK-HYB-001",
+            "CHK-ING-002"
+          ]
+        },
+        {
+          "query_id": "Q-003",
+          "query_text": "What mathematical formula is used to calculate Discounted Cumulative Gain (DCG@K) for graded relevance?",
+          "relevant_chunk_ids": [
+            "CHK-CRAN-003",
+            "CHK-CRAN-001",
+            "CHK-CRAN-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-003",
+            "CHK-CRAN-004",
+            "CHK-HYB-005",
+            "CHK-CRAN-001",
+            "CHK-CRAN-002"
+          ]
+        },
+        {
+          "query_id": "Q-004",
+          "query_text": "What is the specific difference between intrinsic and extrinsic hallucinations in question answering?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-003",
+            "CHK-SAF-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-003",
+            "CHK-CRAN-002",
+            "CHK-SAF-001",
+            "CHK-LAT-001",
+            "CHK-CRAN-003"
+          ]
+        },
+        {
+          "query_id": "Q-005",
+          "query_text": "How does IndexFlatIP differ from IndexHNSWFlat in FAISS vector retrieval?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-004",
+            "CHK-HYB-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-004",
+            "CHK-HYB-003",
+            "CHK-HYB-005",
+            "CHK-CRAN-001",
+            "CHK-CRAN-005"
+          ]
+        },
+        {
+          "query_id": "Q-006",
+          "query_text": "What is the p99 latency target and corpus scale limit for in-memory BM25 retrieval?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-001",
+            "CHK-LAT-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-001",
+            "CHK-LAT-003",
+            "CHK-HYB-001",
+            "CHK-HYB-005",
+            "CHK-CRAN-001"
+          ]
+        },
+        {
+          "query_id": "Q-007",
+          "query_text": "How is citation recall defined and distinguished from retrieval recall?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-002",
+            "CHK-CRAN-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-002",
+            "CHK-CRAN-001",
+            "CHK-SAF-004",
+            "CHK-HYB-001",
+            "CHK-LAT-001"
+          ]
+        },
+        {
+          "query_id": "Q-008",
+          "query_text": "What is the exact formula for Robertson-Sp\u00e4rck Jones inverse document frequency in the hybrid index?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-002",
+            "CHK-HYB-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-002",
+            "CHK-HYB-001",
+            "CHK-HYB-005",
+            "CHK-LAT-003",
+            "CHK-LAT-002"
+          ]
+        },
+        {
+          "query_id": "Q-009",
+          "query_text": "Under what conditions does Chunk.page_number get set to None during document chunking?",
+          "relevant_chunk_ids": [
+            "CHK-ING-005",
+            "CHK-ING-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-005",
+            "CHK-ING-003",
+            "CHK-ING-002",
+            "CHK-ING-001",
+            "CHK-HYB-005"
+          ]
+        },
+        {
+          "query_id": "Q-010",
+          "query_text": "What ordered sequence of separators is used by RecursiveCharacterChunker?",
+          "relevant_chunk_ids": [
+            "CHK-ING-004",
+            "CHK-ING-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-ING-004",
+            "CHK-ING-002",
+            "CHK-ING-005",
+            "CHK-CRAN-002",
+            "CHK-CRAN-003"
+          ]
+        },
+        {
+          "query_id": "Q-011",
+          "query_text": "What inter-annotator agreement threshold is required for golden benchmark verification?",
+          "relevant_chunk_ids": [
+            "CHK-SAF-005",
+            "CHK-SAF-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-SAF-005",
+            "CHK-CRAN-004",
+            "CHK-SAF-004",
+            "CHK-CRAN-001",
+            "CHK-SAF-001"
+          ]
+        },
+        {
+          "query_id": "Q-012",
+          "query_text": "How is Reciprocal Rank Fusion (RRF) formulated, and what smoothing constant is typically chosen?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-005",
+            "CHK-CRAN-002"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-HYB-005",
+            "CHK-CRAN-002",
+            "CHK-CRAN-003",
+            "CHK-HYB-001",
+            "CHK-HYB-002"
+          ]
+        },
+        {
+          "query_id": "Q-013",
+          "query_text": "What performance regression threshold triggers a CI automated deployment failure?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-004",
+            "CHK-LAT-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-004",
+            "CHK-SAF-004",
+            "CHK-LAT-005",
+            "CHK-LAT-001",
+            "CHK-CRAN-004"
+          ]
+        },
+        {
+          "query_id": "Q-014",
+          "query_text": "What vector dimension and normalization are used by the local dense embedding model?",
+          "relevant_chunk_ids": [
+            "CHK-HYB-003",
+            "CHK-HYB-004"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-005",
+            "CHK-HYB-003",
+            "CHK-HYB-005",
+            "CHK-ING-001",
+            "CHK-HYB-001"
+          ]
+        },
+        {
+          "query_id": "Q-015",
+          "query_text": "What criteria define the three tiers of the relevance scale used in benchmark construction?",
+          "relevant_chunk_ids": [
+            "CHK-CRAN-004",
+            "CHK-CRAN-003"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-CRAN-004",
+            "CHK-CRAN-003",
+            "CHK-SAF-005",
+            "CHK-HYB-005",
+            "CHK-CRAN-001"
+          ]
+        },
+        {
+          "query_id": "Q-016",
+          "query_text": "How does the in-memory BM25 index optimize memory consumption per 10,000 chunks?",
+          "relevant_chunk_ids": [
+            "CHK-LAT-003",
+            "CHK-LAT-001"
+          ],
+          "retrieved_chunk_ids": [
+            "CHK-LAT-003",
+            "CHK-LAT-001",
+            "CHK-HYB-001",
+            "CHK-LAT-002",
+            "CHK-CRAN-001"
+          ]
+        }
+      ],
+      "indexing_time_ms": 743.6757999967085,
+      "config": {
+        "algorithm": "hybrid_rrf",
+        "sparse_component": "bm25",
+        "dense_component": "faiss_flat_ip",
+        "rrf_k": 60
+      }
+    }
+  }
+}

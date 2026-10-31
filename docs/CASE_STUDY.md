@@ -239,6 +239,8 @@ Hybrid RRF:  [35.26 ms]  |██████████████████
 2. **Hybrid Overhead**: Hybrid RRF combines BM25 term search (0.09 ms), dense search (34.49 ms), candidate pooling, and rank reciprocal summation. The marginal overhead of RRF over pure dense retrieval is only ~1.12 ms.
 3. **Index Construction**: BM25 indexed 25 chunks in **3.33 ms** (7,500 chunks/sec). Dense FAISS required **848.90 ms** due to computing 25 embedding vectors via PyTorch on CPU (~34 ms/chunk).
 
+*(Measurement protocol note: Index construction time is measured once during the initial indexing pass; query latencies reflect 5 warm repetitions across all 16 evaluation queries).*
+
 ---
 
 ## 13. Query-Level Failure Analysis

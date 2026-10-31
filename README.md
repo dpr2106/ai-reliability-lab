@@ -1,70 +1,212 @@
 # AI Reliability Lab
 
-Industrial-grade reliability, evaluation, and regression testing platform for document-based AI and RAG architectures.
+Industrial-grade reliability, evaluation, and regression testing platform for document-based AI and Retrieval-Augmented Generation (RAG) architectures.
+
+[![CI Status](https://github.com/dpr2106/ai-reliability-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/dpr2106/ai-reliability-lab/actions)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python: 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![Code Style: Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Type Checked: Mypy](https://img.shields.io/badge/mypy-strict-blue)](https://mypy-lang.org/)
+[![Coverage: 93%](https://img.shields.io/badge/coverage-93%25-brightgreen)](https://github.com/dpr2106/ai-reliability-lab)
+
+---
 
 ## Overview
-AI Reliability Lab evaluates retrieval quality, verifies groundedness against source documents, validates citations, and detects regressions across model and configuration changes.
 
-## Engineering Standards
-- **Baseline-First IR**: Exact lexical baselines (BM25) before vector and hybrid approaches.
-- **Deterministic Metrics**: Hand-calculated Cranfield ranking metrics (Recall@K, MRR@K, NDCG@K) and claim-level verification.
-- **Protected CI/CD & Auto-Merge**: Automated regression gating on every pull request.
-- **Modular Architecture**: Decoupled domain models, parsers, retrievers, metrics, and persistence layers.
+AI Reliability Lab provides a production-grade infrastructure to evaluate retrieval quality, verify document groundedness, audit inline citations, detect subtle pipeline regressions, and visually debug failure modes in document-based AI applications.
 
-## Development Setup
+### The Problem
+Generative AI and RAG systems fail in silent, compounding ways:
+- **Retrieval Blindspots**: Sparse lexical search misses paraphrased passages; dense vector search blurs exact alphanumeric identifiers and technical formulas.
+- **Hallucinations**: Language models generate plausible but unsupported claims absent from the retrieved evidence.
+- **Citation Drift**: Inline citations (`[CHK-xxx]`) often cite irrelevant chunks or hallucinate sources not present in the context.
+- **Silent Regressions**: Pipeline modifications (chunking strategies, embedding models, prompt versions) pass basic unit tests while quietly degrading accuracy.
+
+### The Solution
+AI Reliability Lab replaces subjective inspection with baseline-first Information Retrieval (IR) benchmarking, multi-faceted post-generation auditing (containment, LCS, NLI, and structured judging), automated CI/CD regression gating, and an interactive diagnostic studio.
+
+For the comprehensive technical evaluation and deep-dive empirical analysis, read the [Architecture Case Study & Benchmark Report](docs/CASE_STUDY.md).
+
+---
+
+## Key Capabilities
+
+- **Citation-Aware Document Ingestion**: PDF and text chunking with deterministic character offsets, token bounds, and provenance tracking (Fixed, Sentence, Sliding Window, Recursive).
+- **Sparse, Dense & Hybrid Retrieval**:
+  - Okapi BM25 with Robertson-Spärck Jones IDF and deterministic tie-breaking.
+  - Dense vector retrieval with FAISS (`IndexFlatIP`) and Sentence Transformers (`all-MiniLM-L6-v2`).
+  - Hybrid Reciprocal Rank Fusion (RRF, $k=60$) combining sparse and dense rankings without score normalization fragility.
+- **Cranfield IR Metrics**: Hand-calculated ranking metrics: Recall@K, Precision@K, Hit Rate@K, MRR@K, NDCG@K, and latency percentiles (P50, P90, P95, P99).
+- **Lexical Groundedness Auditing**: Fast local evaluation measuring sentence-level token containment and Longest Common Subsequence (LCS) ratios against source chunks without external API dependencies.
+- **Citation Precision & Recall**: Inline citation tag parsing (`[CHK-xxx]`, `[CIT-xxx]`), candidate set resolution, and precision/recall calculations.
+- **Local NLI & Structured LLM Judging**: Cross-encoder NLI entailment classification paired with schema-validated `LLMJudge` faithfulness scoring and directional Pearson/Spearman correlation analysis.
+- **End-to-End Pipeline Orchestrator**: Reusable backend orchestration (`RAGEvaluationRunner`) executing retrieval, generation, groundedness, citation auditing, judging, and persistence in a single call.
+- **Automated CI/CD Regression Gating**: `RegressionDetector` comparing candidate runs against baseline experiments with configurable tolerances and deterministic exit codes.
+- **Diagnostic Studio**: Interactive dark-themed SvelteKit 3 / Svelte 5 frontend with client-side run filtering, side-by-side regression diffing, and citation auditing.
+- **Containerized Deployment**: Multi-stage Dockerfiles and Docker Compose topology with non-root security and persistent SQLite named volume storage.
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    subgraph Data ["Data Ingestion & Indexing"]
+        Docs["Source Documents<br/>(PDF / TXT / JSONL)"] --> Chunker["Citation-Aware Chunkers"]
+        Chunker --> BM25["Sparse BM25 Index"]
+        Chunker --> FAISS["Dense FAISS Index (all-MiniLM-L6-v2)"]
+        BM25 & FAISS --> Hybrid["Hybrid Reciprocal Rank Fusion (RRF)"]
+    end
+
+    subgraph Pipeline ["End-to-End Orchestrator (PIPE-001)"]
+        Hybrid --> Runner["RAGEvaluationRunner"]
+        Runner --> Prompt["Anti-Injection Prompt Builder<br/>(Escaped Delimiters, Zero GT Leakage)"]
+        Prompt --> LLM["LLM Client (Gemini Flash / Deterministic Mock)"]
+    end
+
+    subgraph Audit ["Multi-Faceted Reliability Auditing"]
+        LLM --> Ground["Lexical Groundedness (Containment + LCS)"]
+        LLM --> Cite["Citation Precision & Recall"]
+        LLM --> Judge["Structured LLM Judge (Faithfulness)"]
+        LLM --> NLI["Local NLI Entailment Classifier"]
+    end
+
+    subgraph Storage ["Persistence & Gating"]
+        Runner --> SQLite[("SQLite Database<br/>/data/experiments.sqlite3")]
+        SQLite --> Reg["RegressionDetector (CI/CD Gating)"]
+        SQLite --> API["FastAPI Backend Adapter (:8000)"]
+        API --> UI["SvelteKit Diagnostic Studio (:5173)"]
+    end
+```
+
+---
+
+## Empirical Benchmark Results
+
+Evaluated against the canonical benchmark dataset (25 corpus chunks, 16 benchmark queries, $K=5$):
+
+| Metric / Dimension | Okapi BM25 | Dense FAISS (Flat IP) | Hybrid RRF ($k=60$) | Primary Advantage |
+|---|---|---|---|---|
+| **Recall@5** | 0.8542 | 0.9479 | **0.9688** | Hybrid achieves highest total evidence coverage. |
+| **Precision@5** | 0.3500 | 0.3875 | **0.4000** | RRF prioritizes multi-source agreed items. |
+| **Hit Rate@5** | 1.0000 | 1.0000 | 1.0000 | All three place $\ge 1$ relevant chunk in top-5. |
+| **MRR@5** | 0.9688 | **1.0000** | 0.9688 | Dense retrieval placed relevant chunk at rank 1 for all queries. |
+| **NDCG@5** | 0.9113 | **0.9548** | 0.9494 | Dense and Hybrid significantly outperform lexical baseline. |
+| **P50 Latency** | **0.0921 ms** | 34.2345 ms | 35.2590 ms | BM25 is ~360× faster than CPU neural vector generation. |
+| **Index Build Time** | **3.33 ms** | 848.90 ms | 743.68 ms | BM25 indexes in milliseconds without weight loading. |
+
+> **Dataset Size Note**: The bundled benchmark contains 25 corpus chunks and 16 queries. While sufficient to verify algorithmic correctness, scoring formulas, and semantic trade-offs, results reflect this dataset size and should not be generalized as universal claims across multi-million-document collections.
+
+---
+
+## Quickstart
+
+### 1. Containerized Quickstart (Docker & Docker Compose)
+Run the entire platform (FastAPI backend + SvelteKit frontend + SQLite storage) without configuring Python or Node locally:
 
 ```bash
 # Clone the repository
 git clone https://github.com/dpr2106/ai-reliability-lab.git
 cd ai-reliability-lab
 
+# Boot the application in the background
+docker compose up --build -d
+
+# Check service status
+docker compose ps
+```
+
+- **Frontend Diagnostics Studio**: [http://localhost:5173](http://localhost:5173)
+- **FastAPI Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+Run automated container tests and benchmarks:
+```bash
+# Run backend test suite, mypy, and ruff checks
+docker compose run --rm tests
+
+# Execute reproducible retrieval and RAG benchmarks
+docker compose run --rm benchmark
+
+# Stop services (preserves SQLite persistent volume)
+docker compose down
+```
+
+---
+
+### 2. Local Python Development Setup
+
+```bash
 # Create and activate virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .\.venv\Scripts\activate
 
-# Install development dependencies
+# Install core and development dependencies
 pip install -e .[dev]
 
-# Run static checks and tests
+# Optional: Install dense retrieval & NLI packages
+pip install -e .[dense,nli]
+
+# Run quality checks and tests
 ruff check .
+ruff format --check .
 mypy reliability_lab
 pytest
 ```
 
+---
+
+### 3. Local Diagnostic Studio (FastAPI + SvelteKit)
+
+#### Terminal 1: Backend Adapter
+```bash
+export RELIABILITY_LAB_DB=".reliability-lab/experiments.sqlite3"
+uvicorn reliability_lab.api.main:app --reload --port 8000
+```
+
+#### Terminal 2: SvelteKit Frontend
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Visit `http://localhost:5173` to access:
+- **Run Explorer** (`/`): Search, filter, and inspect historic runs.
+- **Run Diagnostics** (`/runs/[run_id]`): Drill down into query-level failure traces and citation breakdowns.
+- **Run Comparison** (`/compare`): Side-by-side regression diffing with interactive tolerance controls.
+- **Citation Audit** (`/citation-audit`): Verify inline citations against retrieved candidates.
+
+---
+
 ## Command-Line Interface (CLI)
 
-AI Reliability Lab provides a headless CLI (`reliability-lab`) for automated benchmark execution and CI/CD regression gating.
+The `reliability-lab` CLI supports automated benchmarking and CI regression gating:
 
 ### 1. Run Retrieval Benchmark (`run-benchmark`)
-
-Executes BM25 retrieval over a corpus and benchmark dataset, computes Cranfield IR metrics and latency percentiles, and persists the result to SQLite:
-
 ```bash
-# Run benchmark with human-readable summary output
 reliability-lab run-benchmark \
   --corpus data/benchmarks/sample_corpus.jsonl \
   --dataset data/benchmarks/sample_benchmark.jsonl \
   --database .reliability-lab/experiments.sqlite3 \
   --top-k 5 \
   --experiment-name bm25-baseline
-
-# Or emit machine-readable JSON for automated tooling
-reliability-lab run-benchmark --output json
 ```
 
-Key options:
-- `--corpus`: Path to JSONL corpus chunks (default: `data/benchmarks/sample_corpus.jsonl`).
-- `--dataset`: Path to JSONL query dataset (default: `data/benchmarks/sample_benchmark.jsonl`).
-- `--database`: Path to SQLite database destination (default: `.reliability-lab/experiments.sqlite3`).
-- `--top-k`: Ranking cutoff integer (default: `5`).
-- `--output`: Output format (`text` or `json`).
-
-### 2. Assert Regression Gating (`assert-regression`)
-
-Compares a candidate run against a baseline run stored in the same database, detecting metric degradations beyond configured tolerances:
-
+### 2. Run End-to-End RAG Evaluation (`run-rag-evaluation`)
 ```bash
-# Compare candidate run against baseline run
+reliability-lab run-rag-evaluation \
+  --corpus data/benchmarks/sample_corpus.jsonl \
+  --dataset data/benchmarks/sample_benchmark.jsonl \
+  --database .reliability-lab/experiments.sqlite3 \
+  --top-k 5 \
+  --llm-provider mock \
+  --model gemini-2.5-flash \
+  --experiment-name rag-pipeline-run
+```
+
+### 3. Automated Regression Gating (`assert-regression`)
+```bash
 reliability-lab assert-regression \
   --baseline <baseline-run-id> \
   --candidate <candidate-run-id> \
@@ -72,136 +214,79 @@ reliability-lab assert-regression \
   --tolerance 0.02
 ```
 
-Configure per-metric overrides when tighter or looser bounds are required:
-```bash
-reliability-lab assert-regression \
-  --baseline <baseline-run-id> \
-  --candidate <candidate-run-id> \
-  --tolerance 0.02 \
-  --metric-tolerance mrr@5=0.01 \
-  --metric-tolerance recall@5=0.05
-```
-
-### Exit Codes & CI Regression Gating
-
-`assert-regression` returns deterministic exit codes designed for continuous integration pipelines:
-
-| Exit Code | Status | Meaning |
-|---|---|---|
-| `0` | `PASS` | Comparison completed; no metrics or queries regressed beyond tolerance. |
-| `1` | `REGRESSION` | At least one aggregate or per-query metric degraded beyond tolerance. |
-| `2` | `INCOMPLETE` | Query-set mismatch or missing data prevents a clean comparison. |
-| `3` | Operational Error | Run ID not found, database missing, invalid arguments, or non-finite tolerance. |
-
-### Reusing Run IDs & Database Hygiene
-- When running `run-benchmark`, the CLI outputs a unique `run_id` (UUID format). Save this ID to track baseline and candidate runs.
-- Baseline and candidate runs must reside in the same `--database` path for comparison. Attempting to compare runs stored across different databases returns exit code `3` (`RunNotFoundError`).
+Deterministic exit codes for CI:
+- `0`: **PASS** — No metrics degraded beyond tolerance.
+- `1`: **REGRESSION** — One or more aggregate or query metrics regressed beyond tolerance.
+- `2`: **INCOMPLETE** — Query set mismatch prevented clean comparison.
+- `3`: **ERROR** — Missing run ID, invalid parameters, or storage error.
 
 ---
 
-## Diagnostics Studio (SvelteKit + FastAPI)
+## LLM Provenance: Mock vs. Live Gemini Execution
 
-AI Reliability Lab provides an interactive, dark-themed diagnostics studio for deep failure analysis, side-by-side run diffing, and citation auditing.
+AI Reliability Lab strictly tracks model provenance across every evaluation:
 
-### 1. Start the API Adapter
-```bash
-# Set path to experiments database (defaults to .reliability-lab/experiments.sqlite3)
-export RELIABILITY_LAB_DB=".reliability-lab/experiments.sqlite3"
-
-# Start the FastAPI service
-uvicorn reliability_lab.api.main:app --reload --port 8000
-```
-
-### 2. Start the SvelteKit Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173` in your browser to access:
-- **Run Explorer** (`/`): Search, filter, and inspect benchmark runs.
-- **Run Diagnostics** (`/runs/[run_id]`): Detailed aggregate metrics and per-query failure trace drill-downs.
-- **Run Comparison** (`/compare`): Side-by-side regression diffing with tolerance slider and gate status banner.
-- **Citation Audit** (`/citation-audit`): Verify inline citations, resolution maps, precision, and recall across answers.
+- **Offline Mock Execution (Default)**:
+  - `LLM_PROVIDER=mock`: Deterministic local mock generating synthetic answers and structured judge evaluations.
+  - Zero external network calls; 100% reproducible without API keys.
+  - Flagged explicitly as `is_mock=True` in SQLite database records, CLI banners, and UI summaries.
+- **Live Gemini Execution**:
+  - `LLM_PROVIDER=gemini`: Live inference using Gemini Flash models (`gemini-2.5-flash`).
+  - Requires `GEMINI_API_KEY` in environment; fails fast if credentials are not configured.
+  - Never bakes API keys into Docker images or commits them to Git.
+  - Displays explicit live provenance in all reports.
 
 ---
 
-## Docker & Containerized Quickstart
+## Technical Stack
 
-AI Reliability Lab includes production-grade containerization and a Docker Compose suite to build, launch, test, and benchmark the entire platform in isolated containers without configuring Python or Node.js locally.
+| Layer | Technologies & Libraries |
+|---|---|
+| **Core Domain** | Pure Python 3 standard library dataclasses (`reliability_lab.core`) |
+| **Ingestion** | PyMuPDF (`fitz`), Python standard regex, character segmentation |
+| **Retrieval** | Okapi BM25, FAISS (`faiss-cpu`), Sentence Transformers (`all-MiniLM-L6-v2`) |
+| **Language Models** | Google Gemini API (`httpx`), Abstract provider-independent client |
+| **Storage & Gating** | SQLite3 (WAL mode), pure SQL schema migrations, `RegressionDetector` |
+| **API Backend** | FastAPI, Uvicorn, Pydantic v2 |
+| **Frontend Studio** | SvelteKit 3, Svelte 5 (Runes), TypeScript, Vite 8, `@sveltejs/adapter-node` |
+| **Packaging & CI** | Docker, Docker Compose, GitHub Actions (Python 3.11 & 3.12 matrices) |
+| **Code Quality** | Ruff (linting & formatting), Mypy (strict type-checking), Pytest, Vitest |
 
-### Prerequisites
-- [Docker Engine](https://docs.docker.com/engine/) (v20.10+)
-- [Docker Compose](https://docs.docker.com/compose/) (v2.0+)
+---
 
-### 1. Start the Full Application (Backend + Frontend)
-Launch the FastAPI backend adapter and SvelteKit diagnostics studio with persistent SQLite storage:
+## Key Architecture Decision Records (ADRs)
 
-```bash
-docker compose up --build -d
-```
+The platform is designed following strict Architecture Decision Records documented in [`docs/DECISIONS.md`](docs/DECISIONS.md):
+- **ADR-005: Pure Standard-Library Core Domain Layer**: Eliminates third-party framework churn in fundamental business logic.
+- **ADR-007: Rebase-Only Merge Policy with Linear Git History**: Preserves granular, reviewable atomic commits on `main`.
+- **ADR-008: Decoupled SvelteKit Diagnostic Studio & FastAPI Backend Adapter**: Replaces Streamlit with a responsive, high-performance web interface.
+- **ADR-009: Provider-Independent Abstract LLM Client Architecture**: Pluggable interface supporting live Gemini generation and deterministic offline mocks.
+- **ADR-010: Schema-Validated LLM Judge with Strict Citation Provenance and NLI Alignment**: Directionally aligned correlation between LLM judges and local NLI cross-encoders.
+- **ADR-011: Unified End-to-End RAG Evaluation Pipeline Orchestration**: Zero ground-truth prompt leakage and prominent mock provenance tracking.
+- **ADR-012: Multi-Stage Containerization & Adapter-Node Topology**: Minimal non-root containers with persistent SQLite volume durability.
 
-Verify service status and access endpoints:
-- **Diagnostic Studio (Frontend)**: [http://localhost:5173](http://localhost:5173)
-- **REST API & Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Backend Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+---
 
-### 2. Run Automated Verification Tests
-Execute the full test suite, linting, formatting, and static typing inside the isolated container test environment:
+## Testing & Reliability
 
-```bash
-docker compose run --rm tests
-```
+The platform enforces 100% test pass rates and strict quality gates on every commit:
+- **Python Backend Suite**: **648 passed, 1 warning** across Python 3.11, 3.12, and 3.13.
+- **Package Coverage**: **93%** line coverage across `reliability_lab`.
+- **Static Quality**: 0 errors on `ruff check .`, 100% formatted via `ruff format`, 0 issues on `mypy reliability_lab`.
+- **Frontend Suite**: 0 errors on `svelte-check --tsconfig ./tsconfig.json`, 6/6 unit tests passed via Vitest, clean production build via `@sveltejs/adapter-node`.
+- **Hermetic CI**: Mandatory GitHub Actions matrix (`test-and-lint (3.11)` and `test-and-lint (3.12)`) gates every pull request before rebase merge.
 
-To run frontend tests and static checks independently:
-```bash
-cd frontend
-npm run check
-npm test
-npm run build
-```
+---
 
-### 3. Run Reproducible Benchmarks
-Execute the retrieval benchmark and end-to-end RAG evaluation script, storing results in the shared persistent SQLite volume:
+## Future Roadmap
 
-```bash
-# Execute standard reproducible benchmark run (offline mock provider)
-docker compose run --rm benchmark
-```
+1. **Public Benchmark Ingestion**: Adapters for BEIR, MS MARCO, and HotpotQA datasets.
+2. **Learned Sparse Embeddings**: SPLADE and BM25 term expansion support.
+3. **Cross-Encoder Reranking**: Second-stage rerankers (BGE-Reranker, Cohere Rerank).
+4. **Quantized Vector Indices**: FAISS `IndexIVFPQ` and HNSW-32 memory benchmarking for scale $> 10^6$ chunks.
 
-To customize benchmark parameters via environment variables:
-```bash
-docker compose run --rm \
-  -e TOP_K=10 \
-  -e EXPERIMENT_NAME=top10-benchmark \
-  benchmark
-```
+---
 
-### 4. LLM Provenance: Mock vs. Live Gemini Execution
-- **Default (Offline Mock)**: Out-of-the-box, the benchmark runner executes using the deterministic mock LLM provider (`LLM_PROVIDER=mock`). Results are labeled with `is_mock=True` and a prominent provenance notice is displayed.
-- **Live Gemini Inference**: To execute live evaluations against Google Gemini models:
-  ```bash
-  docker compose run --rm \
-    -e LLM_PROVIDER=gemini \
-    -e MODEL=gemini-2.5-flash \
-    -e GEMINI_API_KEY="your-api-key" \
-    benchmark
-  ```
-  *Security Note: Never commit API keys or bake them into container images.*
+## License
 
-### 5. Persistent Storage & Lifecycle Management
-- **Persistent Volume**: Experiments are saved to an SQLite database located at `/data/experiments.sqlite3` inside the named volume `reliability-lab-data`.
-- **Preserving Data**: Stopping containers with `docker compose down` or `docker compose stop` preserves all experiment history.
-- **Resetting Data**: To deliberately wipe the experiment database and start fresh:
-  ```bash
-  docker compose down -v
-  ```
-
-### 6. Troubleshooting
-- **Port Conflicts (`8000` or `5173` already in use)**: Check if local development servers are running. Stop them or adjust port mappings in `docker-compose.yml`.
-- **CORS Errors**: The FastAPI backend permits origins matching `http://localhost:5173` and `http://127.0.0.1:5173`. Ensure browser requests target the published host address (`http://127.0.0.1:8000`).
-- **Missing Credentials**: When using `LLM_PROVIDER=gemini`, the system fails fast if `GEMINI_API_KEY` is not provided. Set the variable in your shell or use `LLM_PROVIDER=mock`.
-
-
-
+Apache License 2.0. See [LICENSE](LICENSE) for details.

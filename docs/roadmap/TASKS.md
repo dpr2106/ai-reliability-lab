@@ -606,8 +606,16 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `Dockerfile`, `docker-compose.yml`, `scripts/run_benchmarks.sh`
 - **Acceptance Criteria**: Docker image builds cleanly and runs the test suite and dashboard.
 - **Verification Command**: Docker build and execution verification.
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Rebase Merge Commits: `f521ef9`, `fb9094c`, `97169d5`, `a5f6cb3`, `be22432` on `main` ([PR #50](https://github.com/dpr2106/ai-reliability-lab/pull/50))
+  - GitHub Actions Run: [41199102068](https://github.com/dpr2106/ai-reliability-lab/actions/runs/41199102068) (Python 3.11 & 3.12 passed)
+  - Test Suite: 643 passed, 1 warning in 36.13s, 93% total package coverage (6 unit tests in `tests/unit/test_containerization.py`)
+  - Frontend typecheck, unit tests, and build: `npm run check` (0 errors), `npm test` (6 passed in 17ms), `npm run build` (built with `@sveltejs/adapter-node`)
+  - Multi-stage containers: Root `Dockerfile` with `base`, `test`, and `runtime` stages running as non-root `appuser:appgroup`; `frontend/Dockerfile` with `builder` and `runtime` stages running as `node`
+  - Compose topology: `docker-compose.yml` defining `api`, `frontend`, `tests`, and `benchmark` services, shared persistent SQLite volume `reliability-lab-data` mounted at `/data`, and validated via `docker compose config`
+  - Reproducible benchmark script: `scripts/run_benchmarks.sh` with strict bash handling (`set -euo pipefail`), automated path validation, mock provenance banners, and credential checks
+  - Main branch commit count verified via `git rev-list --count origin/main`: 95 commits reachable from `main`
 
 ---
 
@@ -617,5 +625,5 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `docs/CASE_STUDY.md`, `README.md`
 - **Acceptance Criteria**: Complete empirical findings, regression case studies, and architecture diagrams documented.
 - **Verification Command**: Document review.
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None

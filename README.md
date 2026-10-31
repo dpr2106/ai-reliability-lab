@@ -125,4 +125,83 @@ Open `http://localhost:5173` in your browser to access:
 - **Run Comparison** (`/compare`): Side-by-side regression diffing with tolerance slider and gate status banner.
 - **Citation Audit** (`/citation-audit`): Verify inline citations, resolution maps, precision, and recall across answers.
 
+---
+
+## Docker & Containerized Quickstart
+
+AI Reliability Lab includes production-grade containerization and a Docker Compose suite to build, launch, test, and benchmark the entire platform in isolated containers without configuring Python or Node.js locally.
+
+### Prerequisites
+- [Docker Engine](https://docs.docker.com/engine/) (v20.10+)
+- [Docker Compose](https://docs.docker.com/compose/) (v2.0+)
+
+### 1. Start the Full Application (Backend + Frontend)
+Launch the FastAPI backend adapter and SvelteKit diagnostics studio with persistent SQLite storage:
+
+```bash
+docker compose up --build -d
+```
+
+Verify service status and access endpoints:
+- **Diagnostic Studio (Frontend)**: [http://localhost:5173](http://localhost:5173)
+- **REST API & Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Backend Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+### 2. Run Automated Verification Tests
+Execute the full test suite, linting, formatting, and static typing inside the isolated container test environment:
+
+```bash
+docker compose run --rm tests
+```
+
+To run frontend tests and static checks independently:
+```bash
+cd frontend
+npm run check
+npm test
+npm run build
+```
+
+### 3. Run Reproducible Benchmarks
+Execute the retrieval benchmark and end-to-end RAG evaluation script, storing results in the shared persistent SQLite volume:
+
+```bash
+# Execute standard reproducible benchmark run (offline mock provider)
+docker compose run --rm benchmark
+```
+
+To customize benchmark parameters via environment variables:
+```bash
+docker compose run --rm \
+  -e TOP_K=10 \
+  -e EXPERIMENT_NAME=top10-benchmark \
+  benchmark
+```
+
+### 4. LLM Provenance: Mock vs. Live Gemini Execution
+- **Default (Offline Mock)**: Out-of-the-box, the benchmark runner executes using the deterministic mock LLM provider (`LLM_PROVIDER=mock`). Results are labeled with `is_mock=True` and a prominent provenance notice is displayed.
+- **Live Gemini Inference**: To execute live evaluations against Google Gemini models:
+  ```bash
+  docker compose run --rm \
+    -e LLM_PROVIDER=gemini \
+    -e MODEL=gemini-2.5-flash \
+    -e GEMINI_API_KEY="your-api-key" \
+    benchmark
+  ```
+  *Security Note: Never commit API keys or bake them into container images.*
+
+### 5. Persistent Storage & Lifecycle Management
+- **Persistent Volume**: Experiments are saved to an SQLite database located at `/data/experiments.sqlite3` inside the named volume `reliability-lab-data`.
+- **Preserving Data**: Stopping containers with `docker compose down` or `docker compose stop` preserves all experiment history.
+- **Resetting Data**: To deliberately wipe the experiment database and start fresh:
+  ```bash
+  docker compose down -v
+  ```
+
+### 6. Troubleshooting
+- **Port Conflicts (`8000` or `5173` already in use)**: Check if local development servers are running. Stop them or adjust port mappings in `docker-compose.yml`.
+- **CORS Errors**: The FastAPI backend permits origins matching `http://localhost:5173` and `http://127.0.0.1:5173`. Ensure browser requests target the published host address (`http://127.0.0.1:8000`).
+- **Missing Credentials**: When using `LLM_PROVIDER=gemini`, the system fails fast if `GEMINI_API_KEY` is not provided. Set the variable in your shell or use `LLM_PROVIDER=mock`.
+
+
 

@@ -2,7 +2,7 @@
 
 ## Verified Operational State
 - **Base Branch**: `main`
-- **Active Milestone**: Milestone 10 — Reproducibility, Packaging & Portfolio Presentation
+- **Active Milestone**: Milestone 10 — Backend Orchestration & Integration
 - **Test Suite Baseline**: 609 passed in 20.13s, 93% coverage (verified baseline from LLM-002)
 
 ## PR Review & Gating Architecture State
@@ -11,6 +11,6 @@
 - **Code Review Status**: CI checks are the required merge gates. An empty webhooks API response does not establish that no GitHub Apps are installed. Copilot could not review PR #3 because its review quota was exhausted. An absent or unperformed review must not be reported as passed.
 
 ## Task Pointers
-- **Next READY Task**: `PUB-001`
+- **Next READY Task**: `PIPE-001`
 
 Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. This snapshot intentionally excludes a purported latest merge SHA, which would become stale and could refer to the commit containing this file.

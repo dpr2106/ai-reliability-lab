@@ -174,6 +174,59 @@ Per ADR-010, the evaluation subsystem provides automated LLM-as-a-judge capabili
   - Calculates Pearson correlation ($r$) and Spearman rank correlation ($\rho$) with fractional average ranks for tied values.
   - Returns `None` with actionable warnings for zero-variance degenerate distributions and sample sizes $N < 3$ without fabricating misleading correlation coefficients.
 
+---
+
+## End-to-End RAG Evaluation Pipeline Orchestration (`reliability_lab/pipeline/`)
+
+Per ADR-011, the pipeline subsystem unifies retrieval, answer generation, multi-stage evaluation, statistical alignment, and persistent experiment storage into a single cohesive runner:
+
+1. **Pipeline Execution Flow**:
+   ```
+   [Corpus Chunks + Benchmark Queries]
+                    │
+                    ▼
+          [Stage A: Retrieval]
+          • BaseRetriever (BM25, FAISS, Hybrid)
+          • Cranfield Metrics (Recall, Precision, HitRate, MRR, NDCG)
+                    │
+                    ▼
+      [Stage B: Answer Generation]
+      • BaseLLMClient (Gemini Flash or Deterministic Mock)
+      • Anti-Injection Prompt Sanitization (XML Delimiter Escaping)
+      • Zero Ground-Truth Answer Leakage
+      • Bracketed Citation Directive ([CHK-xxx] / [CIT-xxx])
+                    │
+                    ▼
+     [Stage C: Multi-Faceted Evaluation]
+     • Lexical Groundedness (GroundednessEvaluator)
+     • Citation Precision & Recall (CitationEvaluator)
+     • Local NLI Entailment (NLIEntailmentEvaluator)
+     • Structured LLM Judge (LLMJudge)
+                    │
+                    ▼
+     [Stage D: Statistical Alignment]
+     • calculate_llm_nli_correlation() (Pearson r, Spearman rho)
+     • Sample size & zero-variance guards
+                    │
+                    ▼
+     [Stage E: Result Aggregation & Persistence]
+     • Canonical EvaluationReport
+     • Granular per-query diagnostic payload
+     • Explicit mock/live provenance tracking (is_mock)
+     • Transactional SQLite write via ExperimentRepository
+   ```
+
+2. **Core Abstractions**:
+   - `RAGEvaluationRunner` (`reliability_lab.pipeline.runner`): Principal orchestrator injecting retriever, LLM client generator, evaluators, and configuration.
+   - `RAGPipelineConfig` (`reliability_lab.pipeline.models`): Hyperparameter and stage execution toggles (`top_k`, `temperature`, `prompt_version`, `enable_groundedness`, `enable_citations`, `enable_nli`, `enable_judge`).
+   - `PerQueryRAGResult` (`reliability_lab.pipeline.models`): Complete per-query vertical slice containing retrieved candidates, generated answer, generation metadata, and diagnostic records from each active evaluation stage.
+
+3. **LLM Provenance & Mock Safety Invariant**:
+   - Provenance is explicitly tracked across answer generation and judging.
+   - If either answer generation or the LLM judge uses a mock client, the overall pipeline result is stamped with `is_mock = True`.
+   - The CLI emits prominent visual warnings whenever synthetic mock inference is utilized, preventing simulated runs from being misrepresented as live Gemini benchmarks.
+
+
 
 
 

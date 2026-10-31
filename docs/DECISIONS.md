@@ -74,4 +74,20 @@
   - Directional correlation between LLM judges and local cross-encoder NLI models is mathematically sound and transparent without fabricated coefficients.
   - Zero private chain-of-thought traces are stored or logged; only public justifications and structured diagnostics are retained.
 
+## ADR-011: Unified End-to-End RAG Evaluation Pipeline Orchestration with Explicit Provenance and Decoupled Evaluation Stages
+- **Status**: Accepted
+- **Context**: The repository contains robust modular building blocks: document chunking, sparse/dense/hybrid retrieval, lexical groundedness, citation parsing and validation, local NLI entailment, provider-independent LLM generation, structured LLM judging, and SQLite experiment persistence. However, executing a complete RAG evaluation previously required manual, ad-hoc stitching of these subsystems. This manual invocation risked data contract divergence, accidental leakage of benchmark ground-truth answers into generation prompts, silent failure to track mock versus live LLM inference provenance, and fragmented reporting.
+- **Decision**: Implement a unified backend orchestration service (`RAGEvaluationRunner` in `reliability_lab/pipeline/`) coordinating the full evaluation lifecycle:
+  1. *Retrieval*: Retrieves top-$K$ chunks using any `BaseRetriever` and computes standard Cranfield ranking metrics (Recall, Precision, Hit Rate, MRR, NDCG).
+  2. *Answer Generation*: Generates document-grounded responses using `BaseLLMClient` with prompt injection resilience (escaping evidence delimiters, treating chunks as untrusted data), strict exclusion of benchmark ground-truth answers from prompts, and explicit citation directives.
+  3. *Multi-Faceted Evaluation*: Evaluates lexical groundedness (`GroundednessEvaluator`), citation validity and precision/recall (`CitationEvaluator`), local NLI entailment (`NLIEntailmentEvaluator`), and structured factual judging (`LLMJudge`). Preserves the distinct semantics and failure modes of each evaluation dimension without artificial score collapse.
+  4. *Statistical Alignment*: Computes directional Pearson $r$ and Spearman $\rho$ correlation between LLM judge unsupportedness risk and local NLI unsupportedness risk when aligned claim pairs exist, preserving existing handling of small samples ($N < 3$) or zero variance.
+  5. *Storage & Provenance Integration*: Emits canonical `EvaluationReport` structures persisted transactionally to SQLite via `ExperimentRepository`, retaining granular per-query diagnostics, token accounting, latency percentiles, and prominent mock/live provenance flags (`is_mock`).
+  6. *CLI Entrypoint*: Exposes `reliability-lab run-rag-evaluation` with explicit provider configuration and clear warnings whenever mock generation or judging is employed.
+- **Consequences**:
+  - Provides a single, clean backend entrypoint for complete RAG evaluation without rewriting indexing algorithms or coupling to specific presentation frameworks.
+  - Guarantees zero credential leakage and prevents synthetic mock evaluation from masquerading as live cloud inference.
+  - Ensures full reproducibility, backward compatibility with existing retrieval-only benchmarks, and transaction-safe experiment persistence.
+
+
 

@@ -3,7 +3,7 @@
 ## Verified Operational State
 - **Base Branch**: `main`
 - **Active Milestone**: Milestone 11 — Reproducibility, Packaging & Portfolio Presentation (COMPLETE)
-- **Test Suite Baseline**: 648 passed in 38.25s, 93% coverage (verified baseline from PUB-002)
+- **Test Suite Baseline**: 648 passed in 85.10s, 93% coverage (verified baseline from PUB-002 & release audit)
 
 ## PR Review & Gating Architecture State
 - **Branch Protection**: `main` requires strict checks `test-and-lint (3.11)` and `test-and-lint (3.12)`; direct and force pushes are prohibited, and linear history is enforced (ADR-007).

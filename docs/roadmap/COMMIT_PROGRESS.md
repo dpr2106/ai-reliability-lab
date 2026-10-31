@@ -55,6 +55,8 @@ git rev-list --count origin/main
 | PUB-001 Governance (PR #51) | `8db33eeeb2356b9149740be5af6599b135da14e2` | 96 | 300 | 204 | Verified baseline for PUB-002 following PR #51 governance finalization |
 | PUB-002 Rebase Merge (PR #52) | `92c50b1426c733c237d337b0d9b5c11c98b06352` | 100 | 300 | 200 | Rebase-merge verified: 4 commits preserved individually on main |
 | PUB-002 Governance (PR #53) | `01ae09107526061532236cf51763cbf309fdd387` | 101 | 300 | 199 | Verified completion of final roadmap milestone PUB-002 and terminal roadmap state |
+| Audit Documentation Reconciliation (PR #54) | `fdb237c212f3d89cfa69ed9d6bc7d5b7efa165f6` | 102 | 300 | 198 | Benchmark timing methodology notes and PR 53 checkpoint |
+| NLI Pipeline Resilience Fix (PR #55) | `3bcd056d62a096cbe46b07a505b331006579d469` | 103 | 300 | 197 | Offline model loading resilience and test isolation |
 
 
 ---

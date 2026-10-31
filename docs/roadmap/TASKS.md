@@ -625,5 +625,18 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `docs/CASE_STUDY.md`, `README.md`
 - **Acceptance Criteria**: Complete empirical findings, regression case studies, and architecture diagrams documented.
 - **Verification Command**: Document review.
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Rebase Merge Commits: `3c03ee3`, `99e3596`, `fb4a7f6`, `92c50b1` on `main` ([PR #52](https://github.com/dpr2106/ai-reliability-lab/pull/52))
+  - GitHub Actions Run: [41205565447](https://github.com/dpr2106/ai-reliability-lab/actions/runs/41205565447) (Python 3.11 & 3.12 passed)
+  - Unit Tests: `pytest tests/unit/test_compare_retrievers.py tests/unit/test_documentation.py` (11 passed in 14.70s)
+  - Test Suite Baseline: 648 passed across backend test suite with 0 failures
+  - Code Quality: `ruff check .` (All checks passed!), `ruff format --check .` (74 files already formatted), `mypy reliability_lab` (Success: no issues found in 37 source files)
+  - Empirical Comparative Benchmark Utility: `scripts/compare_retrievers.py` with CLI flags (`--corpus`, `--dataset`, `--top-k`, `--model`, `--repetitions`, `--skip-dense`, `--output`), capturing environment metadata and warm latency distributions
+  - Measured Empirical IR Results ($K=5$):
+    - Okapi BM25: Recall@5: 0.8542, MRR@5: 0.9688, NDCG@5: 0.9113, Latency: 0.095 ms
+    - Dense FAISS (`all-MiniLM-L6-v2`): Recall@5: 0.9479, MRR@5: 1.0000, NDCG@5: 0.9548, Latency: 34.49 ms
+    - Hybrid RRF ($k=60$): Recall@5: 0.9688, MRR@5: 0.9688, NDCG@5: 0.9494, Latency: 35.62 ms
+  - Architectural Case Study: `docs/CASE_STUDY.md` written with 21 detailed sections, 5 Mermaid diagrams, exact empirical retrieval tables, query-level failure analyses (Q-001, Q-002, Q-003, Q-014), CPU latency profiling, and regression gating case studies
+  - Production Landing Page: `README.md` elevated into industrial portfolio landing page with verified metrics, quickstarts, diagnostic studio documentation, and transparent Docker runtime notes
+  - Main branch commit count verified via `git rev-list --count origin/main`: 100 commits reachable from `main`

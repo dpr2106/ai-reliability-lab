@@ -444,8 +444,13 @@ def test_direct_chunk_sequence_support() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_huggingface_backend_missing_optional_dependency() -> None:
+def test_huggingface_backend_missing_optional_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # When torch/transformers is not installed, loading triggers actionable ImportError
+    import sys
+
+    monkeypatch.setitem(sys.modules, "transformers", None)
     backend = HuggingFaceNLIBackend(model_name_or_path="nonexistent-model")
     with pytest.raises(ImportError, match="Hugging Face transformers and PyTorch are required"):
         backend.predict_batch([("premise", "hypothesis")])

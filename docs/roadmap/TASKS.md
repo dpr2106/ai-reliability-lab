@@ -559,7 +559,7 @@ This document is the canonical single source of truth for all engineering tasks.
 
 ---
 
-### [LLM-002] G-Eval / Ragas-Style LLM Judge with Chain-of-Thought
+### [LLM-002] Structured LLM Judge, Evidence-Based Faithfulness Evaluation and NLI Correlation
 - **Objective**: Structured prompt templates for evaluating faithfulness and citation support with reasoning chains.
 - **Priority**: P2 | **Dependencies**: `LLM-001`, `GROUND-001`
 - **Scope / Expected Files**: `reliability_lab/llm/judge.py`, `tests/unit/test_llm_judge.py`
@@ -573,15 +573,32 @@ This document is the canonical single source of truth for all engineering tasks.
 
 ---
 
-## Milestone 10: Reproducibility, Packaging & Portfolio Presentation
+## Milestone 10: Backend Orchestration & Integration
+
+### [PIPE-001] End-to-End RAG Answer Generation and Evaluation Orchestrator
+- **Objective**: Provide a reusable backend orchestration service and CLI command connecting retrieval, LLM answer generation, groundedness, citation auditing, local NLI, structured LLM judging, and persistent SQLite experiment reporting.
+- **Priority**: P1 | **Dependencies**: `FOUND-003`, `EVAL-003`, `GROUND-001`, `GROUND-002`, `EXP-001`, `LLM-001`, `LLM-002`
+- **Scope / Expected Files**: `reliability_lab/pipeline/`, `reliability_lab/cli/main.py`, `tests/unit/test_rag_pipeline.py`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`
+- **Acceptance Criteria**: Connects all evaluation subsystems into a single vertical slice; preserves explicit mock/live provenance; avoids prompt injection and ground-truth leakage; integrates transactionally with `ExperimentRepository`; exposes `run-rag-evaluation` CLI command; keeps retrieval-only benchmarking backward-compatible.
+- **Verification Command**:
+  ```bash
+  pytest tests/unit/test_rag_pipeline.py -v
+  reliability-lab run-rag-evaluation --output json
+  ```
+- **Status**: `IN_REVIEW`
+- **Verification Evidence**: None (active feature branch)
+
+---
+
+## Milestone 11: Reproducibility, Packaging & Portfolio Presentation
 
 ### [PUB-001] Containerization & Reproducibility Suite
 - **Objective**: Dockerfile and docker-compose configurations to run benchmarks and dashboard in a single command.
-- **Priority**: P2 | **Dependencies**: `UI-001`, `UI-002`
+- **Priority**: P2 | **Dependencies**: `UI-001`, `UI-002`, `PIPE-001`
 - **Scope / Expected Files**: `Dockerfile`, `docker-compose.yml`, `scripts/run_benchmarks.sh`
 - **Acceptance Criteria**: Docker image builds cleanly and runs the test suite and dashboard.
 - **Verification Command**: Docker build and execution verification.
-- **Status**: `READY`
+- **Status**: `BACKLOG`
 - **Verification Evidence**: None
 
 ---

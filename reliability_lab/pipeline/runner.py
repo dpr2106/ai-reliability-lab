@@ -306,12 +306,18 @@ class RAGEvaluationRunner:
         # 5. Stage C: Local NLI Entailment
         nli_dict: dict[str, Any] | None = None
         if self._nli_evaluator is not None:
-            nli_res: NLIResult = self._nli_evaluator.evaluate(
-                answer_text=generated_answer,
-                retrieved=retrieved_candidates,
-            )
-            nli_dict = nli_res.to_dict()
-            query_metrics["nli_hallucination_score"] = float(nli_res.hallucination_score)
+            try:
+                nli_res: NLIResult = self._nli_evaluator.evaluate(
+                    answer_text=generated_answer,
+                    retrieved=retrieved_candidates,
+                )
+                nli_dict = nli_res.to_dict()
+                query_metrics["nli_hallucination_score"] = float(nli_res.hallucination_score)
+            except Exception as exc:
+                logger.warning(
+                    "Local NLI evaluation failed (%s); continuing without NLI metrics for query.",
+                    exc,
+                )
 
         # 6. Stage C: Structured LLM Judge
         judge_dict: dict[str, Any] | None = None

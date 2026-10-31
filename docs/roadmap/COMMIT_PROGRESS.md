@@ -50,6 +50,8 @@ git rev-list --count origin/main
 | LLM-002 Rebase Merge (PR #46) | `9449e84c31452ce4e02b0f0cabd800eb3e6f54ac` | 83 | 300 | 217 | Rebase-merge verified: 3 commits preserved individually on main |
 | LLM-002 Governance (PR #47) | `fb4a05cb998d108628730fe1eb770431a1d8fc53` | 84 | 300 | 216 | Verified baseline for PIPE-001 following PR #47 governance finalization |
 | PIPE-001 Rebase Merge (PR #48) | `a2ebd1e9c9e3fac6795bdca0dfb7a4f6b241fe81` | 89 | 300 | 211 | Rebase-merge verified: 5 commits preserved individually on main |
+| PIPE-001 Governance (PR #49) | `e8d468a3232f244e46770cd0d855fca0c55aebc0` | 90 | 300 | 210 | Verified baseline for PUB-001 following PR #49 governance finalization |
+| PUB-001 Rebase Merge (PR #50) | `be22432a1199c9765e66a6adeda2c637328b7937` | 95 | 300 | 205 | Rebase-merge verified: 5 commits preserved individually on main |
 
 
 ---

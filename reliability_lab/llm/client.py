@@ -85,6 +85,11 @@ class BaseLLMClient(ABC):
         """Indicate whether generations originate from a mock provider."""
         return False
 
+    @property
+    def provider(self) -> str:
+        """Provider identifier ('mock', 'gemini', 'ollama', etc.)."""
+        return "mock" if self.is_mock else "live"
+
     @abstractmethod
     def generate(
         self,
@@ -156,6 +161,10 @@ class MockLLMClient(BaseLLMClient):
     @property
     def is_mock(self) -> bool:
         return True
+
+    @property
+    def provider(self) -> str:
+        return "mock"
 
     @property
     def call_count(self) -> int:
@@ -290,6 +299,10 @@ class GeminiLLMClient(BaseLLMClient):
     @property
     def is_mock(self) -> bool:
         return self._mock_delegate is not None
+
+    @property
+    def provider(self) -> str:
+        return "mock" if self._mock_delegate is not None else "gemini"
 
     def _format_payload(
         self,
@@ -486,37 +499,276 @@ class GeminiLLMClient(BaseLLMClient):
         )
 
 
+class OllamaLLMClient(BaseLLMClient):
+    """Local LLM client for Ollama runtime via the /api/chat HTTP REST API.
+
+    Enables offline, private, zero-cloud inference using local models (e.g. llama3.2, mistral).
+    Uses httpx for resilient HTTP communication with configurable timeout and error handling.
+    """
+
+    DEFAULT_BASE_URL = "http://localhost:11434"
+    DEFAULT_MODEL = "llama3.2"
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        model: str | None = None,
+        timeout: float = 60.0,
+        http_client: httpx.Client | None = None,
+    ):
+        raw_url = base_url or os.environ.get("OLLAMA_BASE_URL") or self.DEFAULT_BASE_URL
+        self._base_url = raw_url.rstrip("/")
+        self._model = model or os.environ.get("OLLAMA_MODEL") or self.DEFAULT_MODEL
+        self._timeout = float(timeout)
+        self._client = http_client or httpx.Client(timeout=self._timeout)
+        self._owns_client = http_client is None
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    @property
+    def is_mock(self) -> bool:
+        return False
+
+    @property
+    def provider(self) -> str:
+        return "ollama"
+
+    @property
+    def base_url(self) -> str:
+        return self._base_url
+
+    def close(self) -> None:
+        """Close the underlying HTTP client if owned."""
+        if self._owns_client:
+            self._client.close()
+
+    def __enter__(self) -> OllamaLLMClient:
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.close()
+
+    def _format_messages(
+        self,
+        prompt: str | Sequence[LLMMessage | dict[str, str]],
+    ) -> list[dict[str, str]]:
+        """Convert input prompt or LLMMessage sequence into Ollama chat messages format."""
+        if isinstance(prompt, str):
+            return [{"role": "user", "content": prompt}]
+
+        formatted: list[dict[str, str]] = []
+        for item in prompt:
+            if isinstance(item, dict):
+                role = str(item.get("role", "user"))
+                content = str(item.get("content", ""))
+            elif isinstance(item, LLMMessage):
+                role = item.role
+                content = item.content
+            else:
+                raise TypeError(f"Unsupported message type: {type(item)}")
+
+            if role not in {"system", "user", "assistant"}:
+                raise ValueError(
+                    f"Invalid message role '{role}'. "
+                    "Ollama supports 'system', 'user', or 'assistant'."
+                )
+            formatted.append({"role": role, "content": content})
+
+        if not formatted:
+            formatted.append({"role": "user", "content": ""})
+
+        return formatted
+
+    def _build_options(self, config: LLMGenerationConfig) -> dict[str, Any]:
+        """Map LLMGenerationConfig into Ollama options payload."""
+        options: dict[str, Any] = {
+            "temperature": float(config.temperature),
+            "num_predict": int(config.max_output_tokens),
+        }
+        if config.top_p is not None:
+            options["top_p"] = float(config.top_p)
+        if config.top_k is not None:
+            options["top_k"] = int(config.top_k)
+        if config.stop_sequences:
+            options["stop"] = list(config.stop_sequences)
+        return options
+
+    def _execute_chat_request(self, payload: dict[str, Any]) -> tuple[dict[str, Any], float]:
+        """Send chat request to Ollama with comprehensive error handling."""
+        endpoint = f"{self._base_url}/api/chat"
+        t_start = time.perf_counter()
+
+        try:
+            response = self._client.post(endpoint, json=payload)
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.NetworkError) as exc:
+            raise LLMProviderUnavailableError(
+                f"Cannot connect to Ollama at '{self._base_url}'. "
+                f"Ensure Ollama is installed and running locally ('ollama serve'). Error: {exc}",
+                provider="ollama",
+            ) from exc
+        except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
+            raise LLMProviderUnavailableError(
+                f"Ollama request to '{endpoint}' timed out after {self._timeout}s. "
+                "Consider increasing request timeout or checking local host resource contention.",
+                provider="ollama",
+            ) from exc
+        except httpx.RequestError as exc:
+            raise LLMProviderUnavailableError(
+                f"Ollama HTTP request failed: {exc}",
+                provider="ollama",
+            ) from exc
+
+        latency_ms = (time.perf_counter() - t_start) * 1000.0
+
+        if response.status_code == 404:
+            err_text = response.text
+            try:
+                err_json = response.json()
+                err_msg = str(err_json.get("error", err_text))
+            except Exception:
+                err_msg = err_text
+
+            if "model" in err_msg.lower() and (
+                "not found" in err_msg.lower() or "pull" in err_msg.lower()
+            ):
+                raise LLMInvalidRequestError(
+                    f"Ollama model '{self._model}' not found on local host (HTTP 404). "
+                    f"Download the model by running 'ollama pull {self._model}'. "
+                    f"Raw message: {err_msg}",
+                    status_code=404,
+                    provider="ollama",
+                )
+            raise LLMProviderUnavailableError(
+                f"Ollama endpoint '{endpoint}' not found (HTTP 404). "
+                f"Verify OLLAMA_BASE_URL. Raw message: {err_msg}",
+                status_code=404,
+                provider="ollama",
+            )
+
+        if response.status_code >= 500:
+            raise LLMProviderUnavailableError(
+                f"Ollama server error (HTTP {response.status_code}): {response.text[:300]}",
+                status_code=response.status_code,
+                provider="ollama",
+            )
+
+        if response.status_code >= 400:
+            raise LLMInvalidRequestError(
+                f"Ollama invalid request (HTTP {response.status_code}): {response.text[:300]}",
+                status_code=response.status_code,
+                provider="ollama",
+            )
+
+        try:
+            data = response.json()
+        except Exception as exc:
+            raise LLMInvalidRequestError(
+                f"Ollama returned malformed non-JSON payload: {exc}. "
+                f"Response text: {response.text[:200]}",
+                provider="ollama",
+            ) from exc
+
+        return data, latency_ms
+
+    def generate(
+        self,
+        prompt: str | Sequence[LLMMessage | dict[str, str]],
+        config: LLMGenerationConfig | None = None,
+    ) -> LLMResponse:
+        cfg = config or LLMGenerationConfig()
+        messages = self._format_messages(prompt)
+        options = self._build_options(cfg)
+
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "messages": messages,
+            "stream": False,
+            "options": options,
+        }
+
+        if cfg.response_mime_type == "application/json":
+            payload["format"] = "json"
+
+        data, latency_ms = self._execute_chat_request(payload)
+
+        # Parse message content
+        msg = data.get("message")
+        if not isinstance(msg, dict):
+            raise LLMInvalidRequestError(
+                f"Ollama response missing valid 'message' object: {data}",
+                provider="ollama",
+            )
+
+        text = str(msg.get("content", ""))
+        finish_reason = data.get("done_reason") or ("stop" if data.get("done") else None)
+
+        # Token usage accounting
+        prompt_tokens = int(data.get("prompt_eval_count") or 0)
+        completion_tokens = int(data.get("eval_count") or 0)
+        total_tokens = prompt_tokens + completion_tokens
+
+        usage = (
+            TokenUsage(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+            )
+            if (prompt_tokens > 0 or completion_tokens > 0)
+            else None
+        )
+
+        return LLMResponse(
+            text=text,
+            model=self._model,
+            usage=usage,
+            finish_reason=finish_reason,
+            latency_ms=latency_ms,
+            raw_response=data,
+        )
+
+
 def get_llm_client(
     provider: str = "auto",
     api_key: str | None = None,
-    model: str = "gemini-2.5-flash",
+    model: str | None = None,
     **kwargs: Any,
 ) -> BaseLLMClient:
     """Factory creating an LLM client instance based on configuration and available credentials.
 
     Args:
-        provider: Provider identifier ('auto', 'gemini', 'mock').
+        provider: Provider identifier ('auto', 'gemini', 'ollama', 'mock').
         api_key: Optional explicit API key.
-        model: Target model name.
-        **kwargs: Provider-specific options (e.g. rate_limiter, mock_fallback).
+        model: Target model name (provider-specific default if None).
+        **kwargs: Provider-specific options (e.g. rate_limiter, base_url, timeout).
     """
     provider_normalized = provider.lower().strip()
 
     if provider_normalized == "mock":
         mock_kwargs = dict(kwargs)
-        resolved_model = mock_kwargs.pop("model_name", model)
+        resolved_model = model or mock_kwargs.pop("model_name", "mock-model")
         return MockLLMClient(model_name=resolved_model, **mock_kwargs)
 
     if provider_normalized == "gemini":
-        return GeminiLLMClient(api_key=api_key, model=model, **kwargs)
+        resolved_model = model or "gemini-2.5-flash"
+        return GeminiLLMClient(api_key=api_key, model=resolved_model, **kwargs)
+
+    if provider_normalized == "ollama":
+        resolved_model = model or os.environ.get("OLLAMA_MODEL") or OllamaLLMClient.DEFAULT_MODEL
+        return OllamaLLMClient(model=resolved_model, **kwargs)
 
     if provider_normalized == "auto":
         resolved_key = api_key or os.environ.get("GEMINI_API_KEY")
         if resolved_key:
-            return GeminiLLMClient(api_key=resolved_key, model=model, **kwargs)
+            resolved_model = model or "gemini-2.5-flash"
+            return GeminiLLMClient(api_key=resolved_key, model=resolved_model, **kwargs)
+        resolved_model = model or "gemini-2.5-flash"
         logger.info(
             "No GEMINI_API_KEY detected; get_llm_client(provider='auto') returning MockLLMClient."
         )
-        return MockLLMClient(model_name=f"mock-{model}", **kwargs)
+        return MockLLMClient(model_name=f"mock-{resolved_model}", **kwargs)
 
-    raise ValueError(f"Unknown LLM provider '{provider}'. Must be 'auto', 'gemini', or 'mock'.")
+    raise ValueError(
+        f"Unknown LLM provider '{provider}'. Must be 'auto', 'gemini', 'ollama', or 'mock'."
+    )

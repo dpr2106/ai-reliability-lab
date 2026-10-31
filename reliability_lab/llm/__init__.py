@@ -6,6 +6,7 @@ from reliability_lab.llm.client import (
     BaseLLMClient,
     GeminiLLMClient,
     MockLLMClient,
+    OllamaLLMClient,
     get_llm_client,
 )
 from reliability_lab.llm.exceptions import (
@@ -52,6 +53,7 @@ __all__ = [
     "LLMRateLimitError",
     "LLMResponse",
     "MockLLMClient",
+    "OllamaLLMClient",
     "RateLimiter",
     "TokenUsage",
     "calculate_llm_nli_correlation",

@@ -84,6 +84,13 @@ def _validate_status_snapshot(tasks_content: str, status_content: str) -> None:
     next_id = _extract_pointer(status_content, "Next READY Task")
     assert active_id is None or active_id != next_id, "Active and next task pointers conflict"
 
+    if next_id in {"NONE", "COMPLETE", "ROADMAP_COMPLETE"}:
+        assert all(status == "DONE" for status, _ in tasks.values()), (
+            "Terminal status pointer set while incomplete tasks remain in backlog"
+        )
+        assert active_id is None, "Active task cannot be set when roadmap is terminal"
+        return
+
     pointers = [("Next READY Task", next_id)]
     if active_id is not None:
         pointers.append(("Active Task", active_id))

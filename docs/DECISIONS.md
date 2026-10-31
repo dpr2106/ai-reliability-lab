@@ -103,6 +103,27 @@
   - Test suites and benchmarks can be executed reproducibly in isolated container environments.
   - Production images are secure, minimal, and non-root without embedding secrets or heavy unneeded dependencies.
 
+## ADR-013: Local LLM Inference Provider Integration via Ollama HTTP API
+- **Status**: Accepted
+- **Context**: AI Reliability Lab v2 introduces offline Document Intelligence, enabling users to upload documents, ask questions, and verify citation provenance without sending private data to external cloud APIs. Relying solely on cloud LLM providers (e.g., Google Gemini) introduces vendor lock-in, data privacy concerns for sensitive documents, recurring API billing, rate limiting, and network availability constraints. The platform requires a local, privacy-preserving, zero-cost, offline LLM inference provider integrated seamlessly into the existing provider-agnostic `BaseLLMClient` architecture.
+- **Alternatives Considered**:
+  - *Direct `llama-cpp-python` Bindings*: Provides direct in-process C++ inference, but introduces heavy platform-specific compilation toolchains, wheel compatibility issues across OS environments (Windows/macOS/Linux), and fragile CUDA runtime dependencies.
+  - *Local `vLLM` Serving*: Highly optimized for production GPU batch inference, but heavy memory footprint and lack of native first-class Windows support makes it unsuitable for standard local developer workstations.
+  - *HuggingFace `transformers` In-Process*: Incurs massive Python memory overhead, requires manual model weight caching, and couples inference runtime to PyTorch environment dependencies.
+  - *Ollama HTTP REST API*: Independent, platform-native local daemon with precompiled binaries for macOS, Linux, and Windows; manages model weight downloads and quantization formats (GGUF); provides hardware-accelerated local inference; exposes a clean, standardized HTTP REST API.
+- **Decision**:
+  1. *Native REST Transport via `httpx`*: Implement `OllamaLLMClient` in `reliability_lab/llm/client.py` communicating directly with Ollama's local HTTP API (`POST /api/chat` with `stream: false`) using the existing `httpx` library already integrated in the project. Do not introduce an external Ollama Python SDK.
+  2. *Standardized Message and Parameter Translation*: Map `LLMMessage` role definitions (`system`, `user`, `assistant`), translate generation parameters (`temperature`, `max_output_tokens` -> `num_predict`, `top_p`, `top_k`, `stop`), and support schema-constrained JSON extraction via Ollama's native `"format": "json"` payload attribute.
+  3. *Accurate Token and Latency Accounting*: Capture Ollama's reported evaluation statistics (`prompt_eval_count` -> `prompt_tokens`, `eval_count` -> `completion_tokens`) and track execution latency.
+  4. *Explicit Provenance Distinction*: Designate `provider="ollama"` and `is_mock=False` in `GenerationProvenance`, SQLite database persistence, and CLI banners, ensuring local real AI inference is distinctly identifiable from deterministic synthetic mocks (`is_mock=True`) and cloud APIs (`provider="gemini"`).
+  5. *Fail-Fast, Actionable Error Handling*: Raise dedicated `LLMProviderUnavailableError` (providing exact `ollama serve` commands upon connection failure) and `LLMInvalidRequestError` (providing `ollama pull <model>` instructions upon 404 model errors) without silent, misleading fallback to `MockLLMClient`.
+  6. *Configurable Defaults*: Configure endpoint and model resolution through `OLLAMA_BASE_URL` (defaulting to `http://localhost:11434`) and `OLLAMA_MODEL` (defaulting to `llama3.2`), ensuring provider-specific model names are cleanly decoupled from Gemini defaults.
+- **Consequences**:
+  - Enables true 100% offline, privacy-preserving local RAG evaluation and document intelligence.
+  - Test suites and CI runners execute hermetically without an active Ollama daemon using `httpx.MockTransport`.
+  - Production and local developer environments remain lightweight with zero additional external package dependencies.
+
+
 
 
 

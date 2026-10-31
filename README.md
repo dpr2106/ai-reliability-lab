@@ -194,6 +194,20 @@ reliability-lab run-benchmark \
 ```
 
 ### 2. Run End-to-End RAG Evaluation (`run-rag-evaluation`)
+
+**Using Local Ollama Inference (Offline AI)**:
+```bash
+reliability-lab run-rag-evaluation \
+  --corpus data/benchmarks/sample_corpus.jsonl \
+  --dataset data/benchmarks/sample_benchmark.jsonl \
+  --database .reliability-lab/experiments.sqlite3 \
+  --top-k 5 \
+  --llm-provider ollama \
+  --model llama3.2 \
+  --experiment-name local-ollama-rag
+```
+
+**Using Deterministic Mock (CI / Hermetic Testing)**:
 ```bash
 reliability-lab run-rag-evaluation \
   --corpus data/benchmarks/sample_corpus.jsonl \
@@ -202,7 +216,20 @@ reliability-lab run-rag-evaluation \
   --top-k 5 \
   --llm-provider mock \
   --model gemini-2.5-flash \
-  --experiment-name rag-pipeline-run
+  --experiment-name mock-rag-run
+```
+
+**Using Cloud Gemini Inference**:
+```bash
+export GEMINI_API_KEY="your-api-key"
+reliability-lab run-rag-evaluation \
+  --corpus data/benchmarks/sample_corpus.jsonl \
+  --dataset data/benchmarks/sample_benchmark.jsonl \
+  --database .reliability-lab/experiments.sqlite3 \
+  --top-k 5 \
+  --llm-provider gemini \
+  --model gemini-2.5-flash \
+  --experiment-name gemini-rag-run
 ```
 
 ### 3. Automated Regression Gating (`assert-regression`)
@@ -222,19 +249,66 @@ Deterministic exit codes for CI:
 
 ---
 
-## LLM Provenance: Mock vs. Live Gemini Execution
+## Local Inference with Ollama (Offline AI)
 
-AI Reliability Lab strictly tracks model provenance across every evaluation:
+AI Reliability Lab v2 supports 100% offline, privacy-preserving AI generation and evaluation using **[Ollama](https://ollama.com)**. No data leaves your machine, no external API keys are required, and inference incurs zero cloud costs.
 
-- **Offline Mock Execution (Default)**:
-  - `LLM_PROVIDER=mock`: Deterministic local mock generating synthetic answers and structured judge evaluations.
-  - Zero external network calls; 100% reproducible without API keys.
+### 1. Prerequisites & Setup
+1. **Install Ollama**:
+   - macOS / Linux: `curl -fsSL https://ollama.com/install.sh | sh`
+   - Windows: Download the installer from [ollama.com/download/windows](https://ollama.com/download/windows).
+2. **Start the Ollama daemon**:
+   ```bash
+   ollama serve
+   ```
+3. **Pull your preferred model**:
+   ```bash
+   # Default recommended compact model (3B parameters)
+   ollama pull llama3.2
+
+   # Alternative models supported out-of-the-box
+   ollama pull mistral
+   ollama pull qwen2.5:7b
+   ollama pull deepseek-r1:8b
+   ```
+
+### 2. Configuration Environment Variables
+| Variable | Default | Description |
+|---|---|---|
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama daemon HTTP endpoint |
+| `OLLAMA_MODEL` | `llama3.2` | Default model tag when `--model` is omitted |
+
+### 3. Running RAG Evaluation Locally
+```bash
+reliability-lab run-rag-evaluation \
+  --corpus data/benchmarks/sample_corpus.jsonl \
+  --dataset data/benchmarks/sample_benchmark.jsonl \
+  --database .reliability-lab/experiments.sqlite3 \
+  --top-k 5 \
+  --llm-provider ollama \
+  --model llama3.2 \
+  --experiment-name local-llama3.2-eval
+```
+
+---
+
+## LLM Provenance: Mock vs. Local Ollama vs. Cloud Gemini
+
+AI Reliability Lab strictly tracks model provenance across every evaluation to ensure synthetic data is never confused with authentic AI inference:
+
+- **Local Ollama Inference (`is_mock=False`, `provider="ollama"`)**:
+  - Genuine local neural inference executing via Ollama daemon (`llama3.2`, `mistral`, etc.).
+  - 100% offline, zero cloud API keys, zero network data transmission.
+  - Generates document-grounded answers with real model reasoning and citation tags.
+  - Token evaluation metrics (`prompt_eval_count`, `eval_count`) and latency accurately captured.
+- **Deterministic Mock Execution (`is_mock=True`, `provider="mock"`)**:
+  - Deterministic test double generating rule-based synthetic answers and pre-canned judge scores.
+  - Zero network calls; 100% reproducible for CI pipelines, hermetic unit tests, and quick regressions.
   - Flagged explicitly as `is_mock=True` in SQLite database records, CLI banners, and UI summaries.
-- **Live Gemini Execution**:
-  - `LLM_PROVIDER=gemini`: Live inference using Gemini Flash models (`gemini-2.5-flash`).
+- **Live Cloud Gemini Execution (`is_mock=False`, `provider="gemini"`)**:
+  - Live inference via Google Gemini API (`gemini-2.5-flash`).
   - Requires `GEMINI_API_KEY` in environment; fails fast if credentials are not configured.
-  - Never bakes API keys into Docker images or commits them to Git.
-  - Displays explicit live provenance in all reports.
+  - Displays explicit live cloud provenance in all reports.
 
 ---
 
@@ -264,6 +338,7 @@ The platform is designed following strict Architecture Decision Records document
 - **ADR-010: Schema-Validated LLM Judge with Strict Citation Provenance and NLI Alignment**: Directionally aligned correlation between LLM judges and local NLI cross-encoders.
 - **ADR-011: Unified End-to-End RAG Evaluation Pipeline Orchestration**: Zero ground-truth prompt leakage and prominent mock provenance tracking.
 - **ADR-012: Multi-Stage Containerization & Adapter-Node Topology**: Minimal non-root containers with persistent SQLite volume durability.
+- **ADR-013: Local LLM Inference Provider Integration via Ollama HTTP API**: 100% offline local LLM generation and judging with zero cloud dependencies or API costs.
 
 ---
 

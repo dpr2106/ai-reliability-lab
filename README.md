@@ -95,7 +95,7 @@ Evaluated against the canonical benchmark dataset (25 corpus chunks, 16 benchmar
 | **P50 Latency** | **0.0921 ms** | 34.2345 ms | 35.2590 ms | BM25 is ~360× faster than CPU neural vector generation. |
 | **Index Build Time** | **3.33 ms** | 848.90 ms | 743.68 ms | BM25 indexes in milliseconds without weight loading. |
 
-> **Dataset Size Note**: The bundled benchmark contains 25 corpus chunks and 16 queries. While sufficient to verify algorithmic correctness, scoring formulas, and semantic trade-offs, results reflect this dataset size and should not be generalized as universal claims across multi-million-document collections.
+> **Dataset & Methodology Note**: The bundled benchmark contains 25 corpus chunks and 16 evaluation queries. While sufficient to verify algorithmic correctness, scoring formulas, and semantic trade-offs, results reflect this dataset size and should not be generalized as universal claims across multi-million-document collections. Query latencies represent P50 across 5 warm repetitions per query (80 total runs per retriever); index build time is measured once during initial corpus indexing.
 
 ---
 

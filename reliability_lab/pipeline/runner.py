@@ -141,6 +141,9 @@ class RAGEvaluationRunner:
                 self._nli_evaluator: NLIEntailmentEvaluator | None = nli_evaluator
             else:
                 try:
+                    import torch  # noqa: F401
+                    import transformers  # noqa: F401
+
                     self._nli_evaluator = NLIEntailmentEvaluator()
                 except ImportError as exc:
                     logger.warning(

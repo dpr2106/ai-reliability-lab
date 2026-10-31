@@ -585,8 +585,8 @@ This document is the canonical single source of truth for all engineering tasks.
   pytest tests/unit/test_rag_pipeline.py -v
   reliability-lab run-rag-evaluation --output json
   ```
-- **Status**: `IN_REVIEW`
-- **Verification Evidence**: None (active feature branch)
+- **Status**: `READY`
+- **Verification Evidence**: None
 
 ---
 

@@ -89,5 +89,20 @@
   - Guarantees zero credential leakage and prevents synthetic mock evaluation from masquerading as live cloud inference.
   - Ensures full reproducibility, backward compatibility with existing retrieval-only benchmarks, and transaction-safe experiment persistence.
 
+## ADR-012: Multi-Stage Containerization, Adapter-Node Deployment, and Reproducible Benchmark Topology
+- **Status**: Accepted
+- **Context**: AI Reliability Lab requires an industrial-grade, reproducible local execution environment (Milestone 11, PUB-001) that enables developers, researchers, and CI systems to run the FastAPI backend adapter, the SvelteKit diagnostics studio, automated test suites, and retrieval/RAG benchmarks without manually configuring Python or Node.js environments. The design must prevent data loss across container lifecycle events, enforce non-root security standards, keep runtime containers lean without heavy neural dependencies, and maintain browser-to-backend communication parity.
+- **Decision**:
+  1. *Backend Containerization*: Implement a multi-stage root `Dockerfile` using `python:3.11-slim` with distinct `test` (containing dev tooling, ruff, mypy, pytest) and `runtime` stages. The runtime stage runs as an unprivileged user (`appuser`), avoids wheel caching, excludes development dependencies, and launches Uvicorn binding to `0.0.0.0:8000`.
+  2. *Frontend Containerization*: Transition frontend build configuration from `@sveltejs/adapter-auto` to `@sveltejs/adapter-node` to produce an optimized, standalone Node server (`build/index.js`). Package in a multi-stage `frontend/Dockerfile` using `node:22-alpine` with `npm ci` for reproducible dependency resolution, non-root execution (`USER node`), and published port `5173`. Configure browser API access via build-time `VITE_API_URL` pointing to the published backend address (`http://127.0.0.1:8000`).
+  3. *Compose Topology*: Implement `docker-compose.yml` declaring `api`, `frontend`, `tests` (profile `test`), and `benchmark` (profile `benchmark`) services with healthchecks and dependencies. Persist SQLite experiment storage in a shared named volume (`reliability-lab-data`) mounted at `/data`, setting `RELIABILITY_LAB_DB=/data/experiments.sqlite3`.
+  4. *Reproducible Benchmark Script*: Provide `scripts/run_benchmarks.sh` with strict bash error handling (`set -euo pipefail`), automated validation of corpus and dataset paths, mock provenance warnings, and non-destructive execution across retrieval benchmarks and end-to-end RAG evaluations.
+- **Consequences**:
+  - Entire platform builds and boots in a single command (`docker compose up --build -d`) with zero host dependency requirements.
+  - Experiment history is safely preserved across container recreation and restarts via named Docker volumes.
+  - Test suites and benchmarks can be executed reproducibly in isolated container environments.
+  - Production images are secure, minimal, and non-root without embedding secrets or heavy unneeded dependencies.
+
+
 
 

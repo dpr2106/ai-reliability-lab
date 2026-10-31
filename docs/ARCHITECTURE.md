@@ -226,6 +226,51 @@ Per ADR-011, the pipeline subsystem unifies retrieval, answer generation, multi-
    - If either answer generation or the LLM judge uses a mock client, the overall pipeline result is stamped with `is_mock = True`.
    - The CLI emits prominent visual warnings whenever synthetic mock inference is utilized, preventing simulated runs from being misrepresented as live Gemini benchmarks.
 
+---
+
+## 10. Containerization & Deployment Architecture (ADR-012)
+
+1. **Topology Overview**:
+   ```
+   ┌───────────────────────────────────────────────────────────────┐
+   │                        Host Network                           │
+   │                                                               │
+   │   Browser Client                   Host Shell                 │
+   │         │                               │                     │
+   │         │ http://localhost:5173         │ docker compose ...  │
+   │         ▼                               ▼                     │
+   │   ┌──────────────┐              ┌──────────────┐              │
+   │   │   frontend   │              │     api      │              │
+   │   │  (:5173)     │              │   (:8000)    │              │
+   │   └──────┬───────┘              └──────┬───────┘              │
+   │          │ http://127.0.0.1:8000       │                      │
+   │          └─────────────────────────────┤                      │
+   │                                        │                      │
+   │   ┌──────────────┐              ┌──────▼───────┐              │
+   │   │  benchmark   │─────────────►│ Named Volume │              │
+   │   │  (one-shot)  │              │ /data/       │              │
+   │   └──────────────┘              │ *.sqlite3    │              │
+   │   ┌──────────────┐              └──────────────┘              │
+   │   │    tests     │                                            │
+   │   │  (one-shot)  │                                            │
+   │   └──────────────┘                                            │
+   └───────────────────────────────────────────────────────────────┘
+   ```
+
+2. **Multi-Stage Container Specifications**:
+   - **Backend (`Dockerfile`)**:
+     - `base`: `python:3.11-slim`, non-root execution (`appuser:appgroup`), no wheel caching.
+     - `test`: Installs `.[dev]`, executes static quality checks (`ruff`, `mypy`) and `pytest`.
+     - `runtime`: Minimal footprint with `.[web,llm]`, mounting `/data` for SQLite persistence.
+   - **Frontend (`frontend/Dockerfile`)**:
+     - `builder`: `node:22-alpine`, reproducible installation via `npm ci`, runs `svelte-check`, unit tests, and production build using `@sveltejs/adapter-node`.
+     - `runtime`: Lean Alpine container running as unprivileged `node` user, serving standalone `build/index.js` on `0.0.0.0:5173`.
+
+3. **Data Durability & Volume Contract**:
+   - The SQLite experiment database is persisted in a named Docker volume (`reliability-lab-data`) mounted at `/data`.
+   - Standard container lifecycle events (`docker compose stop`, `docker compose down`, `docker compose up --build -d`) preserve the named volume and all historic benchmark runs.
+
+
 
 
 

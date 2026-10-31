@@ -585,8 +585,16 @@ This document is the canonical single source of truth for all engineering tasks.
   pytest tests/unit/test_rag_pipeline.py -v
   reliability-lab run-rag-evaluation --output json
   ```
-- **Status**: `READY`
-- **Verification Evidence**: None
+- **Status**: `DONE`
+- **Verification Evidence**:
+  - Rebase Merge Commits: `7852aa7`, `cc6af6b`, `6b2d0e6`, `3343d0f`, `a2ebd1e` on `main` ([PR #48](https://github.com/dpr2106/ai-reliability-lab/pull/48))
+  - GitHub Actions Run: [41196898273](https://github.com/dpr2106/ai-reliability-lab/actions/runs/41196898273) (Success on Python 3.11 & 3.12)
+  - Test Suite: 637 passed, 1 warning in 42.35s, 93% total package coverage (28 unit & integration tests in `tests/unit/test_rag_pipeline.py`)
+  - Code quality checks: `ruff check .` (All checks passed!), `ruff format --check .` (70 files already formatted), `mypy reliability_lab` (Success: no issues found in 37 source files)
+  - CLI verified: `reliability-lab run-rag-evaluation --output json` and table outputs with prominent mock provenance warning banners
+  - Orchestration architecture: `RAGEvaluationRunner` integrates retrieval (`BaseRetriever`), generation (`BaseLLMClient`), groundedness (`GroundednessEvaluator`), citations (`CitationEvaluator`), local NLI (`NLIEntailmentEvaluator`), structured judge (`LLMJudge`), and storage (`ExperimentRepository`)
+  - Security & Guardrails: XML delimiter escaping (`</evidence>` -> `[/evidence]`), zero ground-truth leakage into generation prompts, deterministic tie-breaking, and resilient optional dependency imports for neural NLI
+  - Main branch commit count verified via `git rev-list --count origin/main`: 89 commits reachable from `main`
 
 ---
 
@@ -598,7 +606,7 @@ This document is the canonical single source of truth for all engineering tasks.
 - **Scope / Expected Files**: `Dockerfile`, `docker-compose.yml`, `scripts/run_benchmarks.sh`
 - **Acceptance Criteria**: Docker image builds cleanly and runs the test suite and dashboard.
 - **Verification Command**: Docker build and execution verification.
-- **Status**: `BACKLOG`
+- **Status**: `READY`
 - **Verification Evidence**: None
 
 ---

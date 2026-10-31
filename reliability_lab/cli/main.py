@@ -24,6 +24,10 @@ from reliability_lab.evaluation.benchmark_runner import (
     load_corpus,
 )
 from reliability_lab.indexing.bm25_index import BM25Retriever
+from reliability_lab.llm.client import get_llm_client
+from reliability_lab.llm.exceptions import LLMAuthenticationError
+from reliability_lab.pipeline.models import RAGPipelineConfig, RAGPipelineExecutionResult
+from reliability_lab.pipeline.runner import RAGEvaluationRunner
 from reliability_lab.storage.regression import (
     DEFAULT_TOLERANCE,
     IncomparableRunsError,
@@ -337,6 +341,167 @@ def assert_regression_command(args: argparse.Namespace) -> int:
     return EXIT_OPERATIONAL_ERROR
 
 
+def run_rag_evaluation_command(args: argparse.Namespace) -> int:
+    """Execute the `run-rag-evaluation` CLI subcommand.
+
+    Args:
+        args: Parsed command-line arguments.
+
+    Returns:
+        Process exit code (0 on success, 1 on operational error).
+    """
+    # 1. Validate arguments
+    if args.top_k <= 0:
+        sys.stderr.write(f"Error: --top-k must be a positive integer >= 1, got {args.top_k}\n")
+        return 1
+
+    experiment_name = args.experiment_name.strip()
+    if not experiment_name:
+        sys.stderr.write("Error: --experiment-name must be a non-empty string.\n")
+        return 1
+
+    corpus_path = _resolve_file_path(args.corpus)
+    if not corpus_path.is_file():
+        sys.stderr.write(f"Error: Corpus file not found: {corpus_path}\n")
+        return 1
+
+    dataset_path = _resolve_file_path(args.dataset)
+    if not dataset_path.is_file():
+        sys.stderr.write(f"Error: Benchmark dataset file not found: {dataset_path}\n")
+        return 1
+
+    db_path = Path(args.database).resolve()
+
+    # 2. Load corpus and benchmark dataset
+    try:
+        chunks: list[Chunk] = load_corpus(corpus_path)
+    except (FileNotFoundError, ValueError) as exc:
+        sys.stderr.write(f"Error loading corpus '{corpus_path}': {exc}\n")
+        return 1
+
+    try:
+        queries: list[Query] = load_benchmark_dataset(dataset_path, corpus_chunks=chunks)
+    except (FileNotFoundError, ValueError) as exc:
+        sys.stderr.write(f"Error loading benchmark dataset '{dataset_path}': {exc}\n")
+        return 1
+
+    # 3. Initialize LLM client
+    try:
+        llm_client = get_llm_client(
+            provider=args.llm_provider,
+            model=args.model,
+        )
+    except LLMAuthenticationError as exc:
+        sys.stderr.write(
+            f"Authentication Error: {exc}\n"
+            "Set the GEMINI_API_KEY environment variable or specify --llm-provider mock.\n"
+        )
+        return 1
+    except Exception as exc:
+        sys.stderr.write(f"Error initializing LLM client ({args.llm_provider}): {exc}\n")
+        return 1
+
+    # 4. Initialize retriever
+    try:
+        retriever = BM25Retriever()
+        retriever.index(chunks)
+    except Exception as exc:
+        sys.stderr.write(f"Error initializing retriever: {exc}\n")
+        return 1
+
+    # 5. Initialize pipeline runner
+    pipeline_config = RAGPipelineConfig(
+        top_k=args.top_k,
+        retriever_name="BM25Retriever",
+        experiment_name=experiment_name,
+        enable_groundedness=not args.skip_groundedness,
+        enable_citations=not args.skip_citations,
+        enable_nli=not args.skip_nli,
+        enable_judge=not args.skip_judge,
+    )
+
+    runner = RAGEvaluationRunner(
+        retriever=retriever,
+        generator=llm_client,
+        config=pipeline_config,
+    )
+
+    # 6. Execute pipeline
+    try:
+        exec_result: RAGPipelineExecutionResult = runner.run_pipeline(
+            corpus=chunks,
+            benchmark=queries,
+            auto_index=False,
+        )
+    except Exception as exc:
+        sys.stderr.write(f"Error during RAG evaluation pipeline execution: {exc}\n")
+        return 1
+
+    # 7. Persist run through ExperimentRepository
+    try:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        with ExperimentRepository(db_path) as repo:
+            run_id = repo.save_report(
+                exec_result.report,
+                index_config=exec_result.config,
+                dataset_reference=str(dataset_path),
+                metadata={
+                    "corpus_path": str(corpus_path),
+                    "chunk_count": len(chunks),
+                    "query_count": len(queries),
+                    "is_mock": exec_result.is_mock,
+                    "llm_provider": args.llm_provider,
+                    "model": args.model,
+                },
+            )
+    except (StorageError, ValueError, TypeError) as exc:
+        sys.stderr.write(f"Error persisting experiment run to '{db_path}': {exc}\n")
+        return 1
+
+    # 8. Output results
+    if args.output == "json":
+        output_payload = {
+            "status": "SUCCESS",
+            "run_id": run_id,
+            "experiment_name": exec_result.report.experiment_name,
+            "is_mock": exec_result.is_mock,
+            "database": str(db_path),
+            "dataset_reference": str(dataset_path),
+            "query_count": len(queries),
+            "top_k": args.top_k,
+            "metrics": exec_result.report.metrics,
+            "provenance_warning": (
+                "Run executed using MOCK provider; outputs are synthetic."
+                if exec_result.is_mock
+                else None
+            ),
+        }
+        sys.stdout.write(json.dumps(output_payload, indent=2) + "\n")
+    else:
+        sys.stdout.write("=" * 60 + "\n")
+        sys.stdout.write(f"RAG Evaluation Run Completed: {exec_result.report.experiment_name}\n")
+        sys.stdout.write("=" * 60 + "\n")
+        if exec_result.is_mock:
+            sys.stdout.write("[PROVENANCE NOTICE] MOCK LLM PROVIDER IN USE\n")
+            sys.stdout.write("Generations and judge evaluations are synthetic/mock outputs.\n")
+            sys.stdout.write("Do not represent these results as live Gemini inference.\n")
+            sys.stdout.write("-" * 60 + "\n")
+        sys.stdout.write(f"Run ID:            {run_id}\n")
+        sys.stdout.write(f"Database:          {db_path}\n")
+        sys.stdout.write(f"LLM Provider:      {args.llm_provider} (mock={exec_result.is_mock})\n")
+        sys.stdout.write(f"Model:             {args.model}\n")
+        sys.stdout.write(f"Corpus Chunks:     {len(chunks)}\n")
+        sys.stdout.write(f"Evaluated Queries: {len(queries)}\n")
+        sys.stdout.write(f"Top-K Cutoff:      {args.top_k}\n")
+        sys.stdout.write("-" * 60 + "\n")
+        sys.stdout.write("Aggregate Metrics:\n")
+        for metric_name, score in sorted(exec_result.report.metrics.items()):
+            sys.stdout.write(f"  {metric_name:<30}: {score:.4f}\n")
+        sys.stdout.write("=" * 60 + "\n")
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser and subcommands."""
     parser = argparse.ArgumentParser(
@@ -432,6 +597,86 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format: 'text' for human summary or 'json' for machine-readable output.",
     )
 
+    # 3. run-rag-evaluation subcommand
+    rag_parser = subparsers.add_parser(
+        "run-rag-evaluation",
+        help="Run end-to-end RAG answer generation, evaluation, and persistence pipeline.",
+    )
+    rag_parser.add_argument(
+        "--corpus",
+        type=str,
+        default=DEFAULT_CORPUS_REL,
+        help=f"Path to JSONL corpus file (default: '{DEFAULT_CORPUS_REL}').",
+    )
+    rag_parser.add_argument(
+        "--dataset",
+        type=str,
+        default=DEFAULT_DATASET_REL,
+        help=f"Path to JSONL benchmark query file (default: '{DEFAULT_DATASET_REL}').",
+    )
+    rag_parser.add_argument(
+        "--database",
+        type=str,
+        default=DEFAULT_DATABASE_PATH,
+        help=f"Path to SQLite experiment database (default: '{DEFAULT_DATABASE_PATH}').",
+    )
+    rag_parser.add_argument(
+        "--top-k",
+        type=int,
+        default=5,
+        help="Top-K retrieval cutoff (default: 5).",
+    )
+    rag_parser.add_argument(
+        "--retriever",
+        choices=["bm25"],
+        default="bm25",
+        help="Retrieval strategy to use (default: 'bm25').",
+    )
+    rag_parser.add_argument(
+        "--llm-provider",
+        choices=["auto", "gemini", "mock"],
+        default="mock",
+        help="LLM provider for answer generation and evaluation (default: 'mock').",
+    )
+    rag_parser.add_argument(
+        "--model",
+        type=str,
+        default="gemini-2.5-flash",
+        help="Target LLM model name (default: 'gemini-2.5-flash').",
+    )
+    rag_parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default="rag-pipeline-run",
+        help="Experiment name label (default: 'rag-pipeline-run').",
+    )
+    rag_parser.add_argument(
+        "--output",
+        choices=["text", "json"],
+        default="text",
+        help="Output format: 'text' for human summary or 'json' for machine-readable output.",
+    )
+    rag_parser.add_argument(
+        "--skip-nli",
+        action="store_true",
+        help="Skip local NLI entailment evaluation.",
+    )
+    rag_parser.add_argument(
+        "--skip-judge",
+        action="store_true",
+        help="Skip LLM judge faithfulness evaluation.",
+    )
+    rag_parser.add_argument(
+        "--skip-groundedness",
+        action="store_true",
+        help="Skip lexical groundedness evaluation.",
+    )
+    rag_parser.add_argument(
+        "--skip-citations",
+        action="store_true",
+        help="Skip citation precision and recall evaluation.",
+    )
+
     return parser
 
 
@@ -460,6 +705,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_benchmark_command(args)
     if args.subcommand == "assert-regression":
         return assert_regression_command(args)
+    if args.subcommand == "run-rag-evaluation":
+        return run_rag_evaluation_command(args)
 
     parser.print_help(sys.stderr)
     return EXIT_OPERATIONAL_ERROR

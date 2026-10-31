@@ -25,7 +25,11 @@ from reliability_lab.evaluation.benchmark_runner import (
 )
 from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.llm.client import get_llm_client
-from reliability_lab.llm.exceptions import LLMAuthenticationError
+from reliability_lab.llm.exceptions import (
+    LLMAuthenticationError,
+    LLMInvalidRequestError,
+    LLMProviderUnavailableError,
+)
 from reliability_lab.pipeline.models import RAGPipelineConfig, RAGPipelineExecutionResult
 from reliability_lab.pipeline.runner import RAGEvaluationRunner
 from reliability_lab.storage.regression import (
@@ -397,6 +401,12 @@ def run_rag_evaluation_command(args: argparse.Namespace) -> int:
             "Set the GEMINI_API_KEY environment variable or specify --llm-provider mock.\n"
         )
         return 1
+    except LLMProviderUnavailableError as exc:
+        sys.stderr.write(f"LLM Provider Unavailable Error: {exc}\n")
+        return 1
+    except LLMInvalidRequestError as exc:
+        sys.stderr.write(f"LLM Invalid Request Error: {exc}\n")
+        return 1
     except Exception as exc:
         sys.stderr.write(f"Error initializing LLM client ({args.llm_provider}): {exc}\n")
         return 1
@@ -459,12 +469,16 @@ def run_rag_evaluation_command(args: argparse.Namespace) -> int:
         return 1
 
     # 8. Output results
+    provider_name = getattr(llm_client, "provider", "mock" if exec_result.is_mock else "live")
     if args.output == "json":
         output_payload = {
             "status": "SUCCESS",
             "run_id": run_id,
             "experiment_name": exec_result.report.experiment_name,
+            "provider": provider_name,
+            "model": llm_client.model_name,
             "is_mock": exec_result.is_mock,
+            "is_local": provider_name == "ollama",
             "database": str(db_path),
             "dataset_reference": str(dataset_path),
             "query_count": len(queries),
@@ -484,12 +498,25 @@ def run_rag_evaluation_command(args: argparse.Namespace) -> int:
         if exec_result.is_mock:
             sys.stdout.write("[PROVENANCE NOTICE] MOCK LLM PROVIDER IN USE\n")
             sys.stdout.write("Generations and judge evaluations are synthetic/mock outputs.\n")
-            sys.stdout.write("Do not represent these results as live Gemini inference.\n")
+            sys.stdout.write("Do not represent these results as live inference.\n")
+            sys.stdout.write("-" * 60 + "\n")
+        elif provider_name == "ollama":
+            sys.stdout.write("[PROVENANCE NOTICE] LOCAL OLLAMA INFERENCE IN USE\n")
+            sys.stdout.write(
+                f"Generations executed locally via Ollama ({llm_client.model_name}).\n"
+            )
+            sys.stdout.write("-" * 60 + "\n")
+        elif provider_name == "gemini":
+            sys.stdout.write("[PROVENANCE NOTICE] CLOUD GEMINI INFERENCE IN USE\n")
+            sys.stdout.write(f"Generations executed via Google API ({llm_client.model_name}).\n")
             sys.stdout.write("-" * 60 + "\n")
         sys.stdout.write(f"Run ID:            {run_id}\n")
         sys.stdout.write(f"Database:          {db_path}\n")
-        sys.stdout.write(f"LLM Provider:      {args.llm_provider} (mock={exec_result.is_mock})\n")
-        sys.stdout.write(f"Model:             {args.model}\n")
+        provider_kind = (
+            "mock" if exec_result.is_mock else ("local" if provider_name == "ollama" else "cloud")
+        )
+        sys.stdout.write(f"LLM Provider:      {args.llm_provider} ({provider_kind})\n")
+        sys.stdout.write(f"Model:             {llm_client.model_name}\n")
         sys.stdout.write(f"Corpus Chunks:     {len(chunks)}\n")
         sys.stdout.write(f"Evaluated Queries: {len(queries)}\n")
         sys.stdout.write(f"Top-K Cutoff:      {args.top_k}\n")
@@ -634,15 +661,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rag_parser.add_argument(
         "--llm-provider",
-        choices=["auto", "gemini", "mock"],
+        choices=["auto", "gemini", "ollama", "mock"],
         default="mock",
         help="LLM provider for answer generation and evaluation (default: 'mock').",
     )
     rag_parser.add_argument(
         "--model",
         type=str,
-        default="gemini-2.5-flash",
-        help="Target LLM model name (default: 'gemini-2.5-flash').",
+        default=None,
+        help=(
+            "Target LLM model name (defaults provider-specifically: "
+            "'gemini-2.5-flash' for Gemini, OLLAMA_MODEL / 'llama3.2' for Ollama, "
+            "'mock-model' for Mock)."
+        ),
     )
     rag_parser.add_argument(
         "--experiment-name",

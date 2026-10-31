@@ -265,8 +265,11 @@ class RAGEvaluationRunner:
         completion_tokens = resp.usage.completion_tokens if resp.usage is not None else 0
         total_tokens = resp.usage.total_tokens if resp.usage is not None else 0
 
+        gen_provider = getattr(
+            self._generator, "provider", "mock" if self._generator.is_mock else "live"
+        )
         provenance = GenerationProvenance(
-            provider="mock" if self._generator.is_mock else "live",
+            provider=gen_provider,
             model=self._generator.model_name,
             is_mock=self._generator.is_mock,
             prompt_version=self._config.prompt_version,
@@ -563,8 +566,19 @@ class RAGEvaluationRunner:
             "is_mock": self.is_mock,
             "retriever": self._retriever.name,
             "top_k": self._config.top_k,
-            "generator_provider": "mock" if self._generator.is_mock else "live",
+            "generator_provider": getattr(
+                self._generator, "provider", "mock" if self._generator.is_mock else "live"
+            ),
             "generator_model": self._generator.model_name,
+            "judge_provider": (
+                getattr(
+                    self._judge.client,
+                    "provider",
+                    "mock" if (self._judge and self._judge.is_mock) else "live",
+                )
+                if self._judge
+                else None
+            ),
             "judge_model": self._judge.client.model_name if self._judge else None,
             "judge_is_mock": self._judge.is_mock if self._judge else None,
             "nli_enabled": self._nli_evaluator is not None,

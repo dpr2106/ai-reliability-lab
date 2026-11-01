@@ -23,6 +23,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 
+from reliability_lab.api.middleware import RequestBodyLimitMiddleware
 from reliability_lab.api.schemas import (
     ChunkSchema,
     CitationAuditQueryItem,
@@ -103,12 +104,18 @@ def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) 
         return int(row["cnt"]) if row else 0
 
 
-def create_app() -> FastAPI:
+def create_app(max_request_body_size: int | None = None) -> FastAPI:
     """Create and configure the FastAPI application instance."""
     app = FastAPI(
         title="AI Reliability Lab Diagnostic API",
         description="Local REST API for the AI Reliability Lab Svelte Diagnostic Studio",
         version="0.1.0",
+    )
+
+    # Enforce ASGI-level request body limits across all incoming HTTP requests
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_size=max_request_body_size,
     )
 
     # Browser development CORS narrowly scoped to local frontend dev servers
@@ -444,7 +451,7 @@ def create_app() -> FastAPI:
         request: Request,
     ) -> DocumentUploadResponse:
         """Upload a PDF, TXT, or Markdown document and schedule local ingestion."""
-        # Request-level limit check if content-length header is present
+        # Service-level early check against Content-Length header
         content_length = request.headers.get("content-length")
         if content_length and content_length.isdigit():
             if int(content_length) > service.max_upload_size:
@@ -487,6 +494,8 @@ def create_app() -> FastAPI:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error saving uploaded file: {exc}",
             ) from exc
+        finally:
+            await file.close()
 
         # Schedule background extraction, chunking, and indexing
         background_tasks.add_task(service.process_document, record.doc_id)

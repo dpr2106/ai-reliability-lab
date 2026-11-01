@@ -9,6 +9,7 @@ import numpy as np
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from reliability_lab.api.main import (
     create_app,
@@ -153,7 +154,92 @@ class TestDocumentUploadAPI:
         response = client.post("/api/documents/upload", files=files, headers=headers)
 
         assert response.status_code == 413
-        assert "upload size limit exceeded" in response.json()["detail"].lower()
+        assert "limit exceeded" in response.json()["detail"].lower()
+
+    def test_asgi_middleware_rejects_early_content_length_on_configured_app(
+        self, tmp_path: Path
+    ) -> None:
+        db = Database(tmp_path / "mid_test.sqlite3")
+        repo = DocumentRepository(db)
+        service = DocumentIngestionService(repository=repo)
+
+        # Enforce strict 5KB max request body at ASGI level
+        app = create_app(max_request_body_size=5_000)
+        app.dependency_overrides[get_document_repository] = lambda: repo
+        app.dependency_overrides[get_ingestion_service] = lambda: service
+
+        with TestClient(app) as client:
+            headers = {"content-length": "6000"}
+            resp = client.post(
+                "/api/documents/upload",
+                files={"file": ("tiny.txt", io.BytesIO(b"abc"), "text/plain")},
+                headers=headers,
+            )
+            assert resp.status_code == 413
+            assert "exceeds maximum size limit" in resp.json()["detail"].lower()
+
+    def test_asgi_middleware_rejects_streaming_chunked_oversized_payload(
+        self, tmp_path: Path
+    ) -> None:
+        db = Database(tmp_path / "chunk_test.sqlite3")
+        repo = DocumentRepository(db)
+        service = DocumentIngestionService(repository=repo)
+
+        # Limit to 1000 bytes
+        app = create_app(max_request_body_size=1_000)
+        app.dependency_overrides[get_document_repository] = lambda: repo
+        app.dependency_overrides[get_ingestion_service] = lambda: service
+
+        with TestClient(app) as client:
+            # Multipart upload with a file payload larger than 1000 bytes
+            files = {"file": ("chunk.txt", io.BytesIO(b"A" * 1500), "text/plain")}
+            resp = client.post("/api/documents/upload", files=files)
+            assert resp.status_code == 413
+            assert "exceed" in resp.json()["detail"].lower()
+
+            # Direct chunked streaming payload without Content-Length
+            def chunk_generator():
+                for _ in range(5):
+                    yield b"X" * 300
+
+            resp_chunked = client.post(
+                "/api/runs/compare",
+                content=chunk_generator(),
+                headers={"transfer-encoding": "chunked"},
+            )
+            assert resp_chunked.status_code == 413
+            assert "cumulative request body exceeded" in resp_chunked.json()["detail"].lower()
+
+    def test_asgi_middleware_preserves_normal_get_and_post_routes(self, api_test_env) -> None:
+        client, _, _ = api_test_env
+
+        # Normal health check passes
+        health_resp = client.get("/api/health")
+        assert health_resp.status_code == 200
+
+        # Normal small document listing passes
+        list_resp = client.get("/api/documents")
+        assert list_resp.status_code == 200
+
+    def test_upload_closes_temporary_file_in_finally_block(
+        self, api_test_env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client, _, _ = api_test_env
+
+        closed_files = []
+        original_close = StarletteUploadFile.close
+
+        async def tracked_close(self_file):
+            closed_files.append(self_file.filename)
+            await original_close(self_file)
+
+        monkeypatch.setattr(StarletteUploadFile, "close", tracked_close)
+
+        files = {"file": ("cleanup_test.txt", io.BytesIO(b"Testing cleanup"), "text/plain")}
+        resp = client.post("/api/documents/upload", files=files)
+
+        assert resp.status_code == 201
+        assert "cleanup_test.txt" in closed_files
 
 
 class TestDocumentQueryAndManagementAPI:

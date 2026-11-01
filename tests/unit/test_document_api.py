@@ -145,6 +145,16 @@ class TestDocumentUploadAPI:
         assert response.status_code == 413
         assert "limit exceeded" in response.json()["detail"].lower()
 
+    def test_upload_content_length_header_rejects_early(self, api_test_env) -> None:
+        client, _, service = api_test_env
+
+        files = {"file": ("test.txt", io.BytesIO(b"Small content"), "text/plain")}
+        headers = {"content-length": str(service.max_upload_size + 10000)}
+        response = client.post("/api/documents/upload", files=files, headers=headers)
+
+        assert response.status_code == 413
+        assert "upload size limit exceeded" in response.json()["detail"].lower()
+
 
 class TestDocumentQueryAndManagementAPI:
     """Tests verifying GET and DELETE /api/documents endpoints."""
@@ -173,6 +183,50 @@ class TestDocumentQueryAndManagementAPI:
         detail_data = detail_resp.json()
         assert detail_data["doc_id"] == first_id
         assert detail_data["file_type"] == "txt"
+        # Confirm internal filesystem storage path is not exposed
+        assert "storage_path" not in detail_data
+
+    def test_get_document_chunks_paginated(self, api_test_env) -> None:
+        client, _, service = api_test_env
+
+        # Upload and process a document with multiple sentences
+        text = "Sentence one about AI evaluation. " * 30
+        files = {"file": ("chunks_doc.txt", io.BytesIO(text.encode()), "text/plain")}
+        up_resp = client.post("/api/documents/upload", files=files)
+        doc_id = up_resp.json()["doc_id"]
+
+        # Run processing synchronously for test
+        service.process_document(doc_id)
+
+        # Query all chunks
+        chunk_resp = client.get(f"/api/documents/{doc_id}/chunks?limit=50&offset=0")
+        assert chunk_resp.status_code == 200
+        data = chunk_resp.json()
+        assert data["total"] > 1
+        assert data["limit"] == 50
+        assert data["offset"] == 0
+        assert len(data["chunks"]) == data["total"]
+
+        first_chunk = data["chunks"][0]
+        assert first_chunk["doc_id"] == doc_id
+        assert first_chunk["chunk_index"] == 0
+        assert first_chunk["page_number"] == 1
+        assert first_chunk["char_start"] == 0
+        assert first_chunk["char_end"] > 0
+        assert len(first_chunk["content"]) > 0
+
+        # Query with pagination limit=1, offset=1
+        paged_resp = client.get(f"/api/documents/{doc_id}/chunks?limit=1&offset=1")
+        assert paged_resp.status_code == 200
+        paged_data = paged_resp.json()
+        assert paged_data["total"] == data["total"]
+        assert len(paged_data["chunks"]) == 1
+        assert paged_data["chunks"][0]["chunk_index"] == 1
+
+    def test_get_document_chunks_nonexistent_returns_404(self, api_test_env) -> None:
+        client, _, _ = api_test_env
+        resp = client.get("/api/documents/doc_nonexistent_000/chunks")
+        assert resp.status_code == 404
 
     def test_get_nonexistent_document_returns_404(self, api_test_env) -> None:
         client, _, _ = api_test_env
@@ -192,6 +246,26 @@ class TestDocumentQueryAndManagementAPI:
 
         # Subsequent GET should return 404
         assert client.get(f"/api/documents/{doc_id}").status_code == 404
+
+    def test_delete_document_filesystem_failure_returns_500(
+        self, api_test_env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client, _, service = api_test_env
+
+        files = {"file": ("protected.txt", io.BytesIO(b"Data"), "text/plain")}
+        up_resp = client.post("/api/documents/upload", files=files)
+        doc_id = up_resp.json()["doc_id"]
+
+        from reliability_lab.ingestion.service import DocumentDeletionError
+
+        def mock_delete_document(target_id: str) -> bool:
+            raise DocumentDeletionError("I/O error: disk block locked by kernel")
+
+        monkeypatch.setattr(service, "delete_document", mock_delete_document)
+
+        del_resp = client.delete(f"/api/documents/{doc_id}")
+        assert del_resp.status_code == 500
+        assert "disk block locked" in del_resp.json()["detail"].lower()
 
     def test_delete_nonexistent_document_returns_404(self, api_test_env) -> None:
         client, _, _ = api_test_env

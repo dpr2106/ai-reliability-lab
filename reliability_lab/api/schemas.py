@@ -152,10 +152,31 @@ class DocumentDetailResponse(BaseModel):
     chunk_count: int
     indexing_status: str
     error_message: str | None = None
-    storage_path: str
     metadata: dict[str, Any]
     created_at: str
     updated_at: str
+
+
+class ChunkSchema(BaseModel):
+    """Individual chunk record with source provenance coordinates."""
+
+    chunk_id: str
+    doc_id: str
+    chunk_index: int
+    content: str
+    page_number: int | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DocumentChunkListResponse(BaseModel):
+    """Paginated listing of extracted chunks for a document."""
+
+    total: int
+    limit: int
+    offset: int
+    chunks: list[ChunkSchema]
 
 
 class DocumentDeleteResponse(BaseModel):

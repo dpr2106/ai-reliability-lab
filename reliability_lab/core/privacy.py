@@ -4,6 +4,65 @@ from __future__ import annotations
 
 import re
 
+# Regex detecting explicit filesystem error or operation context
+_FS_ERROR_CONTEXT_PATTERN = re.compile(
+    r"\b(?:permission denied|"
+    r"failed to (?:open|read|write|delete|access|create|remove|copy|find|stat)|"
+    r"cannot (?:open|read|write|delete|access|create|remove)|"
+    r"error (?:opening|reading|writing|deleting|accessing|creating|removing|in)|"
+    r"no such file|file not found|directory not found|does not exist|\[errno \d+\])\b",
+    re.IGNORECASE,
+)
+
+
+def get_local_clause(text: str, start_pos: int, end_pos: int) -> str:
+    """Extract the local sentence or clause surrounding [start_pos, end_pos].
+
+    Clause boundaries:
+    - Newlines (\r, \n)
+    - Semicolons (;)
+    - Sentence terminators (. ! ?) followed by whitespace or end of string.
+    """
+    # 1. Scan left from start_pos to find clause start
+    clause_start = 0
+    i = start_pos - 1
+    while i >= 0:
+        ch = text[i]
+        if ch in "\r\n;":
+            clause_start = i + 1
+            break
+        if ch in ".!?":
+            if i + 1 < len(text) and text[i + 1].isspace():
+                clause_start = i + 1
+                break
+        i -= 1
+
+    # 2. Scan right from end_pos to find clause end
+    clause_end = len(text)
+    j = end_pos
+    while j < len(text):
+        ch = text[j]
+        if ch in "\r\n;":
+            clause_end = j
+            break
+        if ch in ".!?":
+            if j + 1 >= len(text) or text[j + 1].isspace():
+                clause_end = j + 1
+                break
+        j += 1
+
+    return text[clause_start:clause_end].strip()
+
+
+def has_filesystem_context(text: str, start_pos: int, end_pos: int) -> bool:
+    """Determine whether the local clause surrounding candidate has filesystem context."""
+    clause = get_local_clause(text, start_pos, end_pos)
+    if _FS_ERROR_CONTEXT_PATTERN.search(clause):
+        return True
+    if re.search(r"\b(?:directory|file|folder)\s+['\"`]*/", clause, re.IGNORECASE):
+        return True
+    return False
+
 
 def sanitize_path_message(text: str | None) -> str | None:
     """Sanitize error and diagnostic messages to remove absolute host filesystem paths.
@@ -14,14 +73,14 @@ def sanitize_path_message(text: str | None) -> str | None:
 
     Context-Sensitive Boundary Principles:
     1. Explicit filesystem errors and operations take priority over route or
-       documentation matching.
+       documentation matching, scoped locally to the active sentence or clause.
     2. Quoted filesystem paths are sanitized when filesystem context identifies them
        as paths. Quoted strings are preserved as API routes only when introduced by
        an HTTP method ('GET /...') or explicit endpoint keyword ('Endpoint: /...').
     3. Brace parameters alone ('{id}') never exempt a path from sanitization.
     4. Documentation placeholders ('/absolute/path', '/path/to/file', '/path/to/dir')
        are protected only in genuine documentation or instructional context and never
-       when introduced by filesystem error verbs.
+       when introduced by filesystem error verbs in the local clause.
     5. Genuine API routes remain intact in HTTP methods, explicit endpoint labels,
        standalone metadata routes ('/openapi.json', '/docs', '/redoc', '/health'),
        and clean unquoted client/network call messages.
@@ -48,16 +107,6 @@ def sanitize_path_message(text: str | None) -> str | None:
     def save_protected(token: str) -> str:
         protected_tokens.append(token)
         return f"__PROTECTED_TOKEN_{len(protected_tokens) - 1}__"
-
-    # Regex detecting explicit filesystem error or operation context
-    fs_error_context_pattern = re.compile(
-        r"\b(?:permission denied|"
-        r"failed to (?:open|read|write|delete|access|create|remove|copy|find|stat)|"
-        r"cannot (?:open|read|write|delete|access|create|remove)|"
-        r"error (?:opening|reading|writing|deleting|accessing|creating|removing|in)|"
-        r"no such file|file not found|directory not found|does not exist|\[errno \d+\])\b",
-        re.IGNORECASE,
-    )
 
     # 2a. HTTP method + route (quoted or unquoted):
     # e.g. GET /api/documents/{id}/chunks, GET '/api/documents/{id}/chunks', POST /api/upload
@@ -120,11 +169,9 @@ def sanitize_path_message(text: str | None) -> str | None:
     )
 
     # 2e. Documentation placeholders: e.g. /absolute/path, /path/to/file, /path/to/dir
-    # Protected ONLY when not in a filesystem error context, and limited to canonical examples
+    # Protected ONLY when the local clause is not a filesystem error
     def protect_doc_placeholders(m: re.Match[str]) -> str:
-        start_pos = m.start()
-        prefix_context = current_text[:start_pos]
-        if fs_error_context_pattern.search(prefix_context):
+        if has_filesystem_context(current_text, m.start(), m.end()):
             return m.group(0)  # In filesystem error context: do not protect!
         placeholder = m.group(0)
         return save_protected(placeholder)
@@ -146,11 +193,7 @@ def sanitize_path_message(text: str | None) -> str | None:
 
     def protect_clean_api_route(m: re.Match[str]) -> str:
         route_part = m.group(1)
-        start_pos = m.start()
-        prefix_context = current_text[max(0, start_pos - 60) : start_pos]
-        if fs_error_context_pattern.search(prefix_context):
-            return m.group(0)
-        if re.search(r"\b(?:directory|file|folder)\s*$", prefix_context, re.IGNORECASE):
+        if has_filesystem_context(current_text, m.start(), m.end()):
             return m.group(0)
         if fs_indicator_pattern.search(route_part):
             return m.group(0)

@@ -8,6 +8,7 @@ from reliability_lab.api.middleware import (
     RequestBodyLimitMiddleware,
     RequestBodyTooLargeError,
 )
+from reliability_lab.api.privacy import sanitize_path_message
 
 __all__ = [
     "DEFAULT_MAX_REQUEST_BODY_SIZE",
@@ -15,4 +16,5 @@ __all__ = [
     "RequestBodyTooLargeError",
     "app",
     "create_app",
+    "sanitize_path_message",
 ]

@@ -6,6 +6,7 @@ duplicating SQLite persistence or metric calculations.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Annotated, Any
@@ -24,6 +25,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 
 from reliability_lab.api.middleware import RequestBodyLimitMiddleware
+from reliability_lab.api.privacy import sanitize_path_message
 from reliability_lab.api.schemas import (
     ChunkSchema,
     CitationAuditQueryItem,
@@ -47,6 +49,7 @@ from reliability_lab.ingestion.service import (
     DocumentDeletionError,
     DocumentIngestionService,
     EmptyFileError,
+    IngestionError,
     InvalidDocumentFormatError,
     UploadSizeLimitExceededError,
 )
@@ -60,6 +63,8 @@ from reliability_lab.storage.repository import (
     StorageError,
     StoredRun,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_db_path() -> Path:
@@ -146,14 +151,14 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
             except StorageError:
                 return HealthResponse(
                     status="degraded",
-                    database=str(db_path),
+                    database=db_path.name,
                     database_exists=True,
                     total_runs=0,
                 )
 
         return HealthResponse(
             status="ok",
-            database=str(db_path),
+            database=db_path.name,
             database_exists=db_exists,
             total_runs=total_runs,
         )
@@ -490,9 +495,10 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 detail=f"Upload size limit exceeded: {exc}",
             ) from exc
         except Exception as exc:
+            logger.error("Failed to save uploaded file: %s", exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error saving uploaded file: {exc}",
+                detail="Failed to save uploaded file due to an unexpected storage error.",
             ) from exc
         finally:
             await file.close()
@@ -542,7 +548,7 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                     if hasattr(r.indexing_status, "value")
                     else str(r.indexing_status)
                 ),
-                error_message=r.error_message,
+                error_message=sanitize_path_message(r.error_message),
                 created_at=r.created_at,
                 updated_at=r.updated_at,
             )
@@ -583,7 +589,7 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 if hasattr(record.indexing_status, "value")
                 else str(record.indexing_status)
             ),
-            error_message=record.error_message,
+            error_message=sanitize_path_message(record.error_message),
             metadata=record.metadata,
             created_at=record.created_at,
             updated_at=record.updated_at,
@@ -603,6 +609,17 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Document '{document_id}' not found.",
             )
+
+        # Enforce document chunk freshness
+        try:
+            DocumentIngestionService.validate_document_freshness(
+                record, resource_name="Document chunks"
+            )
+        except IngestionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
 
         total = repo.count_chunks(document_id)
         chunk_items = repo.list_chunks(document_id, limit=limit, offset=offset)
@@ -639,7 +656,7 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
         except DocumentDeletionError as exc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(exc),
+                detail=sanitize_path_message(str(exc)),
             ) from exc
 
         if not deleted:

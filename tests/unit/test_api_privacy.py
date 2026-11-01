@@ -61,7 +61,7 @@ class TestPathPrivacySanitization:
     @pytest.mark.parametrize(
         "raw,expected",
         [
-            # Legal filename characters: spaces, Unicode, parentheses, #
+            # Legal filename characters: spaces, Unicode, parentheses, #, [], +
             (
                 "/mnt/data/private/file name.pdf",
                 "file name.pdf",
@@ -121,6 +121,18 @@ class TestPathPrivacySanitization:
             (
                 "Error reading /mnt/data/file#1.pdf",
                 "Error reading file#1.pdf",
+            ),
+            (
+                "/mnt/data/file[2].pdf",
+                "file[2].pdf",
+            ),
+            (
+                "/mnt/data/file+v2.pdf",
+                "file+v2.pdf",
+            ),
+            (
+                "'/workspace/my documents/naïve test/file[1]+v2.pdf'",
+                "'file[1]+v2.pdf'",
             ),
             # Paths with spaces and Unicode in intermediate directory names
             (
@@ -207,21 +219,79 @@ class TestPathPrivacySanitization:
         assert sanitize_path_message(raw) == expected
 
     @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            # Protected-prefix false negatives (MUST BE SANITIZED)
+            (
+                "Permission denied: /api/private/customer-data/file.pdf",
+                "Permission denied: file.pdf",
+            ),
+            (
+                "Failed to open /docs/private/storage/credentials.txt",
+                "Failed to open credentials.txt",
+            ),
+            (
+                "[Errno 2] No such file or directory: '/api/v1/internal/secrets/config.json'",
+                "[Errno 2] No such file or directory: 'config.json'",
+            ),
+            (
+                "Cannot access /health/runtime/private/file.bin: permission denied",
+                "Cannot access file.bin: permission denied",
+            ),
+            (
+                "Error reading /v1/internal/data/document.pdf: bad format",
+                "Error reading document.pdf: bad format",
+            ),
+            (
+                "Failed to delete /redoc/cache/temporary/file.tmp",
+                "Failed to delete file.tmp",
+            ),
+            # Extensionless & directory paths under protected-prefixes
+            (
+                "Directory /docs/private/storage/ does not exist",
+                "Directory storage does not exist",
+            ),
+            (
+                "Failed to access directory /api/private/storage",
+                "Failed to access directory storage",
+            ),
+            (
+                "Error accessing /api/storage/records",
+                "Error accessing records",
+            ),
+        ],
+    )
+    def test_sanitize_protected_prefix_paths(self, raw: str, expected: str) -> None:
+        """Verify that filesystem paths beginning with /api, /docs, etc. are sanitized."""
+        assert sanitize_path_message(raw) == expected
+
+    @pytest.mark.parametrize(
         "text",
         [
             # URLs
             "See https://example.com/api/v1/query?status=ready for details",
             "Check http://localhost:8000/api/documents/doc_123/chunks",
             "API at http://127.0.0.1:8000/api/documents",
-            # API routes
+            # API routes and operations
+            "Failed to reach /api/v1/documents",
+            "Client error when calling /api/documents",
             "Check endpoint /api/v1/documents for details",
+            "Endpoint: /api/v1/documents",
             "Endpoint '/api/v1/documents' returned 404",
             "GET /api/documents/{id}/chunks",
+            "POST /api/documents/upload returned 201",
             "Schema at /openapi.json",
             "Docs at /docs",
+            "Documentation at /docs",
+            "API documentation at /redoc",
+            "Check service status at /health",
+            "GET /health returned status ok",
+            "Query /v1/models endpoint",
+            "Route /api/runs was queried",
             # Documentation placeholders
             "Pass an /absolute/path to the command",
             "Replace with /path/to/file before running",
+            "Set directory to /path/to/dir",
             # Ordinary syntax and expressions
             "Score: 5/10, status: ok/ready",
             "5 / 10 ratio",

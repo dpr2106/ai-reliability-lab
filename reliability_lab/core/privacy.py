@@ -12,14 +12,22 @@ def sanitize_path_message(text: str | None) -> str | None:
     with file basenames or redacted placeholders, ensuring internal infrastructure
     locations are never disclosed in client responses.
 
-    Contextual Path Boundary:
-    - Preserves URLs (e.g. 'http://...', 'https://...').
-    - Preserves API routes (e.g. '/api/v1/documents', '/openapi.json', '/docs', '/health').
-    - Preserves documentation placeholders (e.g. '/absolute/path', '/path/to/file').
+    Context-Sensitive Boundary:
+    - Protects URLs (e.g. 'http://...', 'https://...').
+    - Distinguishes API routes and documentation placeholders from host filesystem paths:
+      Routes are preserved when introduced by HTTP methods ('GET /api/documents/{id}/chunks'),
+      route parameter syntax ('{id}'), route/endpoint markers ('Endpoint: /api/v1/documents'),
+      trailing endpoint labels ('/v1/models endpoint'), standalone metadata endpoints
+      ('/openapi.json', '/docs', '/redoc', '/health'), or clean API routes without file
+      extensions or internal filesystem directories.
+    - Eliminates prefix false negatives: paths under /api, /v1, /docs, /health, /redoc
+      that contain file extensions (e.g. '/api/private/customer-data/file.pdf'), filesystem
+      directory markers (e.g. '/docs/private/storage/'), or are referenced in filesystem
+      operations are sanitized to basenames.
     - Preserves status expressions, division ratios, MIME types, and CLI options
       (e.g. 'READY / PARTIAL', '5/10', 'text/plain', '-a/--all').
     - Redacts quoted and unquoted filesystem paths with arbitrary legal filename characters,
-      including spaces, Unicode, parentheses, and hashes ('#').
+      including spaces, Unicode, parentheses, brackets, plus signs, and hashes ('#').
     - Replaces standalone root paths ('/', 'C:\\', 'C:/') with '[path]'.
     """
     if not text:
@@ -35,20 +43,130 @@ def sanitize_path_message(text: str | None) -> str | None:
 
     text = url_pattern.sub(save_url, text)
 
-    # 2. Protect API routes and documentation placeholders
-    api_doc_pattern = re.compile(
-        r"(?<![a-zA-Z0-9_.-])/(?:(?:api|v[0-9]+|openapi\.json|docs|redoc|health)\b(?:/[^\s'\"`\(\)<>]+)*|(?:absolute/path|path/to(?:/[a-zA-Z0-9_.-]+)*|example/path)\b)"
+    # 2. Context-Sensitive Protection for Genuine API Routes & Documentation Placeholders
+    #
+    # Distinguishing Route vs. Filesystem Boundary:
+    # A slash-prefixed token is a genuine API route or documentation syntax ONLY when:
+    # 1) It is explicitly introduced by HTTP methods: GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD
+    # 2) It contains API route parameter syntax: e.g. {id}, {run_id}
+    # 3) It is preceded by route/endpoint context keywords: "endpoint", "route", "query"
+    # 4) It is followed by "endpoint"
+    # 5) It is a recognized documentation placeholder: /absolute/path, /path/to/..., /example/path
+    # 6) It is an exact standalone metadata endpoint: /openapi.json, /docs, /redoc, /health
+    # 7) It is an unquoted standard API route without file extensions and without
+    #    filesystem operation context.
+    #
+    # A path is NEVER protected as an API route if:
+    # - It contains a file extension (.pdf, .txt, .bin, .tmp, etc., except openapi.json)
+    # - It contains internal filesystem directory markers: private, storage, secrets,
+    #   internal, customer-data, runtime, cache, data
+    # - It is preceded by filesystem error/operation verbs: permission denied, failed to open,
+    #   no such file, directory, etc.
+
+    protected_tokens: list[str] = []
+
+    def save_protected(token: str) -> str:
+        protected_tokens.append(token)
+        return f"__PROTECTED_TOKEN_{len(protected_tokens) - 1}__"
+
+    # 2a. HTTP method + route: e.g. GET /api/documents/{id}/chunks, POST /api/documents/upload
+    def protect_http_route(m: re.Match[str]) -> str:
+        method = m.group(1)
+        route = m.group(2)
+        return f"{method} {save_protected(route)}"
+
+    text = re.sub(
+        r"\b(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(/(?:api|v[0-9]+|docs|redoc|health|openapi\.json)[^\s'\"`\(\)<>]*)",
+        protect_http_route,
+        text,
     )
-    api_doc_tokens: list[str] = []
 
-    def save_api_doc(m: re.Match[str]) -> str:
-        api_doc_tokens.append(m.group(0))
-        return f"__API_DOC_TOKEN_{len(api_doc_tokens) - 1}__"
+    # 2b. Route parameter syntax in braces: e.g. /api/documents/{id}/chunks
+    def protect_brace_route(m: re.Match[str]) -> str:
+        return save_protected(m.group(0))
 
-    text = api_doc_pattern.sub(save_api_doc, text)
+    text = re.sub(
+        r"(?<![a-zA-Z0-9_.-])/(?:api|v[0-9]+)/[a-zA-Z0-9_./-]*\{[a-zA-Z0-9_]+\}[a-zA-Z0-9_{}./-]*",
+        protect_brace_route,
+        text,
+    )
+
+    # 2c. Explicit endpoint/route contextual wording:
+    # e.g. "Endpoint: /api/v1/documents", "Route /api/runs was queried"
+    def protect_contextual_route(m: re.Match[str]) -> str:
+        prefix = m.group(1)
+        quote = m.group(2) or ""
+        route = m.group(3)
+        return f"{prefix}{quote}{save_protected(route)}{quote}"
+
+    text = re.sub(
+        r"(\b(?:endpoint|route)\s*[:\s]\s*)(['\"`]?)(/(?:api|v[0-9]+)[^\s'\"`\(\)<>]*)\2",
+        protect_contextual_route,
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 2d. Routes followed by "endpoint": e.g. "Query /v1/models endpoint"
+    def protect_trailing_endpoint(m: re.Match[str]) -> str:
+        route = m.group(1)
+        suffix = m.group(2)
+        return f"{save_protected(route)}{suffix}"
+
+    text = re.sub(
+        r"(/(?:api|v[0-9]+)[^\s'\"`\(\)<>]*?)(\s+endpoint\b)",
+        protect_trailing_endpoint,
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 2e. Standalone documentation/meta routes (ONLY when not followed by subpaths):
+    # e.g. /openapi.json, /docs, /redoc, /health
+    def protect_standalone_meta(m: re.Match[str]) -> str:
+        route = m.group(1)
+        return save_protected(route)
+
+    text = re.sub(
+        r"(?<![a-zA-Z0-9_.-])(/(?:openapi\.json|docs|redoc|health))(?=[,.;:!?\s'\"`\)\]]|$)",
+        protect_standalone_meta,
+        text,
+    )
+
+    # 2f. Documentation placeholders: e.g. /absolute/path, /path/to/file, /path/to/dir
+    def protect_doc_placeholders(m: re.Match[str]) -> str:
+        placeholder = m.group(0)
+        return save_protected(placeholder)
+
+    text = re.sub(
+        r"(?<![a-zA-Z0-9_.-])/(?:absolute/path|path/to(?:/[a-zA-Z0-9_.-]+)*|example/path)\b",
+        protect_doc_placeholders,
+        text,
+    )
+
+    # 2g. Clean unquoted API routes without file extensions or filesystem operation markers:
+    # e.g. "Failed to reach /api/v1/documents", "Client error when calling /api/documents"
+    fs_indicator_pattern = re.compile(
+        r"\.(?:pdf|txt|bin|json|csv|sqlite3|db|index|faiss|tmp|log|tar|gz|zip|xml|html|py|sh|env)\b|"
+        r"/(?:private|storage|secrets|internal|customer-data|runtime|cache|data)\b",
+        re.IGNORECASE,
+    )
+
+    def protect_clean_api_route(m: re.Match[str]) -> str:
+        prefix = m.group(1) or ""
+        route_part = m.group(2)
+        # If preceded by directory/file/folder or has filesystem indicators, do not protect
+        if prefix or fs_indicator_pattern.search(route_part):
+            return m.group(0)
+        return save_protected(route_part)
+
+    # Match /api/... or /v1/... not preceded by alphanumeric or filesystem words
+    text = re.sub(
+        r"(\b(?:directory|file|folder)\s+)?(?<![a-zA-Z0-9_.-])(/(?:api|v[0-9]+)/[a-zA-Z0-9_/-]+)",
+        protect_clean_api_route,
+        text,
+        flags=re.IGNORECASE,
+    )
 
     # 3. Quoted POSIX & Windows paths: e.g. '/path/...', "/path/...", `C:\...`
-    # Allows spaces, Unicode, parentheses, #, etc. inside matching quotes
     quoted_path_pattern = re.compile(r"(['\"`])((?:[a-zA-Z]:(?:\\\\|[\\/])|/)[^'\"`\r\n]*)\1")
 
     def replace_quoted(m: re.Match[str]) -> str:
@@ -89,7 +207,7 @@ def sanitize_path_message(text: str | None) -> str | None:
     # 6. Unquoted POSIX absolute paths
     # Matches:
     # 1) Directories ending with a slash: /(?:dir/)+(?=[\s,;!?\'\"\`\)\]]|$)
-    # 2) Paths with filename (including spaces/Unicode/parens/#) and extension
+    # 2) Paths with filename (including spaces/Unicode/parens/#/[]/+) and extension
     # 3) Directory path without extension: /(?:dir/)*segment
     posix_unquoted_pattern = re.compile(
         r"(?<![a-zA-Z0-9_.-])(?:/(?:(?![^/\r\n]*\.[a-zA-Z0-9]{1,5}\s)[^/\\:\r\n'\"`<>]+/)+(?=[\s,;!?\'\"\`\)\]]|$)|/(?:(?![^/\r\n]*\.[a-zA-Z0-9]{1,5}\s)[^/\\:\r\n'\"`<>]+/)*(?:[^/\\:\r\n'\"`<>\s,;!?\)]+(?:\s+[^/\\:\r\n'\"`<>\s,;!?\)]+)*\.[a-zA-Z0-9]+|[^/\\:\r\n'\"`<>\s,;!?\)]+))"
@@ -109,9 +227,9 @@ def sanitize_path_message(text: str | None) -> str | None:
 
     text = posix_unquoted_pattern.sub(replace_posix_unquoted, text)
 
-    # 7. Restore protected API routes, documentation placeholders, and URLs
-    for idx, token in enumerate(api_doc_tokens):
-        text = text.replace(f"__API_DOC_TOKEN_{idx}__", token)
+    # 7. Restore protected tokens and URLs
+    for idx, token in enumerate(protected_tokens):
+        text = text.replace(f"__PROTECTED_TOKEN_{idx}__", token)
 
     for idx, u in enumerate(urls):
         text = text.replace(f"__URL_TOKEN_{idx}__", u)

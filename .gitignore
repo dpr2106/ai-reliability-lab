@@ -48,6 +48,7 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+.reliability-lab/
 data/cache/
 data/raw/
 outputs/

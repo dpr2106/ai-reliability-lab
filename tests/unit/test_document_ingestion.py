@@ -15,8 +15,10 @@ from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, Ind
 from reliability_lab.ingestion.parser import FileNotFoundParserError
 from reliability_lab.ingestion.repository import DocumentRepository
 from reliability_lab.ingestion.service import (
+    DocumentDeletionError,
     DocumentIngestionService,
     EmptyFileError,
+    IngestionError,
     InvalidDocumentFormatError,
     UploadSizeLimitExceededError,
 )
@@ -422,11 +424,55 @@ class TestDocumentIngestionService:
         record = no_model_service.save_upload_stream("fallback.txt", stream)
         processed = no_model_service.process_document(record.doc_id)
 
-        # Dense indexing skipped or failed, but document record retains actionable details
+        # Dense indexing skipped or indexed, but document remains READY with BM25 available
         assert processed.chunk_count > 0
-        assert processed.indexing_status in {IndexingStatus.FAILED, IndexingStatus.INDEXED}
-        if processed.indexing_status == IndexingStatus.FAILED:
+        assert processed.status == DocumentStatus.READY
+        assert processed.indexing_status in {IndexingStatus.PARTIAL, IndexingStatus.INDEXED}
+        if processed.indexing_status == IndexingStatus.PARTIAL:
             assert "dense" in (processed.error_message or "").lower()
+            bm25 = no_model_service.get_bm25_retriever(record.doc_id)
+            assert len(bm25.retrieve("fallback", top_k=1)) == 1
+
+    def test_partial_indexing_when_embedder_fails(self, tmp_path: Path) -> None:
+        class FailingEmbedder(BaseEmbedder):
+            @property
+            def model_name(self) -> str:
+                return "failing-embedder"
+
+            @property
+            def embedding_dim(self) -> int:
+                return 16
+
+            def embed_texts(self, texts, batch_size=32):
+                raise RuntimeError("Neural inference failure (out of memory)")
+
+        db = Database(":memory:")
+        repo = DocumentRepository(db)
+        service = DocumentIngestionService(
+            repository=repo,
+            storage_dir=tmp_path / "documents",
+            index_dir=tmp_path / "indexes",
+            embedder=FailingEmbedder(),
+        )
+
+        stream = io.BytesIO(b"Document content that indexes in BM25 but fails dense FAISS.")
+        record = service.save_upload_stream("partial_doc.txt", stream)
+        processed = service.process_document(record.doc_id)
+
+        # Usable document with PARTIAL indexing and READY document status
+        assert processed.status == DocumentStatus.READY
+        assert processed.indexing_status == IndexingStatus.PARTIAL
+        assert "dense indexing failed" in (processed.error_message or "").lower()
+
+        # BM25 is fully usable
+        bm25 = service.get_bm25_retriever(record.doc_id)
+        results = bm25.retrieve("indexes", top_k=1)
+        assert len(results) == 1
+        assert results[0].chunk.doc_id == record.doc_id
+
+        # FAISS retrieval raises informative IngestionError
+        with pytest.raises(IngestionError, match="PARTIAL"):
+            service.get_faiss_retriever(record.doc_id)
 
     def test_delete_document_removes_files_and_indexes(
         self, service: DocumentIngestionService
@@ -445,3 +491,84 @@ class TestDocumentIngestionService:
         assert not storage_file.exists()
         assert not index_dir.exists()
         assert service.repository.get_document(record.doc_id) is None
+
+    def test_delete_document_preserves_db_on_filesystem_failure(
+        self, service: DocumentIngestionService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stream = io.BytesIO(b"File protected from deletion.")
+        record = service.save_upload_stream("locked_file.txt", stream)
+        service.process_document(record.doc_id)
+
+        # Simulate filesystem unlink failure
+        def mock_unlink(self_path):
+            raise OSError("Permission denied: file is locked by another process")
+
+        monkeypatch.setattr(Path, "unlink", mock_unlink)
+
+        with pytest.raises(DocumentDeletionError, match="Failed to delete file"):
+            service.delete_document(record.doc_id)
+
+        # Database record must still exist so deletion can be retried
+        preserved = service.repository.get_document(record.doc_id)
+        assert preserved is not None
+        assert preserved.doc_id == record.doc_id
+
+        # Undo monkeypatch and retry deletion successfully
+        monkeypatch.undo()
+        retry_deleted = service.delete_document(record.doc_id)
+        assert retry_deleted is True
+        assert service.repository.get_document(record.doc_id) is None
+
+    def test_delete_document_idempotent_when_files_already_absent(
+        self, service: DocumentIngestionService
+    ) -> None:
+        stream = io.BytesIO(b"Files deleted externally.")
+        record = service.save_upload_stream("external_del.txt", stream)
+        service.process_document(record.doc_id)
+
+        # Manually remove disk artifacts beforehand
+        storage_file = Path(record.storage_path)
+        index_dir = service.index_dir / record.doc_id
+        if storage_file.exists():
+            storage_file.unlink()
+        if index_dir.exists():
+            import shutil
+
+            shutil.rmtree(index_dir)
+
+        # delete_document should handle cleanly and delete database record
+        deleted = service.delete_document(record.doc_id)
+        assert deleted is True
+        assert service.repository.get_document(record.doc_id) is None
+
+        # Calling again on already deleted document returns False
+        assert service.delete_document(record.doc_id) is False
+
+    def test_process_document_unexpected_error_sets_failed_status(
+        self, service: DocumentIngestionService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stream = io.BytesIO(b"Test text for unexpected chunker error.")
+        record = service.save_upload_stream("error_doc.txt", stream)
+
+        # Simulate unexpected exception during chunking
+        def mock_chunk(self, doc):
+            raise RuntimeError("Unexpected tokenizer memory fault")
+
+        from reliability_lab.ingestion.chunker import RecursiveCharacterChunker
+
+        monkeypatch.setattr(RecursiveCharacterChunker, "chunk", mock_chunk)
+
+        processed = service.process_document(record.doc_id)
+        assert processed.status == DocumentStatus.FAILED
+        assert "citation-aware chunking failed" in (processed.error_message or "").lower()
+
+    def test_upload_stream_rejects_null_byte_in_subsequent_chunks(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # 64KB of clean text followed by binary null byte in 2nd chunk
+        clean_prefix = b"A" * 65536
+        dirty_suffix = b"Hello\x00World"
+        stream = io.BytesIO(clean_prefix + dirty_suffix)
+
+        with pytest.raises(InvalidDocumentFormatError, match="contains binary null bytes"):
+            service.save_upload_stream("streaming_binary.txt", stream)

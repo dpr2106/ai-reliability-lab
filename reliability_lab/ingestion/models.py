@@ -25,6 +25,7 @@ class IndexingStatus(str, Enum):
 
     PENDING = "PENDING"
     INDEXED = "INDEXED"
+    PARTIAL = "PARTIAL"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 

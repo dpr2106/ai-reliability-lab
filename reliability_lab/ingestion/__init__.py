@@ -18,6 +18,7 @@ from reliability_lab.ingestion.parser import (
 )
 from reliability_lab.ingestion.repository import DocumentRepository
 from reliability_lab.ingestion.service import (
+    DocumentDeletionError,
     DocumentIngestionService,
     DocumentNotFoundError,
     EmptyFileError,
@@ -31,6 +32,7 @@ from reliability_lab.ingestion.text_parser import (
 )
 
 __all__ = [
+    "DocumentDeletionError",
     "DocumentIngestionService",
     "DocumentNotFoundError",
     "DocumentRecord",

@@ -291,6 +291,51 @@ class DocumentRepository:
                 (len(chunks), now, doc_id),
             )
 
+    def count_chunks(self, doc_id: str) -> int:
+        """Return the count of stored chunks for a specific document."""
+        with self._db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM document_chunks WHERE doc_id = ?",
+                (doc_id,),
+            ).fetchone()
+            return int(row["cnt"]) if row else 0
+
+    def list_chunks(
+        self,
+        doc_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[tuple[int, Chunk]]:
+        """Retrieve paginated stored chunks with chunk_index for a document."""
+        with self._db.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM document_chunks
+                WHERE doc_id = ?
+                ORDER BY chunk_index ASC
+                LIMIT ? OFFSET ?
+                """,
+                (doc_id, limit, offset),
+            ).fetchall()
+
+            results: list[tuple[int, Chunk]] = []
+            for r in rows:
+                try:
+                    meta = json.loads(r["metadata_json"]) if r["metadata_json"] else {}
+                except Exception:
+                    meta = {}
+                chunk = Chunk(
+                    chunk_id=str(r["chunk_id"]),
+                    doc_id=str(r["doc_id"]),
+                    content=str(r["content"]),
+                    page_number=int(r["page_number"]) if r["page_number"] is not None else None,
+                    char_start=int(r["char_start"]) if r["char_start"] is not None else None,
+                    char_end=int(r["char_end"]) if r["char_end"] is not None else None,
+                    metadata=meta,
+                )
+                results.append((int(r["chunk_index"]), chunk))
+            return results
+
     def get_chunks(self, doc_id: str) -> list[Chunk]:
         """Retrieve all stored chunks for a document, ordered by chunk_index."""
         with self._db.get_connection() as conn:

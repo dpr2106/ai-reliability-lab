@@ -416,3 +416,84 @@ class TestPathPrivacySanitization:
     )
     def test_preserves_urls_api_routes_and_ordinary_syntax(self, text: str) -> None:
         assert sanitize_path_message(text) == text
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            # Case A: Earlier error must not affect a later route
+            (
+                "Previous operation: permission denied.\nGET /api/v1/documents",
+                "Previous operation: permission denied.\nGET /api/v1/documents",
+            ),
+            (
+                "Previous operation: permission denied. Failed to reach /api/v1/documents",
+                "Previous operation: permission denied. Failed to reach /api/v1/documents",
+            ),
+            # Case B: Earlier error must not affect documentation
+            (
+                "Previous operation: permission denied.\nExample path: /path/to/file",
+                "Previous operation: permission denied.\nExample path: /path/to/file",
+            ),
+            (
+                "Previous operation: permission denied. Example path: /path/to/file",
+                "Previous operation: permission denied. Example path: /path/to/file",
+            ),
+            # Case C: Route and filesystem path in the same message
+            (
+                "Endpoint: /api/v1/documents returned 404. Failed to open /mnt/private/data.pdf",
+                "Endpoint: /api/v1/documents returned 404. Failed to open data.pdf",
+            ),
+            (
+                "Query /api/v1/documents endpoint; error reading /srv/storage/report.pdf",
+                "Query /api/v1/documents endpoint; error reading report.pdf",
+            ),
+            # Case D: Documentation placeholder followed by actual filesystem path
+            (
+                "Example path: /path/to/file. Permission denied: /path/to/private/file.pdf",
+                "Example path: /path/to/file. Permission denied: file.pdf",
+            ),
+            (
+                "Pass an /absolute/path to the command\nFailed to open /var/data/secret.bin",
+                "Pass an /absolute/path to the command\nFailed to open secret.bin",
+            ),
+            # Case E: Multiple independent clauses (newlines, semicolons, periods in filenames)
+            (
+                (
+                    "Previous operation: permission denied.\n"
+                    "Check endpoint /api/v1/documents for details.\n"
+                    "Failed to open /var/log/app.log"
+                ),
+                (
+                    "Previous operation: permission denied.\n"
+                    "Check endpoint /api/v1/documents for details.\n"
+                    "Failed to open app.log"
+                ),
+            ),
+            (
+                (
+                    "Previous operation: permission denied; "
+                    "Check endpoint /api/v1/documents for details; "
+                    "failed to open /var/log/app.log"
+                ),
+                (
+                    "Previous operation: permission denied; "
+                    "Check endpoint /api/v1/documents for details; "
+                    "failed to open app.log"
+                ),
+            ),
+            (
+                (
+                    "GET /api/documents/{id}/chunks succeeded. "
+                    "Next, failed to open /custom/path/file.v2.tar.gz."
+                ),
+                ("GET /api/documents/{id}/chunks succeeded. Next, failed to open file.v2.tar.gz."),
+            ),
+            (
+                "Cannot open /var/data/archive.tar.gz: permission denied. See /docs for manual.",
+                "Cannot open archive.tar.gz: permission denied. See /docs for manual.",
+            ),
+        ],
+    )
+    def test_scoped_context_isolation(self, raw: str, expected: str) -> None:
+        """Verify that filesystem error context is locally scoped to the clause."""
+        assert sanitize_path_message(raw) == expected

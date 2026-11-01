@@ -51,6 +51,10 @@ class DocumentNotFoundError(IngestionError):
     """Raised when a requested document does not exist in the repository."""
 
 
+class DocumentDeletionError(IngestionError):
+    """Raised when deletion of document files or indexes fails on the filesystem."""
+
+
 class DocumentIngestionService:
     """Service orchestrating file upload validation, extraction, chunking, and indexing."""
 
@@ -136,17 +140,22 @@ class DocumentIngestionService:
             UploadSizeLimitExceededError: If file exceeds max_upload_size.
             InvalidDocumentFormatError: If extension or magic bytes are invalid.
         """
-        sanitized_filename = Path(filename).name
+        raw_name = Path(filename).name.strip().replace("\x00", "")
+        if not raw_name or raw_name in {".", ".."}:
+            sanitized_filename = "document.bin"
+        else:
+            sanitized_filename = raw_name
+
         ext = Path(sanitized_filename).suffix.lower()
         if not ext:
             raise InvalidDocumentFormatError(f"Filename '{sanitized_filename}' has no extension.")
 
         effective_id = doc_id.strip() if doc_id and doc_id.strip() else f"doc_{uuid4().hex[:16]}"
         safe_storage_name = f"{effective_id}{ext}"
-        storage_path = self.storage_dir / safe_storage_name
+        storage_path = (self.storage_dir / safe_storage_name).resolve()
 
         # Ensure safe path containment
-        if not storage_path.resolve().is_relative_to(self.storage_dir.resolve()):
+        if not storage_path.is_relative_to(self.storage_dir.resolve()):
             raise InvalidDocumentFormatError("Unsafe filename detected (path traversal attempt).")
 
         hasher = hashlib.sha256()
@@ -164,6 +173,12 @@ class DocumentIngestionService:
                     if first_chunk:
                         file_type = self.validate_file_header(sanitized_filename, chunk[:1024])
                         first_chunk = False
+
+                    # Security check: if text or md, check entire stream for binary null bytes
+                    if file_type in {"txt", "md"} and b"\x00" in chunk:
+                        raise InvalidDocumentFormatError(
+                            f"File '{sanitized_filename}' contains binary null bytes."
+                        )
 
                     total_size += len(chunk)
                     if total_size > self.max_upload_size:
@@ -205,6 +220,8 @@ class DocumentIngestionService:
         """Execute extraction, citation-aware chunking, and index generation.
 
         Lifecycle: UPLOADED -> EXTRACTING -> CHUNKING -> INDEXING -> READY (or FAILED).
+        Guarantees that unhandled exceptions transition the document to FAILED
+        with actionable diagnostics rather than leaving it indefinitely stuck.
         """
         record = self.repository.get_document(doc_id)
         if record is None:
@@ -219,138 +236,169 @@ class DocumentIngestionService:
             )
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
-        # 1. EXTRACTING
-        self.repository.update_document_status(doc_id, status=DocumentStatus.EXTRACTING)
         try:
-            document: Document
-            if record.file_type == "pdf":
-                parser = PyMuPDFParser()
-                document = parser.parse(storage_path, doc_id=doc_id)
+            # 1. EXTRACTING
+            self.repository.update_document_status(doc_id, status=DocumentStatus.EXTRACTING)
+            try:
+                document: Document
+                if record.file_type == "pdf":
+                    parser = PyMuPDFParser()
+                    document = parser.parse(storage_path, doc_id=doc_id)
+                else:
+                    text_parser = TextDocumentParser()
+                    document = text_parser.parse(storage_path, doc_id=doc_id)
+            except EncryptedPDFParserError as exc:
+                logger.warning("PDF %s is encrypted: %s", doc_id, exc)
+                self.repository.update_document_status(
+                    doc_id,
+                    status=DocumentStatus.FAILED,
+                    error_message=f"PDF is encrypted or requires password authentication: {exc}",
+                )
+                return self.repository.get_document(doc_id)  # type: ignore[return-value]
+            except (InvalidPDFParserError, InvalidTextDocumentError, Exception) as exc:
+                logger.error("Extraction failed for %s: %s", doc_id, exc)
+                self.repository.update_document_status(
+                    doc_id,
+                    status=DocumentStatus.FAILED,
+                    error_message=f"Document text extraction failed: {exc}",
+                )
+                return self.repository.get_document(doc_id)  # type: ignore[return-value]
+
+            page_count = document.page_count or 1
+
+            # 2. CHUNKING
+            self.repository.update_document_status(
+                doc_id,
+                status=DocumentStatus.CHUNKING,
+                page_count=page_count,
+            )
+            try:
+                chunker = RecursiveCharacterChunker(
+                    chunk_size=self.chunk_size,
+                    chunk_overlap=self.chunk_overlap,
+                )
+                chunks = chunker.chunk(document)
+            except Exception as exc:
+                logger.error("Chunking failed for %s: %s", doc_id, exc)
+                self.repository.update_document_status(
+                    doc_id,
+                    status=DocumentStatus.FAILED,
+                    error_message=f"Citation-aware chunking failed: {exc}",
+                )
+                return self.repository.get_document(doc_id)  # type: ignore[return-value]
+
+            # Persist chunks in repository (safely replaces prior chunks to avoid duplicates)
+            self.repository.save_chunks(doc_id, chunks)
+
+            # 3. INDEXING
+            self.repository.update_document_status(
+                doc_id,
+                status=DocumentStatus.INDEXING,
+                chunk_count=len(chunks),
+            )
+
+            doc_index_dir = self.index_dir / doc_id
+            doc_index_dir.mkdir(parents=True, exist_ok=True)
+
+            # 3a. Persist BM25 Index Chunks atomically
+            bm25_chunks_file = doc_index_dir / "bm25_chunks.json"
+            bm25_tmp_file = doc_index_dir / "bm25_chunks.json.tmp"
+            bm25_indexing_ok = False
+            try:
+                chunks_json = [c.to_dict() for c in chunks]
+                bm25_tmp_file.write_text(
+                    json.dumps(chunks_json, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                bm25_tmp_file.replace(bm25_chunks_file)
+                bm25_indexing_ok = True
+            except OSError as exc:
+                logger.error("Failed saving BM25 chunks for %s: %s", doc_id, exc)
+                if bm25_tmp_file.exists():
+                    bm25_tmp_file.unlink(missing_ok=True)
+
+            # 3b. Dense FAISS Indexing
+            faiss_dir = doc_index_dir / "faiss"
+            indexing_status: IndexingStatus
+            index_err_msg: str | None = None
+            final_status: DocumentStatus
+
+            if len(chunks) == 0:
+                indexing_status = IndexingStatus.SKIPPED
+                final_status = DocumentStatus.READY
+            elif not bm25_indexing_ok:
+                indexing_status = IndexingStatus.FAILED
+                index_err_msg = "BM25 index generation failed."
+                final_status = DocumentStatus.FAILED
             else:
-                text_parser = TextDocumentParser()
-                document = text_parser.parse(storage_path, doc_id=doc_id)
-        except EncryptedPDFParserError as exc:
-            logger.warning("PDF %s is encrypted: %s", doc_id, exc)
-            self.repository.update_document_status(
-                doc_id,
-                status=DocumentStatus.FAILED,
-                error_message=f"PDF is encrypted or requires password authentication: {exc}",
-            )
-            return self.repository.get_document(doc_id)  # type: ignore[return-value]
-        except (InvalidPDFParserError, InvalidTextDocumentError, Exception) as exc:
-            logger.error("Extraction failed for %s: %s", doc_id, exc)
-            self.repository.update_document_status(
-                doc_id,
-                status=DocumentStatus.FAILED,
-                error_message=f"Document text extraction failed: {exc}",
-            )
-            return self.repository.get_document(doc_id)  # type: ignore[return-value]
+                # BM25 succeeded. Now try dense vector indexing
+                embedder = self._embedder
+                faiss_available = False
+                if embedder is None:
+                    try:
+                        # Attempt local model loading without network downloads
+                        embedder = SentenceTransformerEmbedder(local_files_only=True)
+                    except Exception as exc:
+                        logger.info(
+                            "Local sentence-transformers embedding model unavailable for %s: %s",
+                            doc_id,
+                            exc,
+                        )
+                        index_err_msg = (
+                            "Dense FAISS index generation skipped: local model "
+                            f"'all-MiniLM-L6-v2' not available ({exc}). "
+                            "BM25 lexical retrieval is available."
+                        )
+                        if faiss_dir.exists():
+                            shutil.rmtree(faiss_dir, ignore_errors=True)
 
-        page_count = document.page_count or 1
+                if embedder is not None:
+                    try:
+                        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+                        retriever.index(chunks)
+                        # Atomic FAISS save via temporary directory
+                        faiss_tmp = doc_index_dir / "faiss_tmp"
+                        if faiss_tmp.exists():
+                            shutil.rmtree(faiss_tmp, ignore_errors=True)
+                        retriever.save(faiss_tmp)
+                        if faiss_dir.exists():
+                            shutil.rmtree(faiss_dir, ignore_errors=True)
+                        faiss_tmp.rename(faiss_dir)
+                        faiss_available = True
+                    except Exception as exc:
+                        logger.error("Dense FAISS indexing failed for %s: %s", doc_id, exc)
+                        index_err_msg = f"FAISS dense indexing failed: {exc}"
+                        if faiss_dir.exists():
+                            shutil.rmtree(faiss_dir, ignore_errors=True)
 
-        # 2. CHUNKING
-        self.repository.update_document_status(
-            doc_id,
-            status=DocumentStatus.CHUNKING,
-            page_count=page_count,
-        )
-        try:
-            chunker = RecursiveCharacterChunker(
-                chunk_size=self.chunk_size,
-                chunk_overlap=self.chunk_overlap,
-            )
-            chunks = chunker.chunk(document)
-        except Exception as exc:
-            logger.error("Chunking failed for %s: %s", doc_id, exc)
-            self.repository.update_document_status(
-                doc_id,
-                status=DocumentStatus.FAILED,
-                error_message=f"Citation-aware chunking failed: {exc}",
-            )
-            return self.repository.get_document(doc_id)  # type: ignore[return-value]
-
-        # Persist chunks in repository
-        self.repository.save_chunks(doc_id, chunks)
-
-        # 3. INDEXING
-        self.repository.update_document_status(
-            doc_id,
-            status=DocumentStatus.INDEXING,
-            chunk_count=len(chunks),
-        )
-
-        doc_index_dir = self.index_dir / doc_id
-        doc_index_dir.mkdir(parents=True, exist_ok=True)
-
-        # 3a. Persist BM25 Index Chunks
-        bm25_chunks_file = doc_index_dir / "bm25_chunks.json"
-        try:
-            chunks_json = [c.to_dict() for c in chunks]
-            bm25_chunks_file.write_text(
-                json.dumps(chunks_json, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-        except OSError as exc:
-            logger.error("Failed saving BM25 chunks for %s: %s", doc_id, exc)
-
-        # 3b. Dense FAISS Indexing
-        faiss_dir = doc_index_dir / "faiss"
-        indexing_status = IndexingStatus.INDEXED
-        index_err_msg: str | None = None
-
-        if len(chunks) == 0:
-            indexing_status = IndexingStatus.SKIPPED
-        else:
-            embedder = self._embedder
-            if embedder is None:
-                try:
-                    # Attempt local model loading without network downloads
-                    embedder = SentenceTransformerEmbedder(local_files_only=True)
-                except Exception as exc:
-                    logger.info(
-                        "Local sentence-transformers embedding model unavailable for %s: %s",
-                        doc_id,
-                        exc,
-                    )
-                    indexing_status = IndexingStatus.FAILED
-                    index_err_msg = (
-                        "Dense FAISS index generation skipped: local sentence-transformers model "
-                        f"'all-MiniLM-L6-v2' not available ({exc}). "
-                        "BM25 lexical retrieval is available."
-                    )
-                    # Clean up partial faiss dir if any
-                    if faiss_dir.exists():
-                        shutil.rmtree(faiss_dir, ignore_errors=True)
-
-            if embedder is not None and indexing_status != IndexingStatus.FAILED:
-                try:
-                    retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
-                    retriever.index(chunks)
-                    retriever.save(faiss_dir)
+                if faiss_available:
                     indexing_status = IndexingStatus.INDEXED
-                except Exception as exc:
-                    logger.error("Dense FAISS indexing failed for %s: %s", doc_id, exc)
-                    indexing_status = IndexingStatus.FAILED
-                    index_err_msg = f"FAISS dense indexing failed: {exc}"
-                    if faiss_dir.exists():
-                        shutil.rmtree(faiss_dir, ignore_errors=True)
+                    final_status = DocumentStatus.READY
+                else:
+                    # BM25 is available, but FAISS is not available
+                    indexing_status = IndexingStatus.PARTIAL
+                    final_status = DocumentStatus.READY
 
-        final_status = (
-            DocumentStatus.READY
-            if indexing_status in {IndexingStatus.INDEXED, IndexingStatus.SKIPPED}
-            else DocumentStatus.FAILED
-        )
+            self.repository.update_document_status(
+                doc_id,
+                status=final_status,
+                indexing_status=indexing_status,
+                error_message=index_err_msg,
+                page_count=page_count,
+                chunk_count=len(chunks),
+            )
 
-        self.repository.update_document_status(
-            doc_id,
-            status=final_status,
-            indexing_status=indexing_status,
-            error_message=index_err_msg,
-            page_count=page_count,
-            chunk_count=len(chunks),
-        )
+            return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
-        return self.repository.get_document(doc_id)  # type: ignore[return-value]
+        except Exception as unhandled_exc:
+            logger.exception("Unexpected error processing document %s: %s", doc_id, unhandled_exc)
+            self.repository.update_document_status(
+                doc_id,
+                status=DocumentStatus.FAILED,
+                indexing_status=IndexingStatus.FAILED,
+                error_message=f"Unexpected processing error: {unhandled_exc}",
+            )
+            return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
     def get_bm25_retriever(self, doc_id: str) -> BM25Retriever:
         """Construct and populate a BM25Retriever from persisted document chunks."""
@@ -380,6 +428,12 @@ class DocumentIngestionService:
         """Load a persisted FAISS vector retriever from disk."""
         faiss_dir = self.index_dir / doc_id / "faiss"
         if not faiss_dir.is_dir():
+            record = self.repository.get_document(doc_id)
+            if record is not None and record.indexing_status == IndexingStatus.PARTIAL:
+                raise IngestionError(
+                    f"FAISS dense index not available for document '{doc_id}' "
+                    "(indexing status is PARTIAL: BM25 lexical retrieval is available)."
+                )
             raise FileNotFoundError(f"FAISS index directory not found for document '{doc_id}'.")
 
         effective_embedder = embedder or self._embedder
@@ -389,26 +443,48 @@ class DocumentIngestionService:
         return FaissVectorRetriever.load(faiss_dir, effective_embedder)
 
     def delete_document(self, doc_id: str) -> bool:
-        """Safely delete original document file, indexes, and database records."""
+        """Safely delete original document file, indexes, and database records.
+
+        Guarantees that database records are only deleted when filesystem cleanup
+        has succeeded or target files/directories were already absent (idempotent).
+        If filesystem cleanup fails, preserves the database record and raises
+        DocumentDeletionError to allow subsequent safe retries.
+
+        Returns:
+            True if document existed and was deleted, False if document was not found.
+
+        Raises:
+            DocumentDeletionError: If filesystem cleanup fails.
+        """
         record = self.repository.get_document(doc_id)
         if record is None:
             return False
 
-        # 1. Remove original storage file
+        # 1. Remove original storage file if it exists
         storage_path = Path(record.storage_path)
-        if storage_path.is_file():
+        if storage_path.exists():
             try:
                 storage_path.unlink()
             except OSError as exc:
-                logger.warning("Could not delete file %s: %s", storage_path, exc)
+                logger.error(
+                    "Could not delete storage file %s for %s: %s", storage_path, doc_id, exc
+                )
+                raise DocumentDeletionError(
+                    f"Failed to delete file '{storage_path.name}' for doc '{doc_id}': {exc}"
+                ) from exc
 
-        # 2. Remove index directory
+        # 2. Remove index directory if it exists
         doc_index_dir = self.index_dir / doc_id
-        if doc_index_dir.is_dir():
+        if doc_index_dir.exists():
             try:
                 shutil.rmtree(doc_index_dir)
             except OSError as exc:
-                logger.warning("Could not delete index dir %s: %s", doc_index_dir, exc)
+                logger.error(
+                    "Could not delete index directory %s for %s: %s", doc_index_dir, doc_id, exc
+                )
+                raise DocumentDeletionError(
+                    f"Failed to delete index directory for document '{doc_id}': {exc}"
+                ) from exc
 
-        # 3. Remove database record and cascaded chunks
+        # 3. Only when filesystem cleanup has succeeded, remove database record and cascaded chunks
         return self.repository.delete_document(doc_id)

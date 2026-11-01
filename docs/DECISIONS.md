@@ -123,6 +123,29 @@
   - Test suites and CI runners execute hermetically without an active Ollama daemon using `httpx.MockTransport`.
   - Production and local developer environments remain lightweight with zero additional external package dependencies.
 
+## ADR-014: Local Document Ingestion Architecture with Citation-Aware Chunking and Dual-Index Persistence
+- **Status**: Accepted
+- **Context**: Milestone V2-002 establishes the ingestion and indexing foundation for AI Reliability Lab v2. The system must allow users to upload PDF, plain text (.txt), and Markdown (.md) documents, extract contents with strict character and page/span provenance, generate citation-aware chunks, and construct persistent retrieval indexes (BM25 lexical index and FAISS dense vector index). The design must prevent path traversal, reject empty/oversized/corrupted/password-protected files, execute background indexing without heavy queue infrastructure (Celery/Redis), and persist indexes locally without cloud storage dependencies.
+- **Alternatives Considered**:
+  - *Cloud Document Parsers (AWS Textract, Azure Document Intelligence)*: Violates the offline-first privacy requirement and introduces per-page billing.
+  - *In-Memory Only Indexing*: Forces complete document re-extraction and re-embedding on every application restart, causing prohibitive latency for large corpora.
+  - *External Vector Database Daemon (Milvus, Qdrant, Chroma)*: Introduces complex multi-container requirements and operational overhead for standard local desktop installations.
+  - *Embedded Local Pipeline with SQLite and File-Backed FAISS/BM25*: Integrates embedded PyMuPDF and `TextDocumentParser`, persists metadata/chunks in SQLite, writes FAISS dense indexes (`index.faiss` + `metadata.json`) atomically to disk, and executes indexing via FastAPI `BackgroundTasks`.
+- **Decision**:
+  1. *Streaming Multipart Upload & Bounds Gating*: Implement `POST /api/documents/upload` with bounded 64KB streaming reads, SHA-256 computation, and size enforcement (default 50MB). Inspect magic headers (`%PDF-` for PDF, binary null byte rejection for text/markdown). Prevent path traversal by isolating storage paths under configurable `.reliability-lab/documents/` using generated IDs (`doc_<uuid>`).
+  2. *Provenance-Preserving Text Adapter*: Implement `TextDocumentParser` to extract TXT and Markdown content, mapping content to `page_number=1` with full line/span character offsets so downstream citation auditing mechanisms behave identically across PDF and text formats.
+  3. *Citation-Aware Chunking*: Reuse `RecursiveCharacterChunker` to split content into atomic `Chunk` dataclasses while preserving intersecting page numbers, line offsets, and bounding coordinates. Persist chunks in `document_chunks` SQLite table.
+  4. *Dual-Index Persistence & Reload*:
+     - BM25: Persist extracted chunks in SQLite and `bm25_chunks.json`, allowing instantaneous BM25 retriever reconstruction upon server boot without reparsing.
+     - FAISS: Embed chunks via `BaseEmbedder` and save dense vector indexes atomically using `FaissVectorRetriever.save(faiss_dir)`. When local embedding models are missing, record an actionable warning and skip dense indexing without failing lexical retrieval.
+  5. *Asynchronous Ingestion Lifecycle*: Track explicit states (`UPLOADED -> EXTRACTING -> CHUNKING -> INDEXING -> READY` or `FAILED`). Schedule extraction and indexing via FastAPI `BackgroundTasks`, keeping upload responses fast and non-blocking.
+  6. *Safe Cascading Deletion*: Provide `DELETE /api/documents/{document_id}` to atomically delete source files, index directories, database records, and persisted chunks without orphaned disk artifacts.
+- **Consequences**:
+  - Users can upload, inspect, and index documents locally with complete data privacy.
+  - Chunks retain character and page provenance across all supported file types.
+  - Server restarts preserve existing indexed documents and vector representations.
+  - Tests remain completely hermetic using isolated SQLite databases and mock embedders.
+
 
 
 

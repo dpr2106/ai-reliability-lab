@@ -312,6 +312,64 @@ AI Reliability Lab strictly tracks model provenance across every evaluation to e
 
 ---
 
+## Document Ingestion & Management API (v2)
+
+AI Reliability Lab v2 features an offline-first, local document ingestion pipeline supporting PDF, TXT, and Markdown files with streaming validation, citation-aware chunking, SQLite provenance tracking, and persistent dual indexing:
+
+### 1. Document Upload (`POST /api/documents/upload`)
+- **Supported Formats**: PDF (`.pdf`), Plain Text (`.txt`), and Markdown (`.md`).
+- **Validation**:
+  - Maximum upload size enforcement (default 50 MB; returns HTTP 413 if exceeded).
+  - Magic header inspection (`%PDF-` for PDFs, rejection of binary null bytes for text/markdown).
+  - Path traversal and malicious filename protection (UUID-prefixed isolated storage).
+  - Empty file detection (returns HTTP 400).
+- **Asynchronous Ingestion**: Dispatches background extraction, citation-aware chunking, and dual-index building.
+
+```bash
+curl -X POST "http://localhost:8000/api/documents/upload" \
+  -H "Accept: application/json" \
+  -F "file=@sample_report.pdf"
+```
+
+Response:
+```json
+{
+  "document_id": "doc_550e8400e29b41d4a716446655440000",
+  "filename": "sample_report.pdf",
+  "status": "UPLOADED",
+  "indexing_status": "PENDING",
+  "message": "File uploaded successfully. Ingestion and indexing scheduled in background."
+}
+```
+
+### 2. Document Management Endpoints
+- **List Ingested Documents**:
+  ```bash
+  GET /api/documents?limit=20&offset=0
+  ```
+  Returns paginated list of documents with processing status (`UPLOADED`, `EXTRACTING`, `CHUNKING`, `INDEXING`, `READY`, or `FAILED`), chunk counts, file sizes, and timestamps.
+
+- **Get Document Details & Chunks**:
+  ```bash
+  GET /api/documents/{document_id}
+  ```
+  Returns detailed document metadata, character/page counts, SHA-256 hash, and extracted chunks with character offsets, line bounds, and provenance tags.
+
+- **Delete Document**:
+  ```bash
+  DELETE /api/documents/{document_id}
+  ```
+  Cascading deletion removing SQLite document/chunk rows, raw files on disk, and updating persisted retrieval indexes.
+
+### 3. Local Storage & Index Architecture
+- **Raw Files**: Preserved locally under `.reliability-lab/documents/{document_id}_{sanitized_name}`.
+- **SQLite Metadata & Chunks**: Stored in `documents` and `document_chunks` tables within `.reliability-lab/experiments.sqlite3`.
+- **Dual Persistent Indexes**:
+  - **Okapi BM25**: Chunks cached in SQLite and `.reliability-lab/indexes/bm25_chunks.json` for rapid boot recovery.
+  - **Dense FAISS**: Flat inner-product index and chunk metadata stored under `.reliability-lab/indexes/faiss/` (`index.faiss` + `metadata.json`) with graceful fallback when neural models are unavailable.
+
+---
+
 ## Technical Stack
 
 | Layer | Technologies & Libraries |
@@ -339,6 +397,7 @@ The platform is designed following strict Architecture Decision Records document
 - **ADR-011: Unified End-to-End RAG Evaluation Pipeline Orchestration**: Zero ground-truth prompt leakage and prominent mock provenance tracking.
 - **ADR-012: Multi-Stage Containerization & Adapter-Node Topology**: Minimal non-root containers with persistent SQLite volume durability.
 - **ADR-013: Local LLM Inference Provider Integration via Ollama HTTP API**: 100% offline local LLM generation and judging with zero cloud dependencies or API costs.
+- **ADR-014: Local Document Ingestion Architecture with Citation-Aware Chunking and Dual-Index Persistence**: Asynchronous multipart streaming upload, provenance-preserving extraction, and dual BM25/FAISS index persistence.
 
 ---
 

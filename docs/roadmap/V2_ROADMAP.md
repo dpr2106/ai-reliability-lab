@@ -49,14 +49,18 @@ Where v1 established scientific rigor, baseline-first retrieval benchmarking, ci
 ---
 
 ### [V2-002] Document Ingestion Pipeline & File Upload
-- **Status**: `BACKLOG`
+- **Status**: `COMPLETED` (in branch `feat/v2-002-document-ingestion`)
 - **Objective**: Provide robust file upload and storage management for user documents, supporting PDF and raw text ingestion with citation-aware chunking and persistent index generation.
 - **Key Deliverables**:
-  - Multi-part document upload endpoints in FastAPI backend (`/api/documents/upload`).
-  - Local document repository managing raw files, extracted text, and document metadata in SQLite.
-  - Automatic background indexing utilizing PyMuPDF parser and citation-aware chunkers (Fixed, Sentence, Sliding Window, Recursive).
-  - Dual sparse (BM25) and dense (FAISS) persistent vector index creation per document collection.
-  - Progress reporting and error validation for malformed, password-protected, or corrupted files.
+  - Multi-part document upload endpoint in FastAPI backend (`POST /api/documents/upload`) with bounded streaming reads, extension validation, and magic header verification.
+  - Document query and management endpoints (`GET /api/documents`, `GET /api/documents/{id}`, `DELETE /api/documents/{id}`).
+  - Local SQLite `DocumentRepository` managing documents, lifecycle states, chunk persistence, and index links.
+  - Text and Markdown adapter (`TextDocumentParser`) with line/span character provenance and page association.
+  - Automatic background indexing utilizing PyMuPDF parser and citation-aware `RecursiveCharacterChunker`.
+  - Dual sparse (BM25) and dense (FAISS) persistent vector index creation and reloading per document.
+  - Progress reporting across lifecycle (`UPLOADED -> EXTRACTING -> CHUNKING -> INDEXING -> READY` / `FAILED`).
+  - Graceful handling and actionable diagnostics for missing embedding models, password-protected PDFs, and corrupted files.
+  - Architecture Decision Record `ADR-014`.
 
 ---
 

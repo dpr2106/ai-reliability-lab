@@ -17,15 +17,18 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
 
 from reliability_lab.api.schemas import (
+    ChunkSchema,
     CitationAuditQueryItem,
     CitationAuditResponse,
     CompareRequest,
+    DocumentChunkListResponse,
     DocumentDeleteResponse,
     DocumentDetailResponse,
     DocumentListResponse,
@@ -40,6 +43,7 @@ from reliability_lab.core.models import Chunk, RetrievalResult
 from reliability_lab.evaluation.citation_metrics import CitationEvaluator, CitationParser
 from reliability_lab.ingestion.repository import DocumentRepository
 from reliability_lab.ingestion.service import (
+    DocumentDeletionError,
     DocumentIngestionService,
     EmptyFileError,
     InvalidDocumentFormatError,
@@ -437,8 +441,21 @@ def create_app() -> FastAPI:
         background_tasks: BackgroundTasks,
         service: IngestionServiceDep,
         file: Annotated[UploadFile, File()],
+        request: Request,
     ) -> DocumentUploadResponse:
         """Upload a PDF, TXT, or Markdown document and schedule local ingestion."""
+        # Request-level limit check if content-length header is present
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit():
+            if int(content_length) > service.max_upload_size:
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        f"Upload size limit exceeded ({content_length} bytes > "
+                        f"{service.max_upload_size} bytes limit)."
+                    ),
+                )
+
         if not file.filename:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -558,10 +575,48 @@ def create_app() -> FastAPI:
                 else str(record.indexing_status)
             ),
             error_message=record.error_message,
-            storage_path=record.storage_path,
             metadata=record.metadata,
             created_at=record.created_at,
             updated_at=record.updated_at,
+        )
+
+    @app.get("/api/documents/{document_id}/chunks", response_model=DocumentChunkListResponse)
+    def get_document_chunks(
+        document_id: str,
+        repo: DocRepoDep,
+        limit: int = Query(50, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+    ) -> DocumentChunkListResponse:
+        """Return paginated chunk records with coordinates and source provenance."""
+        record = repo.get_document(document_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document '{document_id}' not found.",
+            )
+
+        total = repo.count_chunks(document_id)
+        chunk_items = repo.list_chunks(document_id, limit=limit, offset=offset)
+
+        chunks = [
+            ChunkSchema(
+                chunk_id=c.chunk_id,
+                doc_id=c.doc_id,
+                chunk_index=idx,
+                content=c.content,
+                page_number=c.page_number,
+                char_start=c.char_start,
+                char_end=c.char_end,
+                metadata=c.metadata,
+            )
+            for idx, c in chunk_items
+        ]
+
+        return DocumentChunkListResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            chunks=chunks,
         )
 
     @app.delete("/api/documents/{document_id}", response_model=DocumentDeleteResponse)
@@ -570,7 +625,14 @@ def create_app() -> FastAPI:
         service: IngestionServiceDep,
     ) -> DocumentDeleteResponse:
         """Safely delete original document file, generated indexes, and metadata records."""
-        deleted = service.delete_document(document_id)
+        try:
+            deleted = service.delete_document(document_id)
+        except DocumentDeletionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(exc),
+            ) from exc
+
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

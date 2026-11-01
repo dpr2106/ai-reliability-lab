@@ -261,24 +261,30 @@ class DocumentIngestionService:
 
         storage_path = Path(record.storage_path)
         if not storage_path.is_file():
-            self._cleanup_faiss_dir(doc_id)
+            # Invalidate state in SQLite FIRST before filesystem cleanup
             self.repository.update_document_status(
                 doc_id,
                 status=DocumentStatus.FAILED,
                 indexing_status=IndexingStatus.FAILED,
-                error_message=f"Storage file missing: {record.storage_path}",
+                error_message=f"Storage file missing: {storage_path.name}",
             )
+            self._cleanup_faiss_dir(doc_id)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
         try:
             # 1. EXTRACTING
-            # Invalidate prior indexing and ready states upon starting (re)processing
-            self._cleanup_faiss_dir(doc_id)
+            # Invalidate prior indexing and ready states in SQLite FIRST
             self.repository.update_document_status(
                 doc_id,
                 status=DocumentStatus.EXTRACTING,
                 indexing_status=IndexingStatus.PENDING,
             )
+            self._cleanup_faiss_dir(doc_id)
+            doc_index_dir = self.index_dir / doc_id
+            bm25_file = doc_index_dir / "bm25_chunks.json"
+            if bm25_file.exists():
+                bm25_file.unlink(missing_ok=True)
+
             try:
                 document: Document
                 if record.file_type == "pdf":
@@ -289,23 +295,23 @@ class DocumentIngestionService:
                     document = text_parser.parse(storage_path, doc_id=doc_id)
             except EncryptedPDFParserError as exc:
                 logger.warning("PDF %s is encrypted: %s", doc_id, exc)
-                self._cleanup_faiss_dir(doc_id)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
                     indexing_status=IndexingStatus.FAILED,
                     error_message=f"PDF is encrypted or requires password authentication: {exc}",
                 )
+                self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
             except (InvalidPDFParserError, InvalidTextDocumentError, Exception) as exc:
                 logger.error("Extraction failed for %s: %s", doc_id, exc)
-                self._cleanup_faiss_dir(doc_id)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
                     indexing_status=IndexingStatus.FAILED,
                     error_message=f"Document text extraction failed: {exc}",
                 )
+                self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
             page_count = document.page_count or 1
@@ -324,13 +330,13 @@ class DocumentIngestionService:
                 chunks = chunker.chunk(document)
             except Exception as exc:
                 logger.error("Chunking failed for %s: %s", doc_id, exc)
-                self._cleanup_faiss_dir(doc_id)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
                     indexing_status=IndexingStatus.FAILED,
                     error_message=f"Citation-aware chunking failed: {exc}",
                 )
+                self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
             # Persist chunks in repository (safely replaces prior chunks to avoid duplicates)
@@ -439,29 +445,90 @@ class DocumentIngestionService:
 
         except Exception as unhandled_exc:
             logger.exception("Unexpected error processing document %s: %s", doc_id, unhandled_exc)
-            self._cleanup_faiss_dir(doc_id)
             self.repository.update_document_status(
                 doc_id,
                 status=DocumentStatus.FAILED,
                 indexing_status=IndexingStatus.FAILED,
                 error_message=f"Unexpected processing error: {unhandled_exc}",
             )
+            self._cleanup_faiss_dir(doc_id)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
     def get_bm25_retriever(self, doc_id: str) -> BM25Retriever:
-        """Construct and populate a BM25Retriever from persisted document chunks."""
+        """Construct and populate a BM25Retriever from persisted document chunks.
+
+        Guarantees:
+        1. Validates document existence in the repository.
+        2. Strictly verifies document lifecycle freshness: BM25 retrieval is permitted
+           ONLY when status == READY AND indexing_status in (INDEXED, PARTIAL).
+        3. Rejects access during active processing (EXTRACTING, CHUNKING, INDEXING, UPLOADED)
+           and after processing failures (FAILED, SKIPPED).
+        4. Rejects stale previous-version chunks after a failed reprocessing attempt.
+        """
+        record = self.repository.get_document(doc_id)
+        if record is None:
+            raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
+
+        # Guard: BM25 retrieval is permitted ONLY when status == READY
+        # AND indexing_status in (INDEXED, PARTIAL)
+        if record.status != DocumentStatus.READY or record.indexing_status not in (
+            IndexingStatus.INDEXED,
+            IndexingStatus.PARTIAL,
+        ):
+            if record.status == DocumentStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"BM25 index not available for document '{doc_id}' "
+                    f"(document status is FAILED{err_detail})."
+                )
+            if record.status in (
+                DocumentStatus.EXTRACTING,
+                DocumentStatus.CHUNKING,
+                DocumentStatus.INDEXING,
+            ):
+                raise IngestionError(
+                    f"BM25 index not ready for document '{doc_id}' "
+                    f"(document status is {record.status}: processing in progress)."
+                )
+            if record.status == DocumentStatus.UPLOADED:
+                raise IngestionError(
+                    f"BM25 index not ready for document '{doc_id}' "
+                    "(document status is UPLOADED: processing has not started)."
+                )
+
+            # Document is READY, but indexing status is not INDEXED or PARTIAL
+            if record.indexing_status == IndexingStatus.PENDING:
+                raise IngestionError(
+                    f"BM25 index not ready for document '{doc_id}' "
+                    "(indexing status is PENDING: indexing in progress)."
+                )
+            if record.indexing_status == IndexingStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"BM25 index failed for document '{doc_id}' "
+                    f"(indexing status is FAILED{err_detail})."
+                )
+            if record.indexing_status == IndexingStatus.SKIPPED:
+                raise IngestionError(
+                    f"BM25 index skipped for document '{doc_id}' (document has 0 chunks)."
+                )
+            raise IngestionError(
+                f"BM25 index not available for document '{doc_id}' "
+                f"(status: {record.status}, indexing status: {record.indexing_status})."
+            )
+
         chunks = self.repository.get_chunks(doc_id)
         if not chunks:
             # Fallback to index json file
             bm25_file = self.index_dir / doc_id / "bm25_chunks.json"
             if bm25_file.is_file():
-                raw = json.loads(bm25_file.read_text(encoding="utf-8"))
-                chunks = [Chunk.from_dict(item) for item in raw]
+                try:
+                    raw = json.loads(bm25_file.read_text(encoding="utf-8"))
+                    chunks = [Chunk.from_dict(item) for item in raw]
+                except Exception as exc:
+                    logger.error("Failed to read BM25 chunks JSON for %s: %s", doc_id, exc)
 
         if not chunks:
-            record = self.repository.get_document(doc_id)
-            if record is None:
-                raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
             raise IngestionError(f"No chunks available for document '{doc_id}'.")
 
         retriever = BM25Retriever()
@@ -499,13 +566,9 @@ class DocumentIngestionService:
             # 1. Document-level lifecycle checks
             if record.status == DocumentStatus.FAILED:
                 err_detail = f": {record.error_message}" if record.error_message else ""
-                has_bm25 = (
-                    self.index_dir / doc_id / "bm25_chunks.json"
-                ).is_file() or self.repository.count_chunks(doc_id) > 0
-                bm25_note = " BM25 lexical retrieval is available." if has_bm25 else ""
                 raise IngestionError(
                     f"FAISS dense index not available for document '{doc_id}' "
-                    f"(document status is FAILED{err_detail}).{bm25_note}"
+                    f"(document status is FAILED{err_detail})."
                 )
             if record.status in (
                 DocumentStatus.EXTRACTING,
@@ -535,13 +598,9 @@ class DocumentIngestionService:
                 )
             if record.indexing_status == IndexingStatus.FAILED:
                 err_detail = f": {record.error_message}" if record.error_message else ""
-                has_bm25 = (
-                    self.index_dir / doc_id / "bm25_chunks.json"
-                ).is_file() or self.repository.count_chunks(doc_id) > 0
-                bm25_note = " BM25 lexical retrieval is available." if has_bm25 else ""
                 raise IngestionError(
                     f"FAISS dense index failed for document '{doc_id}' "
-                    f"(indexing status is FAILED{err_detail}).{bm25_note}"
+                    f"(indexing status is FAILED{err_detail})."
                 )
             if record.indexing_status == IndexingStatus.SKIPPED:
                 raise IngestionError(
@@ -579,16 +638,13 @@ class DocumentIngestionService:
                     f"Corrupt FAISS index metadata for document '{doc_id}': "
                     "missing required 'dimension' key."
                 )
-            try:
-                expected_dimension = int(meta_content["dimension"])
-                if expected_dimension <= 0:
-                    raise ValueError("Dimension must be positive")
-            except (ValueError, TypeError) as err:
-                raw_dim = meta_content.get("dimension")
+            dim_val = meta_content["dimension"]
+            if isinstance(dim_val, bool) or not isinstance(dim_val, int) or dim_val <= 0:
                 raise IngestionError(
                     f"Corrupt FAISS index metadata for document '{doc_id}': "
-                    f"'dimension' must be a positive integer, got {raw_dim!r}."
-                ) from err
+                    f"'dimension' must be a positive integer, got {dim_val!r}."
+                )
+            expected_dimension = dim_val
         except json.JSONDecodeError as exc:
             raise IngestionError(
                 f"Corrupt FAISS index metadata for document '{doc_id}': "
@@ -609,6 +665,7 @@ class DocumentIngestionService:
         try:
             return FaissVectorRetriever.load(faiss_dir, effective_embedder)
         except (ValueError, FileNotFoundError, RuntimeError, Exception) as exc:
+            logger.error("Failed loading FAISS index for document '%s': %s", doc_id, exc)
             raise IngestionError(
                 f"Invalid or corrupt FAISS index for document '{doc_id}': {exc}"
             ) from exc

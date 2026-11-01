@@ -586,6 +586,17 @@ def test_validation_load_errors(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match=expected_msg):
         FaissVectorRetriever.load(empty_dir, embedder=embedder)
 
+    # Strict dimension validation: boolean, float, zero, negative
+    for invalid_dim in [True, False, 4.5, 0, -4]:
+        meta_invalid: dict[str, Any] = {
+            "dimension": invalid_dim,
+            "index_type": "flat",
+            "chunks": {},
+        }
+        (empty_dir / "metadata.json").write_text(json.dumps(meta_invalid), encoding="utf-8")
+        with pytest.raises(ValueError, match="positive integer"):
+            FaissVectorRetriever.load(empty_dir, embedder=embedder)
+
 
 # -----------------------------------------------------------------------------
 # 8. Lazy Import & Isolation Verification

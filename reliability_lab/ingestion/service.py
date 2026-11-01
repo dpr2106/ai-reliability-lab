@@ -12,6 +12,7 @@ from typing import BinaryIO
 from uuid import uuid4
 
 from reliability_lab.core.models import Chunk, Document
+from reliability_lab.core.privacy import sanitize_path_message
 from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransformerEmbedder
 from reliability_lab.indexing.faiss_index import FaissVectorRetriever
@@ -299,17 +300,22 @@ class DocumentIngestionService:
                     doc_id,
                     status=DocumentStatus.FAILED,
                     indexing_status=IndexingStatus.FAILED,
-                    error_message=f"PDF is encrypted or requires password authentication: {exc}",
+                    error_message=(
+                        "PDF is encrypted or requires password authentication: "
+                        f"{sanitize_path_message(str(exc))}"
+                    ),
                 )
                 self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
             except (InvalidPDFParserError, InvalidTextDocumentError, Exception) as exc:
-                logger.error("Extraction failed for %s: %s", doc_id, exc)
+                logger.error("Extraction failed for %s: %s", doc_id, exc, exc_info=True)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
                     indexing_status=IndexingStatus.FAILED,
-                    error_message=f"Document text extraction failed: {exc}",
+                    error_message=(
+                        f"Document text extraction failed: {sanitize_path_message(str(exc))}"
+                    ),
                 )
                 self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
@@ -329,12 +335,14 @@ class DocumentIngestionService:
                 )
                 chunks = chunker.chunk(document)
             except Exception as exc:
-                logger.error("Chunking failed for %s: %s", doc_id, exc)
+                logger.error("Chunking failed for %s: %s", doc_id, exc, exc_info=True)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
                     indexing_status=IndexingStatus.FAILED,
-                    error_message=f"Citation-aware chunking failed: {exc}",
+                    error_message=(
+                        f"Citation-aware chunking failed: {sanitize_path_message(str(exc))}"
+                    ),
                 )
                 self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
@@ -449,10 +457,77 @@ class DocumentIngestionService:
                 doc_id,
                 status=DocumentStatus.FAILED,
                 indexing_status=IndexingStatus.FAILED,
-                error_message=f"Unexpected processing error: {unhandled_exc}",
+                error_message=(
+                    f"Unexpected processing error: {sanitize_path_message(str(unhandled_exc))}"
+                ),
             )
             self._cleanup_faiss_dir(doc_id)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
+
+    @classmethod
+    def validate_document_freshness(
+        cls,
+        record: DocumentRecord,
+        resource_name: str = "Chunks",
+    ) -> None:
+        """Validate that a document is in a ready, freshly indexed state for retrieval.
+
+        Permits retrieval only when status == READY and indexing_status in (INDEXED, PARTIAL).
+        Rejects access when UPLOADED, EXTRACTING, CHUNKING, INDEXING, FAILED, or READY with
+        PENDING, FAILED, or SKIPPED indexing status.
+
+        Raises:
+            IngestionError: If the document is not in a valid, fresh retrieval state.
+        """
+        if record.status != DocumentStatus.READY or record.indexing_status not in (
+            IndexingStatus.INDEXED,
+            IndexingStatus.PARTIAL,
+        ):
+            if record.status == DocumentStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"{resource_name} not available for document '{record.doc_id}' "
+                    f"(document status is FAILED{err_detail})."
+                )
+            if record.status in (
+                DocumentStatus.EXTRACTING,
+                DocumentStatus.CHUNKING,
+                DocumentStatus.INDEXING,
+            ):
+                status_val = (
+                    record.status.value if hasattr(record.status, "value") else str(record.status)
+                )
+                raise IngestionError(
+                    f"{resource_name} not ready for document '{record.doc_id}' "
+                    f"(document status is {status_val}: processing in progress)."
+                )
+            if record.status == DocumentStatus.UPLOADED:
+                raise IngestionError(
+                    f"{resource_name} not ready for document '{record.doc_id}' "
+                    "(document status is UPLOADED: processing has not started)."
+                )
+
+            # Document is READY, but indexing status is not INDEXED or PARTIAL
+            if record.indexing_status == IndexingStatus.PENDING:
+                raise IngestionError(
+                    f"{resource_name} not ready for document '{record.doc_id}' "
+                    "(indexing status is PENDING: indexing in progress)."
+                )
+            if record.indexing_status == IndexingStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"{resource_name} failed for document '{record.doc_id}' "
+                    f"(indexing status is FAILED{err_detail})."
+                )
+            if record.indexing_status == IndexingStatus.SKIPPED:
+                raise IngestionError(
+                    f"{resource_name} skipped for document '{record.doc_id}' "
+                    "(document has 0 chunks)."
+                )
+            raise IngestionError(
+                f"{resource_name} not available for document '{record.doc_id}' "
+                f"(status: {record.status}, indexing status: {record.indexing_status})."
+            )
 
     def get_bm25_retriever(self, doc_id: str) -> BM25Retriever:
         """Construct and populate a BM25Retriever from persisted document chunks.
@@ -469,53 +544,7 @@ class DocumentIngestionService:
         if record is None:
             raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
 
-        # Guard: BM25 retrieval is permitted ONLY when status == READY
-        # AND indexing_status in (INDEXED, PARTIAL)
-        if record.status != DocumentStatus.READY or record.indexing_status not in (
-            IndexingStatus.INDEXED,
-            IndexingStatus.PARTIAL,
-        ):
-            if record.status == DocumentStatus.FAILED:
-                err_detail = f": {record.error_message}" if record.error_message else ""
-                raise IngestionError(
-                    f"BM25 index not available for document '{doc_id}' "
-                    f"(document status is FAILED{err_detail})."
-                )
-            if record.status in (
-                DocumentStatus.EXTRACTING,
-                DocumentStatus.CHUNKING,
-                DocumentStatus.INDEXING,
-            ):
-                raise IngestionError(
-                    f"BM25 index not ready for document '{doc_id}' "
-                    f"(document status is {record.status}: processing in progress)."
-                )
-            if record.status == DocumentStatus.UPLOADED:
-                raise IngestionError(
-                    f"BM25 index not ready for document '{doc_id}' "
-                    "(document status is UPLOADED: processing has not started)."
-                )
-
-            # Document is READY, but indexing status is not INDEXED or PARTIAL
-            if record.indexing_status == IndexingStatus.PENDING:
-                raise IngestionError(
-                    f"BM25 index not ready for document '{doc_id}' "
-                    "(indexing status is PENDING: indexing in progress)."
-                )
-            if record.indexing_status == IndexingStatus.FAILED:
-                err_detail = f": {record.error_message}" if record.error_message else ""
-                raise IngestionError(
-                    f"BM25 index failed for document '{doc_id}' "
-                    f"(indexing status is FAILED{err_detail})."
-                )
-            if record.indexing_status == IndexingStatus.SKIPPED:
-                raise IngestionError(
-                    f"BM25 index skipped for document '{doc_id}' (document has 0 chunks)."
-                )
-            raise IngestionError(
-                f"BM25 index not available for document '{doc_id}' "
-                f"(status: {record.status}, indexing status: {record.indexing_status})."
-            )
+        self.validate_document_freshness(record, resource_name="BM25 index")
 
         chunks = self.repository.get_chunks(doc_id)
         if not chunks:

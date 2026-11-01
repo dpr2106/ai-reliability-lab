@@ -17,6 +17,7 @@ from reliability_lab.api.main import (
     get_ingestion_service,
 )
 from reliability_lab.indexing.embeddings import BaseEmbedder
+from reliability_lab.ingestion.models import DocumentStatus, IndexingStatus
 from reliability_lab.ingestion.repository import DocumentRepository
 from reliability_lab.ingestion.service import DocumentIngestionService
 from reliability_lab.storage.database import Database
@@ -357,3 +358,167 @@ class TestDocumentQueryAndManagementAPI:
         client, _, _ = api_test_env
         del_resp = client.delete("/api/documents/doc_nonexistent_888")
         assert del_resp.status_code == 404
+
+    @pytest.mark.parametrize(
+        "doc_status,indexing_status,expected_status_code",
+        [
+            (DocumentStatus.READY, IndexingStatus.INDEXED, 200),
+            (DocumentStatus.READY, IndexingStatus.PARTIAL, 200),
+            (DocumentStatus.UPLOADED, IndexingStatus.PENDING, 409),
+            (DocumentStatus.EXTRACTING, IndexingStatus.PENDING, 409),
+            (DocumentStatus.CHUNKING, IndexingStatus.PENDING, 409),
+            (DocumentStatus.INDEXING, IndexingStatus.PENDING, 409),
+            (DocumentStatus.FAILED, IndexingStatus.FAILED, 409),
+            (DocumentStatus.READY, IndexingStatus.PENDING, 409),
+            (DocumentStatus.READY, IndexingStatus.FAILED, 409),
+            (DocumentStatus.READY, IndexingStatus.SKIPPED, 409),
+        ],
+    )
+    def test_get_document_chunks_lifecycle_freshness(
+        self,
+        api_test_env,
+        doc_status: DocumentStatus,
+        indexing_status: IndexingStatus,
+        expected_status_code: int,
+    ) -> None:
+        client, repo, service = api_test_env
+
+        files = {
+            "file": ("state_doc.txt", io.BytesIO(b"Sentence one. Sentence two."), "text/plain")
+        }
+        up_resp = client.post("/api/documents/upload", files=files)
+        doc_id = up_resp.json()["doc_id"]
+
+        # Run process to create chunks initially
+        service.process_document(doc_id)
+
+        # Mutate document record status in repository to simulate target lifecycle state
+        err_msg = (
+            "Simulated error message"
+            if doc_status == DocumentStatus.FAILED or indexing_status == IndexingStatus.FAILED
+            else None
+        )
+        repo.update_document_status(
+            doc_id,
+            status=doc_status,
+            indexing_status=indexing_status,
+            error_message=err_msg,
+        )
+
+        resp = client.get(f"/api/documents/{doc_id}/chunks")
+        assert resp.status_code == expected_status_code
+        if expected_status_code == 409:
+            assert "Document chunks" in resp.json()["detail"]
+
+    def test_get_document_chunks_reprocessing_isolation(self, api_test_env) -> None:
+        client, repo, service = api_test_env
+
+        files = {
+            "file": (
+                "reprocess_chunks.txt",
+                io.BytesIO(b"Initial content before reprocess."),
+                "text/plain",
+            )
+        }
+        up_resp = client.post("/api/documents/upload", files=files)
+        doc_id = up_resp.json()["doc_id"]
+
+        # Initial indexing succeeds
+        service.process_document(doc_id)
+        assert client.get(f"/api/documents/{doc_id}/chunks").status_code == 200
+
+        # Reprocessing starts: document transitions to EXTRACTING / PENDING
+        repo.update_document_status(
+            doc_id,
+            status=DocumentStatus.EXTRACTING,
+            indexing_status=IndexingStatus.PENDING,
+        )
+
+        # Chunks endpoint must immediately reject access with HTTP 409
+        rep_resp = client.get(f"/api/documents/{doc_id}/chunks")
+        assert rep_resp.status_code == 409
+        assert "processing in progress" in rep_resp.json()["detail"].lower()
+
+        # Reprocessing completes successfully
+        service.process_document(doc_id)
+        final_resp = client.get(f"/api/documents/{doc_id}/chunks")
+        assert final_resp.status_code == 200
+        assert final_resp.json()["total"] >= 1
+
+    def test_upload_storage_failure_path_privacy(
+        self, api_test_env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client, _, service = api_test_env
+
+        def mock_save_upload_stream(*args, **kwargs):
+            raise OSError(13, "Permission denied", "C:\\Users\\admin\\app\\storage\\secret.txt")
+
+        monkeypatch.setattr(service, "save_upload_stream", mock_save_upload_stream)
+
+        files = {"file": ("secret.txt", io.BytesIO(b"Data"), "text/plain")}
+        resp = client.post("/api/documents/upload", files=files)
+        assert resp.status_code == 500
+        detail = resp.json()["detail"]
+        assert "storage error" in detail.lower()
+        # Ensure no host paths leaked
+        assert "C:\\Users" not in detail
+        assert "secret" not in detail
+
+    def test_delete_failure_path_privacy(
+        self, api_test_env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client, _, service = api_test_env
+
+        files = {"file": ("del_sec.txt", io.BytesIO(b"Secret"), "text/plain")}
+        up_resp = client.post("/api/documents/upload", files=files)
+        doc_id = up_resp.json()["doc_id"]
+
+        from reliability_lab.ingestion.service import DocumentDeletionError
+
+        def mock_delete_document(target_id: str) -> bool:
+            raise DocumentDeletionError(
+                "Failed to delete C:\\Users\\runneradmin\\secrets\\file.pdf: Permission denied"
+            )
+
+        monkeypatch.setattr(service, "delete_document", mock_delete_document)
+
+        del_resp = client.delete(f"/api/documents/{doc_id}")
+        assert del_resp.status_code == 500
+        detail = del_resp.json()["detail"]
+        assert "file.pdf" in detail
+        assert "C:\\Users" not in detail
+        assert "runneradmin" not in detail
+
+    def test_document_list_and_detail_error_message_path_privacy(self, api_test_env) -> None:
+        client, repo, _ = api_test_env
+
+        files = {"file": ("error_doc.txt", io.BytesIO(b"Test content"), "text/plain")}
+        up_resp = client.post("/api/documents/upload", files=files)
+        doc_id = up_resp.json()["doc_id"]
+
+        # Record error message with full Windows host path
+        host_leak_err = (
+            "Extraction failed on C:\\Users\\prash\\project\\data\\source.pdf: corrupted"
+        )
+        repo.update_document_status(
+            doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message=host_leak_err,
+        )
+
+        # GET /api/documents/{id}
+        detail_resp = client.get(f"/api/documents/{doc_id}")
+        assert detail_resp.status_code == 200
+        detail_err = detail_resp.json()["error_message"]
+        assert "source.pdf" in detail_err
+        assert "C:\\Users" not in detail_err
+        assert "prash" not in detail_err
+
+        # GET /api/documents
+        list_resp = client.get("/api/documents")
+        assert list_resp.status_code == 200
+        doc_item = next(d for d in list_resp.json()["documents"] if d["doc_id"] == doc_id)
+        assert "source.pdf" in doc_item["error_message"]
+        assert "C:\\Users" not in doc_item["error_message"]
+        assert "prash" not in doc_item["error_message"]

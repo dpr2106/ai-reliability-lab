@@ -8,6 +8,7 @@ from reliability_lab.core.models import (
     Query,
     RetrievalResult,
 )
+from reliability_lab.core.privacy import sanitize_path_message
 
 __all__ = [
     "BaseChunker",
@@ -18,4 +19,5 @@ __all__ = [
     "EvaluationReport",
     "Query",
     "RetrievalResult",
+    "sanitize_path_message",
 ]

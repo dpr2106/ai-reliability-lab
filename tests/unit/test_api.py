@@ -135,7 +135,8 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["database"] == str(db_path.resolve())
+        assert data["database"] == db_path.name
+        assert str(db_path.parent) not in data["database"]
         assert data["database_exists"] is True
         assert data["total_runs"] == 3
 
@@ -150,6 +151,8 @@ class TestHealthEndpoint:
                 assert response.status_code == 200
                 data = response.json()
                 assert data["status"] == "ok"
+                assert data["database"] == missing_db.name
+                assert str(missing_db.parent) not in data["database"]
                 assert data["database_exists"] is False
                 assert data["total_runs"] == 0
         finally:

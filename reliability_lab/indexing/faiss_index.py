@@ -463,15 +463,12 @@ class FaissVectorRetriever(BaseRetriever):
         if "dimension" not in meta:
             raise ValueError("Corrupt metadata: missing required 'dimension' key.")
 
-        try:
-            expected_dimension = int(meta["dimension"])
-            if expected_dimension <= 0:
-                raise ValueError("Dimension must be positive")
-        except (ValueError, TypeError) as err:
-            dim_val = meta.get("dimension")
+        dim_val = meta["dimension"]
+        if isinstance(dim_val, bool) or not isinstance(dim_val, int) or dim_val <= 0:
             raise ValueError(
                 f"Corrupt metadata: 'dimension' must be a positive integer, got {dim_val!r}."
-            ) from err
+            )
+        expected_dimension = dim_val
 
         if embedder.embedding_dim != expected_dimension:
             raise ValueError(
@@ -482,7 +479,8 @@ class FaissVectorRetriever(BaseRetriever):
         try:
             loaded_index = faiss_mod.read_index(str(index_file))
         except Exception as err:
-            raise ValueError(f"Failed to read FAISS index binary 'index.faiss': {err}") from err
+            logger.error("Failed to read FAISS index binary '%s': %s", index_file.name, err)
+            raise ValueError(f"Failed to read FAISS index binary '{index_file.name}'.") from err
 
         retriever = cls(
             embedder=embedder,

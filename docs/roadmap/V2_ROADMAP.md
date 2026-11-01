@@ -53,13 +53,14 @@ Where v1 established scientific rigor, baseline-first retrieval benchmarking, ci
 - **Objective**: Provide robust file upload and storage management for user documents, supporting PDF and raw text ingestion with citation-aware chunking and persistent index generation.
 - **Key Deliverables**:
   - Multi-part document upload endpoint in FastAPI backend (`POST /api/documents/upload`) with bounded streaming reads, extension validation, and magic header verification.
-  - Document query and management endpoints (`GET /api/documents`, `GET /api/documents/{id}`, `DELETE /api/documents/{id}`).
+  - Document query and management endpoints (`GET /api/documents`, `GET /api/documents/{id}`, `GET /api/documents/{id}/chunks`, `DELETE /api/documents/{id}`).
   - Local SQLite `DocumentRepository` managing documents, lifecycle states, chunk persistence, and index links.
   - Text and Markdown adapter (`TextDocumentParser`) with line/span character provenance and page association.
   - Automatic background indexing utilizing PyMuPDF parser and citation-aware `RecursiveCharacterChunker`.
-  - Dual sparse (BM25) and dense (FAISS) persistent vector index creation and reloading per document.
+  - Dual sparse (BM25) and dense (FAISS) persistent vector index creation and reloading per document with `PARTIAL` indexing state for lexical-only availability.
   - Progress reporting across lifecycle (`UPLOADED -> EXTRACTING -> CHUNKING -> INDEXING -> READY` / `FAILED`).
   - Graceful handling and actionable diagnostics for missing embedding models, password-protected PDFs, and corrupted files.
+  - Fail-safe, idempotent cascading deletion preserving database records upon filesystem failures for safe retry.
   - Architecture Decision Record `ADR-014`.
 
 ---

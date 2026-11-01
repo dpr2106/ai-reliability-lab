@@ -318,12 +318,12 @@ AI Reliability Lab v2 features an offline-first, local document ingestion pipeli
 
 ### 1. Document Upload (`POST /api/documents/upload`)
 - **Supported Formats**: PDF (`.pdf`), Plain Text (`.txt`), and Markdown (`.md`).
-- **Validation**:
-  - Maximum upload size enforcement (default 50 MB; returns HTTP 413 if exceeded).
-  - Magic header inspection (`%PDF-` for PDFs, rejection of binary null bytes for text/markdown).
-  - Path traversal and malicious filename protection (UUID-prefixed isolated storage).
+- **Validation & Security**:
+  - Early `Content-Length` header inspection and streaming 64KB buffer gating against the maximum upload size limit (default 50 MB; returns HTTP 413 if exceeded).
+  - Magic byte validation (`%PDF-` for PDFs, stream-wide binary null-byte rejection for text and Markdown; returns HTTP 400).
+  - Path traversal and malicious filename protection (UUID-prefixed isolated storage under `.reliability-lab/documents/`).
   - Empty file detection (returns HTTP 400).
-- **Asynchronous Ingestion**: Dispatches background extraction, citation-aware chunking, and dual-index building.
+- **Asynchronous Ingestion**: Dispatches background extraction, citation-aware chunking, and dual-index building via FastAPI `BackgroundTasks`.
 
 ```bash
 curl -X POST "http://localhost:8000/api/documents/upload" \
@@ -334,11 +334,15 @@ curl -X POST "http://localhost:8000/api/documents/upload" \
 Response:
 ```json
 {
-  "document_id": "doc_550e8400e29b41d4a716446655440000",
+  "doc_id": "doc_550e8400e29b41d4",
   "filename": "sample_report.pdf",
+  "file_type": "pdf",
+  "file_size": 1048576,
+  "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "status": "UPLOADED",
   "indexing_status": "PENDING",
-  "message": "File uploaded successfully. Ingestion and indexing scheduled in background."
+  "created_at": "2026-11-01T12:00:00Z",
+  "message": "Document uploaded successfully and queued for ingestion."
 }
 ```
 
@@ -347,26 +351,33 @@ Response:
   ```bash
   GET /api/documents?limit=20&offset=0
   ```
-  Returns paginated list of documents with processing status (`UPLOADED`, `EXTRACTING`, `CHUNKING`, `INDEXING`, `READY`, or `FAILED`), chunk counts, file sizes, and timestamps.
+  Returns paginated list of documents with processing status (`UPLOADED`, `EXTRACTING`, `CHUNKING`, `INDEXING`, `READY`, or `FAILED`), indexing status (`PENDING`, `INDEXED`, `PARTIAL`, `SKIPPED`, or `FAILED`), chunk counts, file sizes, and timestamps.
 
-- **Get Document Details & Chunks**:
+- **Get Document Details**:
   ```bash
   GET /api/documents/{document_id}
   ```
-  Returns detailed document metadata, character/page counts, SHA-256 hash, and extracted chunks with character offsets, line bounds, and provenance tags.
+  Returns complete document metadata, character/page counts, SHA-256 hash, and indexing state. Internal server filesystem paths are kept strictly private.
+
+- **Get Document Chunks (Paginated)**:
+  ```bash
+  GET /api/documents/{document_id}/chunks?limit=50&offset=0
+  ```
+  Returns paginated chunk records with chunk IDs, sequential chunk indices, content text, page numbers, and start/end character offsets for citation verification.
 
 - **Delete Document**:
   ```bash
   DELETE /api/documents/{document_id}
   ```
-  Cascading deletion removing SQLite document/chunk rows, raw files on disk, and updating persisted retrieval indexes.
+  Fail-safe, idempotent cascading deletion removing SQLite records, raw files on disk, and persisted retrieval indexes. If filesystem cleanup fails, the database record is preserved and HTTP 500 is returned, enabling safe retries without leaving orphaned files.
 
 ### 3. Local Storage & Index Architecture
-- **Raw Files**: Preserved locally under `.reliability-lab/documents/{document_id}_{sanitized_name}`.
+- **Raw Files**: Preserved locally under `.reliability-lab/documents/{doc_id}{ext}`.
 - **SQLite Metadata & Chunks**: Stored in `documents` and `document_chunks` tables within `.reliability-lab/experiments.sqlite3`.
 - **Dual Persistent Indexes**:
-  - **Okapi BM25**: Chunks cached in SQLite and `.reliability-lab/indexes/bm25_chunks.json` for rapid boot recovery.
-  - **Dense FAISS**: Flat inner-product index and chunk metadata stored under `.reliability-lab/indexes/faiss/` (`index.faiss` + `metadata.json`) with graceful fallback when neural models are unavailable.
+  - **Okapi BM25 Index**: Chunks cached in SQLite and `.reliability-lab/indexes/{doc_id}/bm25_chunks.json` for rapid boot recovery.
+  - **Dense FAISS Vector Index**: Flat inner-product index and chunk metadata stored under `.reliability-lab/indexes/{doc_id}/faiss/` (`index.faiss` + `metadata.json`).
+  - **Partial Indexing Support**: When local dense embedding models are unavailable, BM25 indexing still succeeds and the document transitions to `status: READY` with `indexing_status: PARTIAL`, enabling conversational and evaluation retrieval via keyword search.
 
 ---
 

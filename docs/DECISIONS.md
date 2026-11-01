@@ -135,15 +135,18 @@
   1. *Streaming Multipart Upload & Bounds Gating*: Implement `POST /api/documents/upload` with bounded 64KB streaming reads, SHA-256 computation, and size enforcement (default 50MB). Inspect magic headers (`%PDF-` for PDF, binary null byte rejection for text/markdown). Prevent path traversal by isolating storage paths under configurable `.reliability-lab/documents/` using generated IDs (`doc_<uuid>`).
   2. *Provenance-Preserving Text Adapter*: Implement `TextDocumentParser` to extract TXT and Markdown content, mapping content to `page_number=1` with full line/span character offsets so downstream citation auditing mechanisms behave identically across PDF and text formats.
   3. *Citation-Aware Chunking*: Reuse `RecursiveCharacterChunker` to split content into atomic `Chunk` dataclasses while preserving intersecting page numbers, line offsets, and bounding coordinates. Persist chunks in `document_chunks` SQLite table.
-  4. *Dual-Index Persistence & Reload*:
+  4. *Dual-Index Persistence & Partial Semantics*:
      - BM25: Persist extracted chunks in SQLite and `bm25_chunks.json`, allowing instantaneous BM25 retriever reconstruction upon server boot without reparsing.
-     - FAISS: Embed chunks via `BaseEmbedder` and save dense vector indexes atomically using `FaissVectorRetriever.save(faiss_dir)`. When local embedding models are missing, record an actionable warning and skip dense indexing without failing lexical retrieval.
-  5. *Asynchronous Ingestion Lifecycle*: Track explicit states (`UPLOADED -> EXTRACTING -> CHUNKING -> INDEXING -> READY` or `FAILED`). Schedule extraction and indexing via FastAPI `BackgroundTasks`, keeping upload responses fast and non-blocking.
-  6. *Safe Cascading Deletion*: Provide `DELETE /api/documents/{document_id}` to atomically delete source files, index directories, database records, and persisted chunks without orphaned disk artifacts.
+     - FAISS: Embed chunks via `BaseEmbedder` and save dense vector indexes atomically using `FaissVectorRetriever.save(faiss_dir)`. When local embedding models are missing or fail, record an actionable warning and assign `indexing_status=PARTIAL` while leaving `status=READY` so BM25 lexical retrieval remains fully functional. When both succeed, set `indexing_status=INDEXED`.
+  5. *Asynchronous Ingestion Lifecycle*: Track explicit states (`UPLOADED -> EXTRACTING -> CHUNKING -> INDEXING -> READY` or `FAILED`). Schedule extraction and indexing via FastAPI `BackgroundTasks`, keeping upload responses fast and non-blocking. Any unhandled processing exceptions transition the document to `FAILED` with diagnostics rather than leaving it stuck.
+  6. *Safe, Idempotent Cascading Deletion*: Provide `DELETE /api/documents/{document_id}` to atomically delete source files, index directories, database records, and persisted chunks without orphaned disk artifacts. Preserve SQLite database records if filesystem deletion fails to enable safe retries, and treat already-removed files as clean.
+  7. *Privacy-Preserving API Contract & Chunk Pagination*: Keep internal server storage paths private from API responses (`DocumentDetailResponse`). Expose extracted chunks through a separate paginated endpoint `GET /api/documents/{document_id}/chunks` with provenance coordinates and sequential indices.
 - **Consequences**:
   - Users can upload, inspect, and index documents locally with complete data privacy.
   - Chunks retain character and page provenance across all supported file types.
+  - Partially indexed documents remain fully usable for lexical retrieval rather than failing completely.
   - Server restarts preserve existing indexed documents and vector representations.
+  - Deletions are safely retryable and protect against orphaned disk files.
   - Tests remain completely hermetic using isolated SQLite databases and mock embedders.
 
 

@@ -10,13 +10,27 @@ import os
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 
 from reliability_lab.api.schemas import (
     CitationAuditQueryItem,
     CitationAuditResponse,
     CompareRequest,
+    DocumentDeleteResponse,
+    DocumentDetailResponse,
+    DocumentListResponse,
+    DocumentSummarySchema,
+    DocumentUploadResponse,
     HealthResponse,
     RunDetailResponse,
     RunListResponse,
@@ -24,6 +38,13 @@ from reliability_lab.api.schemas import (
 )
 from reliability_lab.core.models import Chunk, RetrievalResult
 from reliability_lab.evaluation.citation_metrics import CitationEvaluator, CitationParser
+from reliability_lab.ingestion.repository import DocumentRepository
+from reliability_lab.ingestion.service import (
+    DocumentIngestionService,
+    EmptyFileError,
+    InvalidDocumentFormatError,
+    UploadSizeLimitExceededError,
+)
 from reliability_lab.storage.regression import (
     IncomparableRunsError,
     InvalidToleranceError,
@@ -48,7 +69,21 @@ def get_repository() -> ExperimentRepository:
     return ExperimentRepository(db_path)
 
 
+def get_document_repository() -> DocumentRepository:
+    """FastAPI dependency providing an active DocumentRepository."""
+    db_path = get_db_path()
+    return DocumentRepository(db_path)
+
+
+def get_ingestion_service() -> DocumentIngestionService:
+    """FastAPI dependency providing an active DocumentIngestionService."""
+    repo = get_document_repository()
+    return DocumentIngestionService(repository=repo)
+
+
 RepositoryDep = Annotated[ExperimentRepository, Depends(get_repository)]
+DocRepoDep = Annotated[DocumentRepository, Depends(get_document_repository)]
+IngestionServiceDep = Annotated[DocumentIngestionService, Depends(get_ingestion_service)]
 
 
 def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) -> int:
@@ -82,7 +117,7 @@ def create_app() -> FastAPI:
             "http://127.0.0.1:4173",
         ],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -388,6 +423,160 @@ def create_app() -> FastAPI:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Storage error auditing citations: {exc}",
             ) from exc
+
+    # -------------------------------------------------------------------------
+    # Document Ingestion & Management Endpoints (V2-002)
+    # -------------------------------------------------------------------------
+
+    @app.post(
+        "/api/documents/upload",
+        response_model=DocumentUploadResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def upload_document(
+        background_tasks: BackgroundTasks,
+        service: IngestionServiceDep,
+        file: Annotated[UploadFile, File()],
+    ) -> DocumentUploadResponse:
+        """Upload a PDF, TXT, or Markdown document and schedule local ingestion."""
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file must have a valid filename.",
+            )
+
+        try:
+            record = service.save_upload_stream(
+                filename=file.filename,
+                file_stream=file.file,
+            )
+        except EmptyFileError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Empty file rejected: {exc}",
+            ) from exc
+        except InvalidDocumentFormatError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid document format: {exc}",
+            ) from exc
+        except UploadSizeLimitExceededError as exc:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Upload size limit exceeded: {exc}",
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unexpected error saving uploaded file: {exc}",
+            ) from exc
+
+        # Schedule background extraction, chunking, and indexing
+        background_tasks.add_task(service.process_document, record.doc_id)
+
+        return DocumentUploadResponse(
+            doc_id=record.doc_id,
+            filename=record.filename,
+            file_type=record.file_type,
+            file_size=record.file_size,
+            content_hash=record.content_hash,
+            status=(record.status.value if hasattr(record.status, "value") else str(record.status)),
+            indexing_status=(
+                record.indexing_status.value
+                if hasattr(record.indexing_status, "value")
+                else str(record.indexing_status)
+            ),
+            created_at=record.created_at,
+            message="Document uploaded successfully and queued for ingestion.",
+        )
+
+    @app.get("/api/documents", response_model=DocumentListResponse)
+    def list_documents(
+        repo: DocRepoDep,
+        limit: int = Query(50, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+        status_filter: str | None = Query(None, alias="status"),
+    ) -> DocumentListResponse:
+        """Return a paginated list of ingested documents."""
+        total = repo.count_documents(status=status_filter)
+        records = repo.list_documents(limit=limit, offset=offset, status=status_filter)
+
+        items = [
+            DocumentSummarySchema(
+                doc_id=r.doc_id,
+                filename=r.filename,
+                file_type=r.file_type,
+                file_size=r.file_size,
+                content_hash=r.content_hash,
+                status=r.status.value if hasattr(r.status, "value") else str(r.status),
+                page_count=r.page_count,
+                chunk_count=r.chunk_count,
+                indexing_status=(
+                    r.indexing_status.value
+                    if hasattr(r.indexing_status, "value")
+                    else str(r.indexing_status)
+                ),
+                error_message=r.error_message,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+            )
+            for r in records
+        ]
+
+        return DocumentListResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            documents=items,
+        )
+
+    @app.get("/api/documents/{document_id}", response_model=DocumentDetailResponse)
+    def get_document(
+        document_id: str,
+        repo: DocRepoDep,
+    ) -> DocumentDetailResponse:
+        """Return complete metadata, processing state, and chunk count for a document."""
+        record = repo.get_document(document_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document '{document_id}' not found.",
+            )
+
+        return DocumentDetailResponse(
+            doc_id=record.doc_id,
+            filename=record.filename,
+            file_type=record.file_type,
+            file_size=record.file_size,
+            content_hash=record.content_hash,
+            status=(record.status.value if hasattr(record.status, "value") else str(record.status)),
+            page_count=record.page_count,
+            chunk_count=record.chunk_count,
+            indexing_status=(
+                record.indexing_status.value
+                if hasattr(record.indexing_status, "value")
+                else str(record.indexing_status)
+            ),
+            error_message=record.error_message,
+            storage_path=record.storage_path,
+            metadata=record.metadata,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    @app.delete("/api/documents/{document_id}", response_model=DocumentDeleteResponse)
+    def delete_document(
+        document_id: str,
+        service: IngestionServiceDep,
+    ) -> DocumentDeleteResponse:
+        """Safely delete original document file, generated indexes, and metadata records."""
+        deleted = service.delete_document(document_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document '{document_id}' not found.",
+            )
+        return DocumentDeleteResponse(status="deleted", doc_id=document_id)
 
     return app
 

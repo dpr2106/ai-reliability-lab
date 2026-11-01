@@ -97,3 +97,69 @@ class CitationAuditResponse(BaseModel):
     mean_citation_recall: float
     queries: list[CitationAuditQueryItem]
     limitations_note: str
+
+
+class DocumentUploadResponse(BaseModel):
+    """Response returned upon successful file upload and queuing."""
+
+    doc_id: str = Field(..., description="Unique generated document identifier")
+    filename: str = Field(..., description="Original user filename")
+    file_type: str = Field(..., description="Document type ('pdf', 'txt', 'md')")
+    file_size: int = Field(..., description="File size in bytes")
+    content_hash: str = Field(..., description="SHA-256 hash of file content")
+    status: str = Field(..., description="Initial ingestion state (typically 'UPLOADED')")
+    indexing_status: str = Field(..., description="Index state (typically 'PENDING')")
+    created_at: str = Field(..., description="Upload timestamp in ISO 8601")
+    message: str = Field("Document uploaded successfully and queued for ingestion.")
+
+
+class DocumentSummarySchema(BaseModel):
+    """Summary of an ingested document for listing endpoints."""
+
+    doc_id: str
+    filename: str
+    file_type: str
+    file_size: int
+    content_hash: str
+    status: str
+    page_count: int | None = None
+    chunk_count: int
+    indexing_status: str
+    error_message: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class DocumentListResponse(BaseModel):
+    """Paginated list of uploaded documents."""
+
+    total: int
+    limit: int
+    offset: int
+    documents: list[DocumentSummarySchema]
+
+
+class DocumentDetailResponse(BaseModel):
+    """Full detail of an ingested document record."""
+
+    doc_id: str
+    filename: str
+    file_type: str
+    file_size: int
+    content_hash: str
+    status: str
+    page_count: int | None = None
+    chunk_count: int
+    indexing_status: str
+    error_message: str | None = None
+    storage_path: str
+    metadata: dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+class DocumentDeleteResponse(BaseModel):
+    """Response payload confirming document deletion."""
+
+    status: str = "deleted"
+    doc_id: str

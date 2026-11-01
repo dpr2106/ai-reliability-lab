@@ -266,19 +266,131 @@ class TestPathPrivacySanitization:
         assert sanitize_path_message(raw) == expected
 
     @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            # Case A: Brace-based route parameter bypass
+            (
+                "Permission denied: /api/private/{id}/storage/file.pdf",
+                "Permission denied: file.pdf",
+            ),
+            (
+                "Failed to access /api/v1/{tenant_id}/data/document.txt",
+                "Failed to access document.txt",
+            ),
+            (
+                "[Errno 2] No such file: '/srv/{user}/storage/data.bin'",
+                "[Errno 2] No such file: 'data.bin'",
+            ),
+            # Case B: Quoted filesystem path bypass
+            (
+                "Permission denied: '/api/tenant/projects/alpha/current'",
+                "Permission denied: 'current'",
+            ),
+            (
+                "Cannot open '/api/v1/internal/config'",
+                "Cannot open 'config'",
+            ),
+            (
+                "Error accessing '/api/storage'",
+                "Error accessing 'storage'",
+            ),
+            # Case C: Documentation placeholder bypass
+            (
+                "Permission denied: /path/to/private/file.pdf",
+                "Permission denied: file.pdf",
+            ),
+            (
+                "Failed to read /path/to/my data/report.pdf",
+                "Failed to read report.pdf",
+            ),
+            (
+                "[Errno 2] No such file or directory: '/path/to/system/config.json'",
+                "[Errno 2] No such file or directory: 'config.json'",
+            ),
+            (
+                "Error accessing /path/to/records",
+                "Error accessing records",
+            ),
+            (
+                "Failed to open /path/to/file",
+                "Failed to open file",
+            ),
+            (
+                "Failed to open /path/to/dir",
+                "Failed to open dir",
+            ),
+            (
+                "Error reading '/path/to/file': permission denied",
+                "Error reading 'file': permission denied",
+            ),
+            (
+                "[Errno 13] Permission denied: '/path/to/file'",
+                "[Errno 13] Permission denied: 'file'",
+            ),
+            # Filesystem paths with unfamiliar directory names and extensions
+            (
+                "Failed to open /custom_mount/archive/blob.xyz",
+                "Failed to open blob.xyz",
+            ),
+            (
+                "Permission denied: /srv/node_modules_cache/pkg.bundle",
+                "Permission denied: pkg.bundle",
+            ),
+            (
+                "Cannot write to /opt/mycorp/logs/service.trace: disk full",
+                "Cannot write to service.trace: disk full",
+            ),
+            # Filesystem paths mixed with ordinary endpoint descriptions
+            (
+                "Error in /api/v1/documents endpoint handler: failed to open /var/storage/cache.db",
+                "Error in /api/v1/documents endpoint handler: failed to open cache.db",
+            ),
+            (
+                "POST /api/documents/upload failed to write to /mnt/uploads/temp_file.tmp",
+                "POST /api/documents/upload failed to write to temp_file.tmp",
+            ),
+            # Multiple paths in one error message
+            (
+                "Permission denied for /api/internal/secret.key and /path/to/private/file.pdf",
+                "Permission denied for secret.key and file.pdf",
+            ),
+            (
+                (
+                    "Pass an /absolute/path to the command. "
+                    "However, failed to open /path/to/private/file.pdf."
+                ),
+                ("Pass an /absolute/path to the command. However, failed to open file.pdf."),
+            ),
+            (
+                (
+                    "Check endpoint /api/v1/documents for details, "
+                    "but failed to write /var/log/api.log"
+                ),
+                ("Check endpoint /api/v1/documents for details, but failed to write api.log"),
+            ),
+        ],
+    )
+    def test_sanitize_reproduced_bypasses_and_contextual_negatives(
+        self, raw: str, expected: str
+    ) -> None:
+        """Verify that Cases A, B, C, and all contextual negatives are properly sanitized."""
+        assert sanitize_path_message(raw) == expected
+
+    @pytest.mark.parametrize(
         "text",
         [
             # URLs
             "See https://example.com/api/v1/query?status=ready for details",
             "Check http://localhost:8000/api/documents/doc_123/chunks",
             "API at http://127.0.0.1:8000/api/documents",
-            # API routes and operations
+            # API routes and operations (quoted and unquoted)
             "Failed to reach /api/v1/documents",
             "Client error when calling /api/documents",
             "Check endpoint /api/v1/documents for details",
             "Endpoint: /api/v1/documents",
             "Endpoint '/api/v1/documents' returned 404",
             "GET /api/documents/{id}/chunks",
+            "GET '/api/documents/{id}/chunks'",
             "POST /api/documents/upload returned 201",
             "Schema at /openapi.json",
             "Docs at /docs",
@@ -288,10 +400,12 @@ class TestPathPrivacySanitization:
             "GET /health returned status ok",
             "Query /v1/models endpoint",
             "Route /api/runs was queried",
-            # Documentation placeholders
+            # Documentation placeholders in genuine instructional context
             "Pass an /absolute/path to the command",
             "Replace with /path/to/file before running",
+            "Replace with /path/to/dir before running",
             "Set directory to /path/to/dir",
+            "Example path: /path/to/file",
             # Ordinary syntax and expressions
             "Score: 5/10, status: ok/ready",
             "5 / 10 ratio",

@@ -45,6 +45,14 @@ class TestPathPrivacySanitization:
                 "Failed at C:/",
                 "Failed at [path]",
             ),
+            (
+                "Failed on C:\\Users\\prash\\My Documents\\file(1).pdf",
+                "Failed on file(1).pdf",
+            ),
+            (
+                "Failed on C:\\Users\\prash\\naïve résumé#1.pdf",
+                "Failed on naïve résumé#1.pdf",
+            ),
         ],
     )
     def test_sanitize_windows_paths(self, raw: str, expected: str) -> None:
@@ -53,26 +61,92 @@ class TestPathPrivacySanitization:
     @pytest.mark.parametrize(
         "raw,expected",
         [
-            # Previously missing paths from review:
+            # Legal filename characters: spaces, Unicode, parentheses, #
             (
-                "Error accessing /mnt/data/private/file.pdf: not found",
-                "Error accessing file.pdf: not found",
+                "/mnt/data/private/file name.pdf",
+                "file name.pdf",
             ),
             (
-                "Failed to read /workspace/project/storage/file.pdf",
-                "Failed to read file.pdf",
+                "'/mnt/data/private/file name.pdf'",
+                "'file name.pdf'",
             ),
             (
-                "Failed to parse /srv/storage/file.pdf: corrupted header",
-                "Failed to parse file.pdf: corrupted header",
+                '"/mnt/data/private/file name.pdf"',
+                '"file name.pdf"',
             ),
             (
-                "[Errno 13] Permission denied: '/data/documents/file.pdf'",
-                "[Errno 13] Permission denied: 'file.pdf'",
+                "Error accessing /mnt/data/private/file name.pdf: not found",
+                "Error accessing file name.pdf: not found",
             ),
             (
-                'Corrupted file at "/data/documents/file.pdf"',
-                'Corrupted file at "file.pdf"',
+                "[Errno 2] No such file or directory: '/mnt/data/private/file name.pdf'",
+                "[Errno 2] No such file or directory: 'file name.pdf'",
+            ),
+            (
+                "/mnt/data/naïve résumé.pdf",
+                "naïve résumé.pdf",
+            ),
+            (
+                "'/mnt/data/naïve résumé.pdf'",
+                "'naïve résumé.pdf'",
+            ),
+            (
+                "Error in /mnt/data/naïve résumé.pdf: corrupted",
+                "Error in naïve résumé.pdf: corrupted",
+            ),
+            (
+                "/mnt/data/file(1).pdf",
+                "file(1).pdf",
+            ),
+            (
+                "'/mnt/data/file(1).pdf'",
+                "'file(1).pdf'",
+            ),
+            (
+                "Failed at /mnt/data/file(1).pdf",
+                "Failed at file(1).pdf",
+            ),
+            (
+                "Missing file in (/mnt/data/file(1).pdf)",
+                "Missing file in (file(1).pdf)",
+            ),
+            (
+                "/mnt/data/file#1.pdf",
+                "file#1.pdf",
+            ),
+            (
+                "'/mnt/data/file#1.pdf'",
+                "'file#1.pdf'",
+            ),
+            (
+                "Error reading /mnt/data/file#1.pdf",
+                "Error reading file#1.pdf",
+            ),
+            # Paths with spaces and Unicode in intermediate directory names
+            (
+                "/workspace/my documents/naïve test/file.pdf",
+                "file.pdf",
+            ),
+            (
+                "'/workspace/my documents/naïve test/file.pdf'",
+                "'file.pdf'",
+            ),
+            (
+                "Extraction failed on /workspace/my documents/naïve test/file.pdf: syntax error",
+                "Extraction failed on file.pdf: syntax error",
+            ),
+            (
+                "Directory /workspace/my documents/naïve test/ does not exist",
+                "Directory naïve test does not exist",
+            ),
+            # Standard POSIX directories and arbitrary mounts
+            (
+                "/srv/storage/file.pdf",
+                "file.pdf",
+            ),
+            (
+                "/data/documents/file.pdf",
+                "file.pdf",
             ),
             (
                 "Directory /srv/storage/ does not exist",
@@ -82,20 +156,6 @@ class TestPathPrivacySanitization:
                 "Directory /srv/storage does not exist",
                 "Directory storage does not exist",
             ),
-            # Root paths:
-            (
-                "Failed at root /",
-                "Failed at root [path]",
-            ),
-            (
-                "Error accessing '/'",
-                "Error accessing '[path]'",
-            ),
-            (
-                'Error accessing "/"',
-                'Error accessing "[path]"',
-            ),
-            # Standard POSIX directories:
             (
                 "Permission denied: /home/runner/work/ai-reliability-lab/storage/data.bin",
                 "Permission denied: data.bin",
@@ -124,6 +184,23 @@ class TestPathPrivacySanitization:
                 "Multiple: /var/log/app.log and /tmp/run.pid.",
                 "Multiple: app.log and run.pid.",
             ),
+            (
+                "Failed to copy from /mnt/data/my file (1).pdf to /srv/storage/backup #2.pdf",
+                "Failed to copy from my file (1).pdf to backup #2.pdf",
+            ),
+            # Root paths:
+            (
+                "Failed at root /",
+                "Failed at root [path]",
+            ),
+            (
+                "Error accessing '/'",
+                "Error accessing '[path]'",
+            ),
+            (
+                'Error accessing "/"',
+                'Error accessing "[path]"',
+            ),
         ],
     )
     def test_sanitize_posix_paths(self, raw: str, expected: str) -> None:
@@ -132,9 +209,20 @@ class TestPathPrivacySanitization:
     @pytest.mark.parametrize(
         "text",
         [
+            # URLs
             "See https://example.com/api/v1/query?status=ready for details",
             "Check http://localhost:8000/api/documents/doc_123/chunks",
             "API at http://127.0.0.1:8000/api/documents",
+            # API routes
+            "Check endpoint /api/v1/documents for details",
+            "Endpoint '/api/v1/documents' returned 404",
+            "GET /api/documents/{id}/chunks",
+            "Schema at /openapi.json",
+            "Docs at /docs",
+            # Documentation placeholders
+            "Pass an /absolute/path to the command",
+            "Replace with /path/to/file before running",
+            # Ordinary syntax and expressions
             "Score: 5/10, status: ok/ready",
             "5 / 10 ratio",
             "Document status is READY / PARTIAL",
@@ -142,5 +230,5 @@ class TestPathPrivacySanitization:
             "Use flag -a/--all for complete listing",
         ],
     )
-    def test_preserves_urls_and_ordinary_slashes(self, text: str) -> None:
+    def test_preserves_urls_api_routes_and_ordinary_syntax(self, text: str) -> None:
         assert sanitize_path_message(text) == text

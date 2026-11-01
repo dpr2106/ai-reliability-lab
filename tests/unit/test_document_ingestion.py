@@ -572,3 +572,105 @@ class TestDocumentIngestionService:
 
         with pytest.raises(InvalidDocumentFormatError, match="contains binary null bytes"):
             service.save_upload_stream("streaming_binary.txt", stream)
+
+    def test_faiss_retriever_rejects_pending_failed_and_skipped_states(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # 1. PENDING state
+        stream1 = io.BytesIO(b"Pending document text.")
+        rec1 = service.save_upload_stream("pending.txt", stream1)
+        with pytest.raises(IngestionError, match="PENDING"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+        # 2. FAILED state
+        service.repository.update_document_status(
+            rec1.doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message="OOM during embedding",
+        )
+        with pytest.raises(IngestionError, match="FAILED: OOM during embedding"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+        # 3. SKIPPED state
+        service.repository.update_document_status(
+            rec1.doc_id,
+            status=DocumentStatus.READY,
+            indexing_status=IndexingStatus.SKIPPED,
+        )
+        with pytest.raises(IngestionError, match="skipped"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+    def test_faiss_retriever_rejects_stale_directory_if_status_not_indexed(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # Create cleanly indexed document
+        stream = io.BytesIO(b"Valid text for FAISS indexing test.")
+        rec = service.save_upload_stream("stale_test.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        assert faiss_dir.is_dir()
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+
+        # Simulate failed re-indexing leaving stale directory on disk
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message="Re-indexing tokenizer failed",
+        )
+
+        # Must reject loading stale directory
+        with pytest.raises(IngestionError, match="FAILED"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_faiss_retriever_validates_corrupt_or_missing_index_files(
+        self, service: DocumentIngestionService
+    ) -> None:
+        stream = io.BytesIO(b"Content for corruption tests.")
+        rec = service.save_upload_stream("corrupt_test.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        index_file = faiss_dir / "index.faiss"
+        meta_file = faiss_dir / "metadata.json"
+
+        # Case 1: Missing index.faiss
+        index_file.unlink()
+        with pytest.raises(IngestionError, match=r"required index files.*missing"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Restore index.faiss
+        index_file.write_bytes(b"dummy")
+
+        # Case 2: Corrupt JSON in metadata.json
+        meta_file.write_text("invalid json junk", encoding="utf-8")
+        with pytest.raises(IngestionError, match=r"failed to parse 'metadata\.json'"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 3: JSON without 'dimension' key
+        meta_file.write_text('{"format_version": "1.0"}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="missing required 'dimension' key"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_process_document_cleans_stale_faiss_on_extraction_chunking_failure(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # Index document cleanly first
+        stream = io.BytesIO(b"Valid text initially.")
+        rec = service.save_upload_stream("wipe_stale.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        assert faiss_dir.is_dir()
+
+        # Corrupt storage file so extraction fails on re-processing
+        storage_file = Path(rec.storage_path)
+        storage_file.write_bytes(b"corrupt\x00data")
+
+        processed = service.process_document(rec.doc_id)
+        assert processed.status == DocumentStatus.FAILED
+
+        # Stale FAISS directory must be cleaned up from disk
+        assert not faiss_dir.exists()

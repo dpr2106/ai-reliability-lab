@@ -58,6 +58,8 @@ git rev-list --count origin/main
 | Audit Documentation Reconciliation (PR #54) | `fdb237c212f3d89cfa69ed9d6bc7d5b7efa165f6` | 102 | 300 | 198 | Benchmark timing methodology notes and PR 53 checkpoint |
 | NLI Pipeline Resilience Fix (PR #55) | `3bcd056d62a096cbe46b07a505b331006579d469` | 103 | 300 | 197 | Offline model loading resilience and test isolation |
 | Release Audit Ledger Reconciliation (PR #56) | `69ed30a0c3dc932e693867088e49e8e4b410376f` | 104 | 300 | 196 | Verified baseline for V2-001 starting Ollama local inference integration |
+| V2-001 Rebase Merge (PR #57) | `ff2d1d96084c17191b5a3361379b092f7dba43ad` | 108 | 300 | 192 | Rebase-merge verified: 4 commits preserved individually on main for local Ollama integration |
+| V2-002 Baseline | `ff2d1d96084c17191b5a3361379b092f7dba43ad` | 108 | 300 | 192 | Verified baseline for V2-002 starting document ingestion and file upload pipeline |
 
 
 ---

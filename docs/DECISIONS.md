@@ -149,7 +149,26 @@
   - Deletions are safely retryable and protect against orphaned disk files.
   - Tests remain completely hermetic using isolated SQLite databases and mock embedders.
 
+## ADR-015: Position STING as an Evidence-First RAG Reliability Workbench
 
-
-
-
+- **Status**: Proposed
+- **Date**: 2026-11-04
+- **Context**: Local LLM runtimes and existing local document-chat applications already provide model execution and baseline PDF/document Q&A. A project whose primary value is a local chat interface would have weak differentiation and would duplicate capabilities available in established tools. AI Reliability Lab already contains substantial retrieval, citation, evaluation, and regression infrastructure that can support a more technically distinct product.
+- **Decision**:
+  1. Position AI Reliability Lab as the reusable engineering/evaluation core and STING as the user-facing local-first RAG reliability workbench built on it.
+  2. Treat Ollama as an initial local inference runtime, not as a competitor or the product's differentiator.
+  3. Make retrieval observability, BM25/FAISS/RRF comparison, citation provenance, claim-level evidence inspection, safe abstention, and reproducible regression evaluation the primary product value.
+  4. Treat conversational chat as the entry point to an inspectable query trace, not as the main acceptance criterion.
+  5. Keep benchmark evaluation state separate from interactive conversation/session state. Reuse lower-level interfaces and evaluators rather than forcing the benchmark-oriented `RAGEvaluationRunner` to become a chat service.
+  6. Show diagnostic scores with their definitions and limitations. No lexical, NLI, or LLM-judge score may be presented as proof of factual truth or collapsed into an invented universal confidence score.
+  7. Require portfolio claims to be backed by merged code, reproducible tests/benchmarks, and a working demonstration.
+- **Consequences**:
+  - Product scope becomes more differentiated and better aligned with AI infrastructure/ML systems engineering.
+  - Existing retrieval and evaluation work is reused rather than discarded.
+  - The roadmap prioritizes query traces and evidence inspection before decorative chat features.
+  - Evaluation dataset quality, trace provenance, and honest reporting become release requirements.
+  - A polished chat experience remains important, but it is not sufficient on its own to define project success.
+- **Alternatives considered**:
+  - *Generic offline chatbot*: Rejected because local chat and document Q&A are already widely available and do not showcase the existing reliability infrastructure.
+  - *Compete with Ollama as a model runtime*: Rejected as outside project scope and not aligned with the existing provider-independent architecture.
+  - *Pure benchmark library without a product experience*: Rejected because a workbench makes retrieval/evaluation behavior accessible and demonstrable, while retaining the reusable engineering core.

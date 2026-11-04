@@ -13,6 +13,16 @@ Industrial-grade reliability, evaluation, and regression testing platform for do
 
 ## Overview
 
+## STING: Evidence-First RAG Reliability Workbench
+
+AI Reliability Lab is the engineering and evaluation core behind **STING**, a local-first workbench for inspecting and benchmarking document-grounded AI. STING uses local inference runtimes such as Ollama; it does not aim to replace them or become another generic chatbot.
+
+The product focus is to make RAG behavior inspectable: compare BM25, dense FAISS, and Hybrid RRF retrieval; see which evidence reached the model; verify citations against original document passages; identify insufficiently supported claims; and reproduce evaluations/regression checks when configurations change.
+
+**Product direction:** Ask. Inspect. Verify. Benchmark. See the [STING Product Brief](docs/STING_PRODUCT_BRIEF.md), [V2 Roadmap](docs/roadmap/V2_ROADMAP.md), and [Portfolio Evidence Plan](docs/PORTFOLIO_PLAN.md).
+
+> Roadmap note: STING is under active development. The product claims above describe its target direction; consult milestone status, merged code, and the reproducible demo before treating a capability as released.
+
 AI Reliability Lab provides a production-grade infrastructure to evaluate retrieval quality, verify document groundedness, audit inline citations, detect subtle pipeline regressions, and visually debug failure modes in document-based AI applications.
 
 ### The Problem

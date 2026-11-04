@@ -14,3 +14,12 @@
 - **Next READY Task**: `NONE`
 
 Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. All 11 roadmap milestones and tasks are verified as DONE. This snapshot intentionally excludes a purported latest merge SHA, which would become stale and could refer to the commit containing this file.
+
+## V2 Product Status
+
+- **Product direction**: STING — evidence-first, local-first RAG reliability workbench built on AI Reliability Lab.
+- **V2-001**: Complete — Ollama local inference provider.
+- **V2-002**: Core ingestion implementation is present; follow-up hardening remains under review in [PR #59](https://github.com/dpr2106/ai-reliability-lab/pull/59). Do not mark the follow-up complete until GitHub confirms merge and required checks remain green.
+- **Next milestone**: V2-003 — Evidence-First Query and Trace Orchestrator, to begin after V2-002 hardening is merged.
+- **Product differentiator**: Retrieval traceability, citation provenance, claim-level evidence inspection, safe abstention, and reproducible RAG evaluation—not generic local chat.
+- **Portfolio rule**: Describe only capabilities that are merged, tested, and demonstrated. Keep benchmark dataset sizes and metric methodology visible.

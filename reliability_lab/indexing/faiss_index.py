@@ -255,6 +255,11 @@ class FaissVectorRetriever(BaseRetriever):
         return self._normalize
 
     @property
+    def embedding_identity(self) -> EmbeddingIdentity:
+        """Return the complete EmbeddingIdentity bound to this retriever's normalization."""
+        return self._embedder.get_embedding_identity(faiss_normalize=self._normalize)
+
+    @property
     def size(self) -> int:
         """Return total number of chunks currently indexed."""
         return len(self._id_to_chunk)
@@ -451,9 +456,16 @@ class FaissVectorRetriever(BaseRetriever):
         target_dir = Path(path)
         target_dir.mkdir(parents=True, exist_ok=True)
 
+        saved_identity = self.embedding_identity
+        if self._normalize != saved_identity.faiss_normalize:
+            raise ValueError(
+                f"Retriever normalize={self._normalize} contradicts embedding identity "
+                f"faiss_normalize={saved_identity.faiss_normalize}."
+            )
+
         meta_payload: dict[str, Any] = {
             "format_version": "2.0",
-            "embedding_identity": self._embedder.embedding_identity.to_dict(),
+            "embedding_identity": saved_identity.to_dict(),
             "index_type": self._index_type,
             "dimension": self._dimension,
             "metric": self._metric,
@@ -573,18 +585,36 @@ class FaissVectorRetriever(BaseRetriever):
                 f"embedder dimension ({embedder.embedding_dim})."
             )
 
+        # 4. Validate Normalization Setting
+        if "normalize" not in meta:
+            raise ValueError("Corrupt metadata: missing required 'normalize' key.")
+        if not isinstance(meta["normalize"], bool):
+            raise ValueError(
+                f"Corrupt metadata: 'normalize' must be a boolean, got {meta['normalize']!r}."
+            )
+        index_normalize = meta["normalize"]
+
+        if index_normalize != saved_identity.faiss_normalize:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Normalization setting mismatch: metadata root has normalize={index_normalize} "
+                f"but embedding identity declares faiss_normalize={saved_identity.faiss_normalize}."
+            )
+
         # Fail closed if active embedder's artifact identity is unavailable
         if embedder.artifact_fingerprint.startswith("unavailable"):
             raise IncompatibleEmbeddingIdentityError(
-                "Active embedder artifact identity cannot be cryptographically verified; "
-                "failing closed for dense retrieval."
+                f"Active embedder artifact identity cannot be cryptographically verified "
+                f"({embedder.artifact_fingerprint}); failing closed for dense retrieval."
             )
 
         # Compare pipeline and artifact fingerprints against active embedder
-        if saved_identity.pipeline_fingerprint != embedder.pipeline_fingerprint:
+        active_pipeline_fp = embedder.get_pipeline_fingerprint(
+            faiss_normalize=saved_identity.faiss_normalize
+        )
+        if saved_identity.pipeline_fingerprint != active_pipeline_fp:
             raise IncompatibleEmbeddingIdentityError(
                 f"Pipeline fingerprint mismatch: index has {saved_identity.pipeline_fingerprint}, "
-                f"active embedder has {embedder.pipeline_fingerprint}."
+                f"active embedder has {active_pipeline_fp}."
             )
 
         if saved_identity.artifact_fingerprint != embedder.artifact_fingerprint:
@@ -606,7 +636,7 @@ class FaissVectorRetriever(BaseRetriever):
             m=int(meta.get("m", 32)),
             ef_construction=int(meta.get("ef_construction", 64)),
             ef_search=int(meta.get("ef_search", 32)),
-            normalize=bool(meta.get("normalize", True)),
+            normalize=index_normalize,
         )
 
         id_to_chunk: dict[int, Chunk] = {}

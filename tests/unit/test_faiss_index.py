@@ -809,3 +809,61 @@ class TestFormat2AndLegacyLoader:
         unverified = UnverifiedEmbedder(dim=4)
         with pytest.raises(IncompatibleEmbeddingIdentityError, match="failing closed"):
             FaissVectorRetriever.load(save_dir, embedder=unverified)
+
+    def test_format_2_normalize_false_roundtrip(self, tmp_path: Path) -> None:
+        """Indexes saved with normalize=False roundtrip cleanly with bound identity."""
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat", normalize=False)
+        retriever.index(chunks)
+
+        assert retriever.embedding_identity.faiss_normalize is False
+
+        save_dir = tmp_path / "normalize_false_idx"
+        retriever.save(save_dir)
+
+        meta = json.loads((save_dir / "metadata.json").read_text(encoding="utf-8"))
+        assert meta["normalize"] is False
+        assert meta["embedding_identity"]["faiss_normalize"] is False
+
+        loaded = FaissVectorRetriever.load(save_dir, embedder=embedder)
+        assert loaded.normalize is False
+        assert loaded.embedding_identity.faiss_normalize is False
+        assert len(loaded) == len(chunks)
+
+    def test_format_2_tampered_normalize_flag_fails_closed(self, tmp_path: Path) -> None:
+        """Tampering with normalize in metadata or desyncing identity fails closed."""
+        from reliability_lab.indexing.faiss_index import IncompatibleEmbeddingIdentityError
+
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat", normalize=True)
+        retriever.index(chunks)
+        save_dir = tmp_path / "tamper_norm_idx"
+        retriever.save(save_dir)
+
+        meta_file = save_dir / "metadata.json"
+        original_meta = json.loads(meta_file.read_text(encoding="utf-8"))
+
+        # Case 1: Root normalize tampered to False while identity has True
+        tampered1 = json.loads(json.dumps(original_meta))
+        tampered1["normalize"] = False
+        meta_file.write_text(json.dumps(tampered1), encoding="utf-8")
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="Normalization setting mismatch"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+        # Case 2: Root normalize is non-boolean
+        tampered2 = json.loads(json.dumps(original_meta))
+        tampered2["normalize"] = "true"
+        meta_file.write_text(json.dumps(tampered2), encoding="utf-8")
+        with pytest.raises(ValueError, match="'normalize' must be a boolean"):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+        # Case 3: Root normalize is missing
+        tampered3 = json.loads(json.dumps(original_meta))
+        tampered3.pop("normalize")
+        meta_file.write_text(json.dumps(tampered3), encoding="utf-8")
+        with pytest.raises(ValueError, match="missing required 'normalize' key"):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)

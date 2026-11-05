@@ -866,6 +866,7 @@ class TestDocumentIngestionService:
                     "embedding_identity": active_embedder.embedding_identity.to_dict(),
                     "dimension": active_dim,
                     "index_type": "flat",
+                    "normalize": True,
                     "chunks": {},
                 }
             ),
@@ -1028,6 +1029,7 @@ class TestDocumentIngestionService:
                     "embedding_identity": active_embedder.embedding_identity.to_dict(),
                     "dimension": active_dim,
                     "index_type": "flat",
+                    "normalize": True,
                     "chunks": chunks_dict,
                 }
             ),
@@ -1058,6 +1060,7 @@ class TestDocumentIngestionService:
                     "embedding_identity": active_embedder.embedding_identity.to_dict(),
                     "dimension": active_dim,
                     "index_type": "flat",
+                    "normalize": True,
                     "chunks": {},
                 }
             ),
@@ -1141,7 +1144,7 @@ class TestDocumentIngestionService:
         with patch.object(
             service.repository,
             "publish_embedding_provenance",
-            side_effect=GenerationMismatchError("Stale generation"),
+            side_effect=RuntimeError("Storage disk failure"),
         ):
             failed_doc = service.process_document(rec2.doc_id)
             assert failed_doc.indexing_status == IndexingStatus.PARTIAL
@@ -1169,8 +1172,84 @@ class TestDocumentIngestionService:
         faiss_dir2.mkdir(parents=True, exist_ok=True)
         (faiss_dir2 / "index.faiss").write_bytes(b"dummy_index")
         (faiss_dir2 / "metadata.json").write_text(
-            json.dumps({"dimension": 16, "format_version": "2.0"}), encoding="utf-8"
+            json.dumps({"dimension": 16, "format_version": "2.0", "normalize": True}),
+            encoding="utf-8",
         )
 
         with pytest.raises(DenseIndexIntegrityError, match="generation mismatch"):
             service.get_faiss_retriever(rec.doc_id)
+
+    def test_deterministic_overlapping_ingestion_old_worker_finishes_last(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Deterministic overlapping ingestion test: old worker finishes last but cannot
+        overwrite, downgrade, or destroy newer worker's state or FAISS index."""
+        from reliability_lab.ingestion.repository import GenerationMismatchError
+
+        stream = io.BytesIO(b"Document content for concurrent overlapping worker test.")
+        rec = service.save_upload_stream("overlapping_test.txt", stream)
+        doc_id = rec.doc_id
+
+        # Worker 1 starts and acquires Generation 1
+        gen1 = service.repository.create_ingestion_generation(doc_id)
+        assert service.repository.get_active_generation(doc_id) == gen1
+
+        # Worker 1 extracts chunks
+        worker1_chunks = [
+            Chunk(chunk_id=f"{doc_id}:w1:0", doc_id=doc_id, content="Worker 1 chunk content")
+        ]
+
+        # Worker 2 supersedes Worker 1 and completes ingestion to READY / INDEXED
+        worker2_record = service.process_document(doc_id)
+        assert worker2_record.status == DocumentStatus.READY
+        assert worker2_record.indexing_status == IndexingStatus.INDEXED
+        gen2 = service.repository.get_active_generation(doc_id)
+        assert gen2 != gen1
+
+        faiss_dir = service.index_dir / doc_id / "faiss"
+        assert faiss_dir.is_dir()
+        index_mtime_before = (faiss_dir / "index.faiss").stat().st_mtime
+
+        # Worker 1 resumes (finishes last) and attempts state modifications with gen1
+
+        # 1. Worker 1 cannot save chunks
+        with pytest.raises(GenerationMismatchError, match="does not match active generation"):
+            service.repository.save_chunks(doc_id, worker1_chunks, generation=gen1)
+
+        # 2. Worker 1 cannot update status to FAILED or any other status
+        with pytest.raises(GenerationMismatchError, match="does not match active generation"):
+            service.repository.update_document_status(
+                doc_id,
+                status=DocumentStatus.FAILED,
+                indexing_status=IndexingStatus.FAILED,
+                error_message="Worker 1 failed",
+                generation=gen1,
+            )
+
+        # 3. Worker 1 cannot publish embedding provenance
+        with pytest.raises(GenerationMismatchError, match="does not match active generation"):
+            service.repository.publish_embedding_provenance(
+                doc_id,
+                generation=gen1,
+                provenance={"embedding_identity": {}, "generation": gen1},
+            )
+
+        # 4. Worker 1 destructive cleanup is skipped and does NOT delete Worker 2's FAISS index
+        cleanup_res = service.cleanup_faiss_index(doc_id, generation=gen1)
+        assert cleanup_res is False
+        assert faiss_dir.is_dir()
+        assert (faiss_dir / "index.faiss").is_file()
+        assert (faiss_dir / "index.faiss").stat().st_mtime == index_mtime_before
+
+        # 5. Verify final document state remains completely valid, READY, and INDEXED
+        final_doc = service.repository.get_document(doc_id)
+        assert final_doc is not None
+        assert final_doc.status == DocumentStatus.READY
+        assert final_doc.indexing_status == IndexingStatus.INDEXED
+        assert final_doc.metadata["__active_generation__"] == gen2
+        assert final_doc.metadata["__embedding_provenance__"]["generation"] == gen2
+
+        # 6. Retriever loads Worker 2's index without issue
+        retriever = service.get_faiss_retriever(doc_id)
+        assert retriever is not None
+        assert retriever.size > 0

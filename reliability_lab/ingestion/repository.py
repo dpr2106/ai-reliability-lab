@@ -205,6 +205,7 @@ class DocumentRepository:
         chunk_count: int | None = None,
         indexing_status: IndexingStatus | str | None = None,
         metadata: dict[str, Any] | None = None,
+        generation: str | None = None,
     ) -> None:
         """Update processing status, counts, and errors for a document."""
         now = datetime.now(timezone.utc).isoformat()
@@ -217,6 +218,19 @@ class DocumentRepository:
             ).fetchone()
             if not current:
                 return
+
+            try:
+                cur_meta = json.loads(current["metadata_json"]) if current["metadata_json"] else {}
+            except Exception:
+                cur_meta = {}
+
+            if generation is not None:
+                active_gen = cur_meta.get("__active_generation__")
+                if active_gen != generation:
+                    raise GenerationMismatchError(
+                        f"Cannot update status for document '{doc_id}': worker generation "
+                        f"'{generation}' does not match active generation '{active_gen}'."
+                    )
 
             eff_page_count = page_count if page_count is not None else current["page_count"]
             eff_chunk_count = chunk_count if chunk_count is not None else current["chunk_count"]
@@ -231,16 +245,14 @@ class DocumentRepository:
                 idx_val = current["indexing_status"]
 
             if metadata is not None:
-                try:
-                    cur_meta = (
-                        json.loads(current["metadata_json"]) if current["metadata_json"] else {}
-                    )
-                except Exception:
-                    cur_meta = {}
                 cur_meta.update(metadata)
                 meta_json = json.dumps(cur_meta, ensure_ascii=False)
             else:
-                meta_json = current["metadata_json"]
+                meta_json = (
+                    json.dumps(cur_meta, ensure_ascii=False)
+                    if cur_meta
+                    else current["metadata_json"]
+                )
 
             conn.execute(
                 """
@@ -266,10 +278,31 @@ class DocumentRepository:
                 ),
             )
 
-    def save_chunks(self, doc_id: str, chunks: Sequence[Chunk]) -> None:
+    def save_chunks(
+        self, doc_id: str, chunks: Sequence[Chunk], generation: str | None = None
+    ) -> None:
         """Persist extracted chunks in the database for a document."""
         now = datetime.now(timezone.utc).isoformat()
         with self._db.get_connection() as conn:
+            if generation is not None:
+                current = conn.execute(
+                    "SELECT metadata_json FROM documents WHERE doc_id = ?",
+                    (doc_id,),
+                ).fetchone()
+                if current:
+                    try:
+                        cur_meta = (
+                            json.loads(current["metadata_json"]) if current["metadata_json"] else {}
+                        )
+                    except Exception:
+                        cur_meta = {}
+                    active_gen = cur_meta.get("__active_generation__")
+                    if active_gen != generation:
+                        raise GenerationMismatchError(
+                            f"Cannot save chunks for document '{doc_id}': worker generation "
+                            f"'{generation}' does not match active generation '{active_gen}'."
+                        )
+
             # Delete existing chunks for this doc_id to avoid duplicates
             conn.execute("DELETE FROM document_chunks WHERE doc_id = ?", (doc_id,))
             for idx, chunk in enumerate(chunks):

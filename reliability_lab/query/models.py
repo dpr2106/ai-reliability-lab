@@ -221,8 +221,8 @@ class QueryTrace:
     retrieval_latency_ms: float
     generation_latency_ms: float
     total_latency_ms: float
-    dense_search_mode: str = "flat_exact"
-    rrf_k: int = 60
+    dense_search_mode: str | None = "flat_exact"
+    rrf_k: int | None = 60
     candidate_depth: int = 20
     sparse_retriever_name: str | None = "bm25"
     dense_retriever_name: str | None = "faiss-flat"

@@ -251,3 +251,42 @@ class TestQueryApiEndpoints:
         # Must not contain host directory markers
         assert str(ingestion.index_dir) not in resp_text
         assert str(ingestion.storage_dir) not in resp_text
+
+    def test_query_blank_document_ids_returns_422(self, app_client) -> None:
+        client, _, _, _ = app_client
+        resp = client.post(
+            "/api/query",
+            json={
+                "query": "test query",
+                "document_ids": ["  "],
+                "strategy": "hybrid",
+            },
+        )
+        assert resp.status_code == 422
+        assert "whitespace-only" in resp.text.lower() or "value_error" in resp.text.lower()
+
+    def test_query_boolean_inputs_rejected_with_422(self, app_client) -> None:
+        client, _, ingestion, _ = app_client
+        doc = _upload_and_process(ingestion, "bool_test.txt", b"Content for testing booleans.")
+
+        # top_k as boolean
+        resp = client.post(
+            "/api/query",
+            json={
+                "query": "test query",
+                "document_ids": [doc.doc_id],
+                "top_k": True,
+            },
+        )
+        assert resp.status_code == 422
+
+        # min_dense_score as boolean
+        resp2 = client.post(
+            "/api/query",
+            json={
+                "query": "test query",
+                "document_ids": [doc.doc_id],
+                "min_dense_score": True,
+            },
+        )
+        assert resp2.status_code == 422

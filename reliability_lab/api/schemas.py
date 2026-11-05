@@ -203,9 +203,25 @@ class QueryRequest(BaseModel):
         None, description="Optional dense retrieval abstention threshold"
     )
 
+    @field_validator("top_k", "candidate_depth", mode="before")
+    @classmethod
+    def validate_int_not_bool(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            raise ValueError("Integer field cannot be a boolean.")
+        return v
+
+    @field_validator("min_dense_score", mode="before")
+    @classmethod
+    def validate_float_not_bool(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            raise ValueError("min_dense_score cannot be a boolean.")
+        return v
+
     @field_validator("query")
     @classmethod
     def validate_query(cls, v: str) -> str:
+        if isinstance(v, bool):
+            raise ValueError("query cannot be a boolean.")
         s = v.strip()
         if not s:
             raise ValueError("query must be a non-empty string.")
@@ -216,15 +232,19 @@ class QueryRequest(BaseModel):
     def validate_document_ids(cls, v: list[str]) -> list[str]:
         if not v:
             raise ValueError("document_ids must contain at least one document ID.")
-        cleaned = [d.strip() for d in v if d.strip()]
-        if not cleaned:
-            raise ValueError("document_ids must contain at least one non-empty document ID.")
+        cleaned: list[str] = []
+        for d in v:
+            if not isinstance(d, str) or isinstance(d, bool) or not d.strip():
+                raise ValueError("document_ids must not contain empty or whitespace-only strings.")
+            cleaned.append(d.strip())
         return list(dict.fromkeys(cleaned))
 
     @field_validator("min_dense_score")
     @classmethod
     def validate_min_dense_score(cls, v: float | None) -> float | None:
         if v is not None:
+            if isinstance(v, bool):
+                raise ValueError("min_dense_score cannot be a boolean.")
             if not math.isfinite(v):
                 raise ValueError("min_dense_score must be a finite float (not NaN or Inf).")
         return v

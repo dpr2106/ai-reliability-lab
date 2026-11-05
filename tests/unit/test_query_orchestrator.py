@@ -436,8 +436,60 @@ class TestDocumentQueryRetrievalAndAbstention:
                 )
                 assert trace.effective_strategy == "bm25"
                 assert trace.fallback_reason == "dense_index_incompatible_or_unverifiable"
-                assert trace.rrf_k == 60
+                assert trace.rrf_k is None
+                assert trace.hybrid_retriever_name is None
+                assert trace.dense_retriever_name is None
                 assert trace.sparse_retriever_name == "bm25"
+
+    def test_blank_and_invalid_document_ids_rejected(
+        self, repo: DocumentRepository, ingestion_service: DocumentIngestionService
+    ) -> None:
+        """Blank or whitespace document IDs must be rejected with ValueError."""
+        qs = DocumentQueryService(
+            repository=repo,
+            ingestion_service=ingestion_service,
+            embedder=MockEmbedder(),
+            llm_client=MockLLM(),
+        )
+
+        with pytest.raises(ValueError, match="Document IDs must be non-empty strings"):
+            qs.query("query", selected_doc_ids=[""])
+
+        with pytest.raises(ValueError, match="Document IDs must be non-empty strings"):
+            qs.query("query", selected_doc_ids=["   "])
+
+        with pytest.raises(ValueError, match="Document IDs must be non-empty strings"):
+            qs.query("query", selected_doc_ids=["valid_id", "  "])
+
+        with pytest.raises(ValueError, match="Document IDs must be non-empty strings"):
+            qs.query("query", selected_doc_ids=[True])  # type: ignore[list-item]
+
+    def test_boolean_and_non_finite_inputs_rejected(
+        self, repo: DocumentRepository, ingestion_service: DocumentIngestionService
+    ) -> None:
+        """Booleans for integers/floats and NaN/Inf for thresholds must be rejected."""
+        doc = _ingest_doc(ingestion_service, "input_val.txt", b"Validation test text.")
+        qs = DocumentQueryService(
+            repository=repo,
+            ingestion_service=ingestion_service,
+            embedder=MockEmbedder(),
+            llm_client=MockLLM(),
+        )
+
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            qs.query("query", selected_doc_ids=[doc.doc_id], top_k=True)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError, match="candidate_depth must be a positive integer"):
+            qs.query("query", selected_doc_ids=[doc.doc_id], candidate_depth=True)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError, match="min_dense_score must be a finite float"):
+            qs.query("query", selected_doc_ids=[doc.doc_id], min_dense_score=True)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError, match="min_dense_score must be a finite float"):
+            qs.query("query", selected_doc_ids=[doc.doc_id], min_dense_score=float("nan"))
+
+        with pytest.raises(ValueError, match="min_dense_score must be a finite float"):
+            qs.query("query", selected_doc_ids=[doc.doc_id], min_dense_score=float("inf"))
 
     def test_duplicate_document_ids_normalized_deterministically(
         self, repo: DocumentRepository, ingestion_service: DocumentIngestionService

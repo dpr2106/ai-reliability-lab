@@ -25,11 +25,16 @@ DEFAULT_EMBEDDING_DIM = 384
 DEFAULT_MODEL_REVISION = "e4ce9877abf3ed59ced85d2278ed52520f93874b"
 
 
-def compute_model_artifact_fingerprint(model_dir_or_path: Path | str) -> str:
+def compute_model_artifact_fingerprint(
+    model_dir_or_path: Path | str,
+    require_complete: bool = False,
+) -> str:
     """Build a deterministic SHA-256 manifest over loaded model and tokenizer assets.
 
     Never includes absolute filesystem paths in the manifest or fingerprint.
     Sorts files deterministically by relative POSIX path.
+    When require_complete is True, enforces that the directory contains execution-relevant
+    assets for weights, configuration, and tokenizer, failing closed if any are missing.
     """
     model_dir = Path(model_dir_or_path)
     if not model_dir.exists():
@@ -38,6 +43,11 @@ def compute_model_artifact_fingerprint(model_dir_or_path: Path | str) -> str:
     manifest: list[dict[str, Any]] = []
 
     if model_dir.is_file():
+        if require_complete:
+            raise ValueError(
+                f"Model snapshot in '{model_dir.name}' is a single file, "
+                "not a complete model directory."
+            )
         content_hash = hashlib.sha256(model_dir.read_bytes()).hexdigest()
         manifest.append(
             {
@@ -72,6 +82,36 @@ def compute_model_artifact_fingerprint(model_dir_or_path: Path | str) -> str:
 
     if not manifest:
         raise ValueError(f"No valid model assets found in '{model_dir.name}'.")
+
+    if require_complete:
+        weight_exts = (".safetensors", ".bin", ".pt", ".onnx", ".ckpt", ".h5", ".ot")
+        has_weights = any(p["path"].lower().endswith(weight_exts) for p in manifest)
+        config_names = {"config.json", "modules.json", "sentence_bert_config.json"}
+        has_config = any(Path(p["path"]).name.lower() in config_names for p in manifest)
+        tokenizer_names = {
+            "tokenizer.json",
+            "vocab.txt",
+            "tokenizer_config.json",
+            "sentencepiece.bpe.model",
+            "spiece.model",
+            "vocab.json",
+            "merges.txt",
+        }
+        has_tokenizer = any(Path(p["path"]).name.lower() in tokenizer_names for p in manifest)
+
+        missing = []
+        if not has_weights:
+            missing.append("weights")
+        if not has_config:
+            missing.append("configuration")
+        if not has_tokenizer:
+            missing.append("tokenizer")
+
+        if missing:
+            raise ValueError(
+                f"Incomplete model artifact directory '{model_dir.name}': "
+                f"missing execution-relevant assets ({', '.join(missing)})."
+            )
 
     manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = hashlib.sha256(manifest_bytes).hexdigest()
@@ -340,9 +380,8 @@ class BaseEmbedder(ABC):
         """Return whether embeddings are normalized."""
         return True
 
-    @property
-    def pipeline_fingerprint(self) -> str:
-        """Return SHA-256 over 13 canonical parameters."""
+    def get_pipeline_fingerprint(self, faiss_normalize: bool = True) -> str:
+        """Return SHA-256 over 13 canonical parameters with the specified FAISS normalization."""
         return compute_pipeline_fingerprint(
             canonical_model_id=self.canonical_model_id,
             dimension=self.embedding_dim,
@@ -350,7 +389,7 @@ class BaseEmbedder(ABC):
             model_revision=self.model_revision,
             distance_metric=self.distance_metric,
             document_instruction=self.document_instruction,
-            faiss_normalize=True,
+            faiss_normalize=faiss_normalize,
             max_seq_length=self.max_seq_length,
             pooling_strategy=self.pooling_strategy,
             query_instruction=self.query_instruction,
@@ -359,18 +398,17 @@ class BaseEmbedder(ABC):
             truncation_strategy=self.truncation_strategy,
         )
 
-    @property
-    def embedding_identity(self) -> EmbeddingIdentity:
-        """Return complete EmbeddingIdentity dataclass."""
+    def get_embedding_identity(self, faiss_normalize: bool = True) -> EmbeddingIdentity:
+        """Return complete EmbeddingIdentity dataclass for the specified FAISS normalization."""
         return EmbeddingIdentity(
             canonical_model_id=self.canonical_model_id,
             display_label=self.display_label,
             model_revision=self.model_revision,
             artifact_fingerprint=self.artifact_fingerprint,
-            pipeline_fingerprint=self.pipeline_fingerprint,
+            pipeline_fingerprint=self.get_pipeline_fingerprint(faiss_normalize=faiss_normalize),
             dimension=self.embedding_dim,
             sentence_transformer_normalize=self.normalize_embeddings,
-            faiss_normalize=True,
+            faiss_normalize=faiss_normalize,
             distance_metric=self.distance_metric,
             pooling_strategy=self.pooling_strategy,
             max_seq_length=self.max_seq_length,
@@ -379,6 +417,16 @@ class BaseEmbedder(ABC):
             query_instruction=self.query_instruction,
             document_instruction=self.document_instruction,
         )
+
+    @property
+    def pipeline_fingerprint(self) -> str:
+        """Return default SHA-256 over 13 canonical parameters (faiss_normalize=True)."""
+        return self.get_pipeline_fingerprint(faiss_normalize=True)
+
+    @property
+    def embedding_identity(self) -> EmbeddingIdentity:
+        """Return default complete EmbeddingIdentity dataclass (faiss_normalize=True)."""
+        return self.get_embedding_identity(faiss_normalize=True)
 
     @abstractmethod
     def embed_texts(self, texts: Sequence[str], batch_size: int = 32) -> np.ndarray:
@@ -557,19 +605,50 @@ class SentenceTransformerEmbedder(BaseEmbedder):
 
         # Discover underlying model artifact directory for cryptographic asset fingerprinting
         discovered_dir: Path | None = None
+        ambiguous_snapshot = False
+
+        model_weights_dir: Path | None = None
+        tokenizer_dir: Path | None = None
+
         if Path(self._model_name).is_dir():
-            discovered_dir = Path(self._model_name)
+            discovered_dir = Path(self._model_name).resolve()
         elif hasattr(self._model, "_first_module"):
             try:
                 first_module = self._model._first_module()
-                if hasattr(first_module, "tokenizer") and getattr(
-                    first_module.tokenizer, "vocab_file", None
+                if hasattr(first_module, "auto_model") and getattr(
+                    first_module.auto_model, "name_or_path", None
                 ):
-                    vocab_path = Path(first_module.tokenizer.vocab_file)
-                    if vocab_path.is_file():
-                        discovered_dir = vocab_path.parent
+                    mpath = Path(first_module.auto_model.name_or_path)
+                    if mpath.is_dir():
+                        model_weights_dir = mpath.resolve()
+
+                if hasattr(first_module, "tokenizer"):
+                    if getattr(first_module.tokenizer, "vocab_file", None):
+                        vpath = Path(first_module.tokenizer.vocab_file)
+                        if vpath.is_file():
+                            tokenizer_dir = vpath.parent.resolve()
+                    elif getattr(first_module.tokenizer, "name_or_path", None):
+                        tpath = Path(first_module.tokenizer.name_or_path)
+                        if tpath.is_dir():
+                            tokenizer_dir = tpath.resolve()
+
+                if model_weights_dir is not None and tokenizer_dir is not None:
+                    if model_weights_dir != tokenizer_dir:
+                        logger.warning(
+                            "Model weights dir (%s) and tokenizer dir (%s) differ; "
+                            "snapshot is ambiguous.",
+                            model_weights_dir,
+                            tokenizer_dir,
+                        )
+                        ambiguous_snapshot = True
+                    else:
+                        discovered_dir = model_weights_dir
+                elif model_weights_dir is not None:
+                    discovered_dir = model_weights_dir
+                elif tokenizer_dir is not None:
+                    discovered_dir = tokenizer_dir
             except Exception as e:
-                logger.debug("Could not inspect tokenizer for artifact dir: %s", e)
+                logger.debug("Could not inspect tokenizer/auto_model for artifact dir: %s", e)
 
         if model_revision is not None:
             self._model_revision: str | None = model_revision
@@ -588,16 +667,20 @@ class SentenceTransformerEmbedder(BaseEmbedder):
 
         if artifact_fingerprint is not None:
             self._artifact_fingerprint = artifact_fingerprint
+        elif ambiguous_snapshot:
+            self._artifact_fingerprint = "unavailable:incomplete_or_ambiguous_assets"
         elif discovered_dir is not None:
             try:
-                self._artifact_fingerprint = compute_model_artifact_fingerprint(discovered_dir)
+                self._artifact_fingerprint = compute_model_artifact_fingerprint(
+                    discovered_dir, require_complete=True
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed computing model artifact fingerprint for %s: %s",
                     self._model_name,
                     exc,
                 )
-                self._artifact_fingerprint = "unavailable:unverified_model_artifacts"
+                self._artifact_fingerprint = "unavailable:incomplete_or_ambiguous_assets"
         else:
             self._artifact_fingerprint = "unavailable:unverified_model_artifacts"
 

@@ -30,7 +30,7 @@ from reliability_lab.ingestion.parser import (
     InvalidPDFParserError,
     PyMuPDFParser,
 )
-from reliability_lab.ingestion.repository import DocumentRepository
+from reliability_lab.ingestion.repository import DocumentRepository, GenerationMismatchError
 from reliability_lab.ingestion.text_parser import InvalidTextDocumentError, TextDocumentParser
 
 logger = logging.getLogger(__name__)
@@ -235,18 +235,36 @@ class DocumentIngestionService:
 
         return self.repository.insert_document(record)
 
-    def cleanup_faiss_index(self, doc_id: str) -> bool:
+    def cleanup_faiss_index(self, doc_id: str, generation: str | None = None) -> bool:
         """Safely and retryably remove persisted FAISS index directory if present.
+
+        Args:
+            doc_id: Unique document identifier.
+            generation: Optional worker generation. If provided and not matching
+                the document's active generation, cleanup is skipped to prevent
+                destructive deletion of a newer worker's index.
 
         Returns:
             True if the directory does not exist or was successfully removed.
-            False if removal failed due to an OS/filesystem error.
+            False if removal failed due to an OS/filesystem error or generation mismatch.
 
         Guarantees:
             - Safe error logging without raising, preventing cleanup errors from
               masking underlying extraction/chunking/indexing exceptions.
             - Calling this method is idempotent and retryable.
         """
+        if generation is not None:
+            active_gen = self.repository.get_active_generation(doc_id)
+            if active_gen is not None and active_gen != generation:
+                logger.info(
+                    "Skipping FAISS cleanup for document '%s': worker generation '%s' "
+                    "does not match active generation '%s'.",
+                    doc_id,
+                    generation,
+                    active_gen,
+                )
+                return False
+
         faiss_dir = self.index_dir / doc_id / "faiss"
         if not faiss_dir.exists():
             return True
@@ -263,9 +281,12 @@ class DocumentIngestionService:
             )
             return False
 
-    def _cleanup_faiss_dir(self, doc_id: str) -> bool:
+    def _cleanup_faiss_dir(self, doc_id: str, generation: str | None = None) -> bool:
         """Backward-compatible alias for cleanup_faiss_index."""
-        return self.cleanup_faiss_index(doc_id)
+        try:
+            return self.cleanup_faiss_index(doc_id, generation=generation)
+        except TypeError:
+            return self.cleanup_faiss_index(doc_id)
 
     def process_document(self, doc_id: str) -> DocumentRecord:
         """Execute extraction, citation-aware chunking, and index generation.
@@ -294,7 +315,7 @@ class DocumentIngestionService:
             # 1. EXTRACTING & Ingestion Generation Initialization
             # Invalidate prior provenance and create new generation in SQLite FIRST
             generation = self.repository.create_ingestion_generation(doc_id)
-            self._cleanup_faiss_dir(doc_id)
+            self._cleanup_faiss_dir(doc_id, generation=generation)
             doc_index_dir = self.index_dir / doc_id
             bm25_file = doc_index_dir / "bm25_chunks.json"
             if bm25_file.exists():
@@ -310,28 +331,38 @@ class DocumentIngestionService:
                     document = text_parser.parse(storage_path, doc_id=doc_id)
             except EncryptedPDFParserError as exc:
                 logger.warning("PDF %s is encrypted: %s", doc_id, exc)
-                self.repository.update_document_status(
-                    doc_id,
-                    status=DocumentStatus.FAILED,
-                    indexing_status=IndexingStatus.FAILED,
-                    error_message=(
-                        "PDF is encrypted or requires password authentication: "
-                        f"{sanitize_path_message(str(exc))}"
-                    ),
-                )
-                self._cleanup_faiss_dir(doc_id)
+                try:
+                    self.repository.update_document_status(
+                        doc_id,
+                        status=DocumentStatus.FAILED,
+                        indexing_status=IndexingStatus.FAILED,
+                        error_message=(
+                            "PDF is encrypted or requires password authentication: "
+                            f"{sanitize_path_message(str(exc))}"
+                        ),
+                        generation=generation,
+                    )
+                    self._cleanup_faiss_dir(doc_id, generation=generation)
+                except GenerationMismatchError:
+                    logger.warning("Worker superseded during encrypted PDF handling for %s", doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
             except (InvalidPDFParserError, InvalidTextDocumentError, Exception) as exc:
                 logger.error("Extraction failed for %s: %s", doc_id, exc, exc_info=True)
-                self.repository.update_document_status(
-                    doc_id,
-                    status=DocumentStatus.FAILED,
-                    indexing_status=IndexingStatus.FAILED,
-                    error_message=(
-                        f"Document text extraction failed: {sanitize_path_message(str(exc))}"
-                    ),
-                )
-                self._cleanup_faiss_dir(doc_id)
+                try:
+                    self.repository.update_document_status(
+                        doc_id,
+                        status=DocumentStatus.FAILED,
+                        indexing_status=IndexingStatus.FAILED,
+                        error_message=(
+                            f"Document text extraction failed: {sanitize_path_message(str(exc))}"
+                        ),
+                        generation=generation,
+                    )
+                    self._cleanup_faiss_dir(doc_id, generation=generation)
+                except GenerationMismatchError:
+                    logger.warning(
+                        "Worker superseded during extraction failure handling for %s", doc_id
+                    )
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
             page_count = document.page_count or 1
@@ -341,6 +372,7 @@ class DocumentIngestionService:
                 doc_id,
                 status=DocumentStatus.CHUNKING,
                 page_count=page_count,
+                generation=generation,
             )
             try:
                 chunker = RecursiveCharacterChunker(
@@ -350,25 +382,32 @@ class DocumentIngestionService:
                 chunks = chunker.chunk(document)
             except Exception as exc:
                 logger.error("Chunking failed for %s: %s", doc_id, exc, exc_info=True)
-                self.repository.update_document_status(
-                    doc_id,
-                    status=DocumentStatus.FAILED,
-                    indexing_status=IndexingStatus.FAILED,
-                    error_message=(
-                        f"Citation-aware chunking failed: {sanitize_path_message(str(exc))}"
-                    ),
-                )
-                self._cleanup_faiss_dir(doc_id)
+                try:
+                    self.repository.update_document_status(
+                        doc_id,
+                        status=DocumentStatus.FAILED,
+                        indexing_status=IndexingStatus.FAILED,
+                        error_message=(
+                            f"Citation-aware chunking failed: {sanitize_path_message(str(exc))}"
+                        ),
+                        generation=generation,
+                    )
+                    self._cleanup_faiss_dir(doc_id, generation=generation)
+                except GenerationMismatchError:
+                    logger.warning(
+                        "Worker superseded during chunking failure handling for %s", doc_id
+                    )
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
             # Persist chunks in repository (safely replaces prior chunks to avoid duplicates)
-            self.repository.save_chunks(doc_id, chunks)
+            self.repository.save_chunks(doc_id, chunks, generation=generation)
 
             # 3. INDEXING
             self.repository.update_document_status(
                 doc_id,
                 status=DocumentStatus.INDEXING,
                 chunk_count=len(chunks),
+                generation=generation,
             )
 
             doc_index_dir = self.index_dir / doc_id
@@ -398,11 +437,11 @@ class DocumentIngestionService:
             final_status: DocumentStatus
 
             if len(chunks) == 0:
-                self._cleanup_faiss_dir(doc_id)
+                self._cleanup_faiss_dir(doc_id, generation=generation)
                 indexing_status = IndexingStatus.SKIPPED
                 final_status = DocumentStatus.READY
             elif not bm25_indexing_ok:
-                self._cleanup_faiss_dir(doc_id)
+                self._cleanup_faiss_dir(doc_id, generation=generation)
                 indexing_status = IndexingStatus.FAILED
                 index_err_msg = "BM25 index generation failed."
                 final_status = DocumentStatus.FAILED
@@ -425,7 +464,7 @@ class DocumentIngestionService:
                             f"'all-MiniLM-L6-v2' not available ({exc}). "
                             "BM25 lexical retrieval is available."
                         )
-                        self._cleanup_faiss_dir(doc_id)
+                        self._cleanup_faiss_dir(doc_id, generation=generation)
 
                 if embedder is not None:
                     try:
@@ -436,6 +475,17 @@ class DocumentIngestionService:
                         if faiss_tmp.exists():
                             shutil.rmtree(faiss_tmp, ignore_errors=True)
                         retriever.save(faiss_tmp)
+
+                        # Check generation BEFORE publishing index directory
+                        active_gen = self.repository.get_active_generation(doc_id)
+                        if active_gen != generation:
+                            if faiss_tmp.exists():
+                                shutil.rmtree(faiss_tmp, ignore_errors=True)
+                            raise GenerationMismatchError(
+                                f"Worker generation '{generation}' does not match active "
+                                f"generation '{active_gen}' before FAISS directory publish."
+                            )
+
                         if faiss_dir.exists():
                             shutil.rmtree(faiss_dir, ignore_errors=True)
                         faiss_tmp.rename(faiss_dir)
@@ -448,7 +498,7 @@ class DocumentIngestionService:
                             )
                             chunk_manifest_hash = compute_chunk_manifest_hash(chunks)
                             provenance = {
-                                "embedding_identity": embedder.embedding_identity.to_dict(),
+                                "embedding_identity": retriever.embedding_identity.to_dict(),
                                 "artifact_digest": artifact_digest,
                                 "chunk_manifest_hash": chunk_manifest_hash,
                                 "doc_id": doc_id,
@@ -460,29 +510,39 @@ class DocumentIngestionService:
                                 doc_id, generation, provenance
                             )
                             faiss_available = True
+                        except GenerationMismatchError:
+                            raise
                         except Exception as p_exc:
                             logger.error(
                                 "Failed recording embedding provenance for %s: %s", doc_id, p_exc
                             )
-                            self._cleanup_faiss_dir(doc_id)
-                            self.repository.remove_embedding_provenance(doc_id)
+                            self._cleanup_faiss_dir(doc_id, generation=generation)
+                            try:
+                                self.repository.remove_embedding_provenance(doc_id)
+                            except Exception:
+                                pass
                             index_err_msg = (
                                 f"FAISS dense indexing failed: failed to record provenance"
                                 f" ({p_exc})"
                             )
                             faiss_available = False
+                    except GenerationMismatchError:
+                        raise
                     except Exception as exc:
                         logger.error("Dense FAISS indexing failed for %s: %s", doc_id, exc)
                         index_err_msg = f"FAISS dense indexing failed: {exc}"
-                        self._cleanup_faiss_dir(doc_id)
-                        self.repository.remove_embedding_provenance(doc_id)
+                        self._cleanup_faiss_dir(doc_id, generation=generation)
+                        try:
+                            self.repository.remove_embedding_provenance(doc_id)
+                        except Exception:
+                            pass
 
                 if faiss_available:
                     indexing_status = IndexingStatus.INDEXED
                     final_status = DocumentStatus.READY
                 else:
                     # BM25 is available, but FAISS is not available
-                    self._cleanup_faiss_dir(doc_id)
+                    self._cleanup_faiss_dir(doc_id, generation=generation)
                     indexing_status = IndexingStatus.PARTIAL
                     final_status = DocumentStatus.READY
 
@@ -493,21 +553,38 @@ class DocumentIngestionService:
                 error_message=index_err_msg,
                 page_count=page_count,
                 chunk_count=len(chunks),
+                generation=generation,
             )
 
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
+        except GenerationMismatchError as g_err:
+            logger.warning(
+                "Ingestion worker superseded for %s (generation %s): %s",
+                doc_id,
+                generation,
+                g_err,
+            )
+            if "faiss_tmp" in locals() and faiss_tmp.exists():
+                shutil.rmtree(faiss_tmp, ignore_errors=True)
+            return self.repository.get_document(doc_id)  # type: ignore[return-value]
         except Exception as unhandled_exc:
             logger.exception("Unexpected error processing document %s: %s", doc_id, unhandled_exc)
-            self.repository.update_document_status(
-                doc_id,
-                status=DocumentStatus.FAILED,
-                indexing_status=IndexingStatus.FAILED,
-                error_message=(
-                    f"Unexpected processing error: {sanitize_path_message(str(unhandled_exc))}"
-                ),
-            )
-            self._cleanup_faiss_dir(doc_id)
+            try:
+                self.repository.update_document_status(
+                    doc_id,
+                    status=DocumentStatus.FAILED,
+                    indexing_status=IndexingStatus.FAILED,
+                    error_message=(
+                        f"Unexpected processing error: {sanitize_path_message(str(unhandled_exc))}"
+                    ),
+                    generation=generation,
+                )
+                self._cleanup_faiss_dir(doc_id, generation=generation)
+            except GenerationMismatchError:
+                logger.warning(
+                    "Worker superseded during unhandled exception recovery for %s", doc_id
+                )
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
     @classmethod

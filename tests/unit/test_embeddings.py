@@ -479,12 +479,14 @@ class TestEmbeddingIdentity:
 
         (dir_a / "config.json").write_text('{"dim": 384}', encoding="utf-8")
         (dir_a / "model.safetensors").write_bytes(b"WEIGHTS_VERSION_1")
+        (dir_a / "vocab.txt").write_text("word1\nword2\n", encoding="utf-8")
 
         (dir_b / "config.json").write_text('{"dim": 384}', encoding="utf-8")
         (dir_b / "model.safetensors").write_bytes(b"WEIGHTS_VERSION_2")
+        (dir_b / "vocab.txt").write_text("word1\nword2\n", encoding="utf-8")
 
-        fp_a = compute_model_artifact_fingerprint(dir_a)
-        fp_b = compute_model_artifact_fingerprint(dir_b)
+        fp_a = compute_model_artifact_fingerprint(dir_a, require_complete=True)
+        fp_b = compute_model_artifact_fingerprint(dir_b, require_complete=True)
 
         assert fp_a.startswith("sha256:")
         assert fp_b.startswith("sha256:")
@@ -498,3 +500,68 @@ class TestEmbeddingIdentity:
         assert emb_b.artifact_fingerprint == fp_b
         assert emb_a.artifact_fingerprint != emb_b.artifact_fingerprint
         assert emb_a.pipeline_fingerprint != emb_b.pipeline_fingerprint
+
+    def test_incomplete_model_snapshot_fails_closed(self, tmp_path: Path) -> None:
+        """Missing weights, config, or tokenizer fails closed with ValueError or unavailable."""
+        from reliability_lab.indexing.embeddings import compute_model_artifact_fingerprint
+
+        missing_weights = tmp_path / "no_weights"
+        missing_weights.mkdir()
+        (missing_weights / "config.json").write_text('{"dim": 384}', encoding="utf-8")
+        (missing_weights / "vocab.txt").write_text("token", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=r"missing execution-relevant assets.*weights"):
+            compute_model_artifact_fingerprint(missing_weights, require_complete=True)
+
+        fake_model = FakeSentenceTransformer(384)
+        emb = SentenceTransformerEmbedder(model_name_or_path=str(missing_weights), model=fake_model)
+        assert emb.artifact_fingerprint == "unavailable:incomplete_or_ambiguous_assets"
+
+    def test_ambiguous_model_snapshot_fails_closed(self, tmp_path: Path) -> None:
+        """When weights dir and tokenizer dir resolve to different directories, fails closed."""
+        weights_dir = tmp_path / "weights_only"
+        weights_dir.mkdir()
+        (weights_dir / "config.json").write_text('{"dim": 384}', encoding="utf-8")
+        (weights_dir / "model.safetensors").write_bytes(b"WEIGHTS")
+
+        tokenizer_dir = tmp_path / "tokenizer_only"
+        tokenizer_dir.mkdir()
+        (tokenizer_dir / "vocab.txt").write_text("token", encoding="utf-8")
+
+        class SplitModule:
+            def __init__(self) -> None:
+                class SubModel:
+                    name_or_path = str(weights_dir)
+
+                class SubTokenizer:
+                    name_or_path = str(tokenizer_dir)
+                    vocab_file = str(tokenizer_dir / "vocab.txt")
+
+                self.auto_model = SubModel()
+                self.tokenizer = SubTokenizer()
+
+        class SplitModel(FakeSentenceTransformer):
+            def _first_module(self) -> Any:
+                return SplitModule()
+
+        split_model = SplitModel(384)
+        emb = SentenceTransformerEmbedder(
+            model_name_or_path="custom-split-model", model=split_model
+        )
+        assert emb.artifact_fingerprint == "unavailable:incomplete_or_ambiguous_assets"
+
+    def test_base_embedder_get_embedding_identity_faiss_normalize_parameter(self) -> None:
+        """get_embedding_identity respects faiss_normalize flag and recalculates fingerprint."""
+        fake = FakeSentenceTransformer(384)
+        emb = SentenceTransformerEmbedder(
+            model_name_or_path="test-model",
+            model=fake,
+            artifact_fingerprint="sha256:" + "0" * 64,
+        )
+        id_true = emb.get_embedding_identity(faiss_normalize=True)
+        id_false = emb.get_embedding_identity(faiss_normalize=False)
+
+        assert id_true.faiss_normalize is True
+        assert id_false.faiss_normalize is False
+        assert id_true.pipeline_fingerprint != id_false.pipeline_fingerprint
+        assert emb.embedding_identity.faiss_normalize is True

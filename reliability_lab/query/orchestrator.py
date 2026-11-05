@@ -208,7 +208,14 @@ class DocumentQueryService:
 
         if not selected_doc_ids:
             raise ValueError("selected_doc_ids must contain at least one document ID.")
-        normalized_doc_ids = tuple(dict.fromkeys(selected_doc_ids))
+        cleaned_doc_ids: list[str] = []
+        for d in selected_doc_ids:
+            if not isinstance(d, str) or isinstance(d, bool) or not d.strip():
+                raise ValueError(
+                    f"Invalid document ID: {d!r}. Document IDs must be non-empty strings."
+                )
+            cleaned_doc_ids.append(d.strip())
+        normalized_doc_ids = tuple(dict.fromkeys(cleaned_doc_ids))
         if not normalized_doc_ids:
             raise ValueError("selected_doc_ids must contain at least one document ID.")
 
@@ -249,7 +256,6 @@ class DocumentQueryService:
 
         # 2. Dense retrieval across selected documents
         raw_dense: list[RetrievalResult] = []
-        dense_search_mode = "flat_exact"
         has_hnsw = False
 
         if effective_strategy in ("dense", "hybrid"):
@@ -324,7 +330,6 @@ class DocumentQueryService:
                             )
                         )
                     raw_dense = ranked_dense
-                dense_search_mode = "hnsw_approximate" if has_hnsw else "flat_exact"
 
         # 3. Hybrid RRF fusion
         raw_fused: list[RetrievalResult] = []
@@ -344,6 +349,24 @@ class DocumentQueryService:
             )
 
         retrieval_latency_ms = (time.perf_counter() - t_retrieval_start) * 1000.0
+
+        # Dynamically record executed retriever configuration
+        executed_sparse_name: str | None = None
+        executed_dense_name: str | None = None
+        executed_hybrid_name: str | None = None
+        executed_rrf_k: int | None = None
+        executed_search_mode: str | None = None
+
+        if effective_strategy in ("bm25", "hybrid"):
+            executed_sparse_name = "bm25"
+
+        if effective_strategy in ("dense", "hybrid") and not dense_failed:
+            executed_dense_name = "faiss-hnsw" if has_hnsw else "faiss-flat"
+            executed_search_mode = "hnsw_approximate" if has_hnsw else "flat_exact"
+
+        if effective_strategy == "hybrid":
+            executed_hybrid_name = "hybrid-rrf"
+            executed_rrf_k = 60
 
         # Build candidate traces
         sparse_traces = tuple(
@@ -450,12 +473,12 @@ class DocumentQueryService:
                 retrieval_latency_ms=retrieval_latency_ms,
                 generation_latency_ms=0.0,
                 total_latency_ms=total_latency_ms,
-                dense_search_mode=dense_search_mode,
-                rrf_k=60,
+                dense_search_mode=executed_search_mode,
+                rrf_k=executed_rrf_k,
                 candidate_depth=candidate_depth,
-                sparse_retriever_name="bm25",
-                dense_retriever_name="faiss-hnsw" if has_hnsw else "faiss-flat",
-                hybrid_retriever_name="hybrid-rrf",
+                sparse_retriever_name=executed_sparse_name,
+                dense_retriever_name=executed_dense_name,
+                hybrid_retriever_name=executed_hybrid_name,
             )
             return answer, trace
 
@@ -540,12 +563,12 @@ class DocumentQueryService:
             retrieval_latency_ms=retrieval_latency_ms,
             generation_latency_ms=generation_latency_ms,
             total_latency_ms=total_latency_ms,
-            dense_search_mode=dense_search_mode,
-            rrf_k=60,
+            dense_search_mode=executed_search_mode,
+            rrf_k=executed_rrf_k,
             candidate_depth=candidate_depth,
-            sparse_retriever_name="bm25",
-            dense_retriever_name="faiss-hnsw" if has_hnsw else "faiss-flat",
-            hybrid_retriever_name="hybrid-rrf",
+            sparse_retriever_name=executed_sparse_name,
+            dense_retriever_name=executed_dense_name,
+            hybrid_retriever_name=executed_hybrid_name,
         )
 
         return answer_text, trace

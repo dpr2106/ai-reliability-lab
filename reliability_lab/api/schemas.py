@@ -184,3 +184,73 @@ class DocumentDeleteResponse(BaseModel):
 
     status: str = "deleted"
     doc_id: str
+
+
+class QueryRequest(BaseModel):
+    """Request payload for document-grounded evidence queries."""
+
+    query: str = Field(..., min_length=1, description="User question to answer")
+    document_ids: list[str] = Field(
+        ..., min_length=1, description="Non-empty list of document IDs to query"
+    )
+    strategy: str = Field("hybrid", description="Retrieval strategy: 'bm25', 'dense', or 'hybrid'")
+    top_k: int = Field(5, ge=1, le=50, description="Number of evidence chunks to present")
+    candidate_depth: int = Field(
+        60, ge=1, le=500, description="Intermediate retrieval candidate fetch depth"
+    )
+    min_dense_score: float | None = Field(
+        None, description="Optional dense retrieval abstention threshold"
+    )
+
+
+class ResolvedCitationSchema(BaseModel):
+    """Citation verified against retrieved evidence chunks."""
+
+    marker: str
+    alias: str
+    chunk_id: str
+    doc_id: str
+    filename: str
+    page_number: int | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    snippet: str
+    is_valid: bool = True
+
+
+class UnresolvedCitationSchema(BaseModel):
+    """Citation marker whose alias was not provided in generation evidence."""
+
+    marker: str
+    alias: str
+    is_valid: bool = False
+    reason: str
+
+
+class MalformedCitationSchema(BaseModel):
+    """Detected citation-like expression failing standard syntax."""
+
+    raw_text: str
+    span: list[int]
+    is_valid: bool = False
+    reason: str
+
+
+class QueryResponse(BaseModel):
+    """Structured response container for query execution, citations, and trace."""
+
+    answer: str
+    query_text: str
+    selected_doc_ids: list[str]
+    strategy: str
+    effective_strategy: str
+    fallback_reason: str | None = None
+    abstained: bool
+    retrieval_abstained: bool
+    generation_abstained: bool
+    abstention_reason: str | None = None
+    resolved_citations: list[ResolvedCitationSchema]
+    unresolved_citations: list[UnresolvedCitationSchema]
+    malformed_citations: list[MalformedCitationSchema]
+    trace: dict[str, Any]
+    latency_ms: float

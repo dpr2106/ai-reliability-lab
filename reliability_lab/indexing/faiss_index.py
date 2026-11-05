@@ -7,6 +7,7 @@ incremental additions, corpus replacement, and atomic disk serialization.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import tempfile
@@ -18,12 +19,61 @@ import numpy as np
 
 from reliability_lab.core.interfaces import BaseRetriever
 from reliability_lab.core.models import Chunk, RetrievalResult
-from reliability_lab.indexing.embeddings import BaseEmbedder
+from reliability_lab.indexing.embeddings import BaseEmbedder, EmbeddingIdentity
 
 logger = logging.getLogger(__name__)
 
 SUPPORTED_INDEX_TYPES = ("flat", "hnsw")
 SUPPORTED_METRICS = ("ip",)
+SUPPORTED_INDEX_FORMAT_VERSIONS: frozenset[str] = frozenset({"2.0"})
+
+
+class UnsupportedIndexFormatError(ValueError):
+    """Raised when index format version is unrecognized or unsupported."""
+
+
+class IncompatibleEmbeddingIdentityError(ValueError):
+    """Raised when index embedding identity does not match runtime embedder."""
+
+
+class LegacyIndexIncompatibilityError(ValueError):
+    """Raised when legacy format 1.0 index lacks trusted provenance or digests mismatch."""
+
+
+def compute_chunk_manifest_hash(
+    chunks: Sequence[Chunk] | dict[Any, Any] | list[dict[str, Any]],
+) -> str:
+    """Compute deterministic SHA-256 manifest hash over chunks."""
+    items: list[dict[str, str]] = []
+    if isinstance(chunks, dict):
+        for chunk_val in chunks.values():
+            if isinstance(chunk_val, Chunk):
+                c_id = chunk_val.chunk_id
+                c_text = chunk_val.content
+            elif isinstance(chunk_val, dict):
+                c_id = str(chunk_val.get("chunk_id", ""))
+                c_text = str(chunk_val.get("content", ""))
+            else:
+                continue
+            c_hash = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            items.append({"chunk_id": c_id, "content_hash": c_hash})
+    else:
+        for c in chunks:
+            if isinstance(c, Chunk):
+                c_id = c.chunk_id
+                c_text = c.content
+            elif isinstance(c, dict):
+                c_id = str(c.get("chunk_id", ""))
+                c_text = str(c.get("content", ""))
+            else:
+                continue
+            c_hash = hashlib.sha256(c_text.encode("utf-8")).hexdigest()
+            items.append({"chunk_id": c_id, "content_hash": c_hash})
+    items.sort(key=lambda x: x["chunk_id"])
+    digest = hashlib.sha256(
+        json.dumps(items, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"sha256:{digest}"
 
 
 def _require_faiss() -> Any:
@@ -136,6 +186,7 @@ class FaissVectorRetriever(BaseRetriever):
         self._id_to_chunk: dict[int, Chunk] = {}
         self._chunk_id_to_id: dict[str, int] = {}
         self._next_id: int = 0
+        self._is_legacy: bool = False
 
         self._index = self._build_empty_index()
 
@@ -379,8 +430,13 @@ class FaissVectorRetriever(BaseRetriever):
 
         return results
 
+    @property
+    def is_legacy(self) -> bool:
+        """Return whether index was loaded through legacy compatibility path."""
+        return getattr(self, "_is_legacy", False)
+
     def save(self, path: str | Path) -> None:
-        """Persist the index and chunk metadata durably to disk.
+        """Persist the index and chunk metadata durably to disk using format 2.0.
 
         Args:
             path: Directory path where 'index.faiss' and 'metadata.json' will be written.
@@ -392,7 +448,8 @@ class FaissVectorRetriever(BaseRetriever):
         target_dir.mkdir(parents=True, exist_ok=True)
 
         meta_payload: dict[str, Any] = {
-            "format_version": "1.0",
+            "format_version": "2.0",
+            "embedding_identity": self._embedder.embedding_identity.to_dict(),
             "index_type": self._index_type,
             "dimension": self._dimension,
             "metric": self._metric,
@@ -420,12 +477,18 @@ class FaissVectorRetriever(BaseRetriever):
             tmp_meta.replace(final_meta)
 
         logger.info(
-            "Saved %s index with %d chunks to %s", self.name, len(self._id_to_chunk), target_dir
+            "Saved %s index with %d chunks to %s (format 2.0)",
+            self.name,
+            len(self._id_to_chunk),
+            target_dir,
         )
 
     @classmethod
     def load(cls, path: str | Path, embedder: BaseEmbedder) -> FaissVectorRetriever:
-        """Load a persisted FAISS index and chunk metadata from disk.
+        """Load a persisted format 2.0 FAISS index and chunk metadata from disk.
+
+        Enforces SUPPORTED_INDEX_FORMAT_VERSIONS and validates cryptographic
+        pipeline and artifact fingerprints against the active runtime embedder.
 
         Args:
             path: Directory containing 'index.faiss' and 'metadata.json'.
@@ -436,6 +499,8 @@ class FaissVectorRetriever(BaseRetriever):
 
         Raises:
             FileNotFoundError: If the directory or expected files do not exist.
+            UnsupportedIndexFormatError: If format_version is not supported (e.g. 1.0).
+            IncompatibleEmbeddingIdentityError: If embedding identity is missing or mismatched.
             ValueError: If metadata is invalid or dimension mismatches embedder.
         """
         faiss_mod = _require_faiss()
@@ -460,6 +525,41 @@ class FaissVectorRetriever(BaseRetriever):
         if not isinstance(meta, dict):
             raise ValueError("Corrupt metadata: root JSON structure must be an object.")
 
+        # 1. Enforce Format Allowlist
+        format_version = str(meta.get("format_version", "1.0"))
+        if format_version not in SUPPORTED_INDEX_FORMAT_VERSIONS:
+            raise UnsupportedIndexFormatError(
+                f"Unsupported index format version '{format_version}'. "
+                f"Supported versions: {sorted(SUPPORTED_INDEX_FORMAT_VERSIONS)}."
+            )
+
+        # 2. Enforce Embedding Identity & Fingerprints
+        if "embedding_identity" not in meta or not isinstance(meta["embedding_identity"], dict):
+            raise IncompatibleEmbeddingIdentityError(
+                "Format 2.0 index metadata missing required 'embedding_identity' payload."
+            )
+
+        try:
+            saved_identity = EmbeddingIdentity.from_dict(meta["embedding_identity"])
+        except Exception as exc:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Malformed embedding identity in index metadata: {exc}"
+            ) from exc
+
+        # Compare pipeline and artifact fingerprints against active embedder
+        if saved_identity.pipeline_fingerprint != embedder.pipeline_fingerprint:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Pipeline fingerprint mismatch: index has {saved_identity.pipeline_fingerprint}, "
+                f"active embedder has {embedder.pipeline_fingerprint}."
+            )
+
+        if saved_identity.artifact_fingerprint != embedder.artifact_fingerprint:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Artifact fingerprint mismatch: index has {saved_identity.artifact_fingerprint}, "
+                f"active embedder has {embedder.artifact_fingerprint}."
+            )
+
+        # 3. Validate Dimension
         if "dimension" not in meta:
             raise ValueError("Corrupt metadata: missing required 'dimension' key.")
 
@@ -504,13 +604,157 @@ class FaissVectorRetriever(BaseRetriever):
         retriever._id_to_chunk = id_to_chunk
         retriever._chunk_id_to_id = chunk_id_to_id
         retriever._next_id = int(meta.get("next_id", len(id_to_chunk)))
+        retriever._is_legacy = False
 
         if retriever._index_type == "hnsw":
             base_index = faiss_mod.downcast_index(retriever._index.index)
             base_index.hnsw.efSearch = retriever._ef_search
 
         logger.info(
-            "Loaded %s index with %d chunks from %s",
+            "Loaded %s index with %d chunks from %s (format 2.0)",
+            retriever.name,
+            len(id_to_chunk),
+            source_dir,
+        )
+        return retriever
+
+    @classmethod
+    def load_legacy_verified(
+        cls,
+        path: str | Path,
+        embedder: BaseEmbedder,
+        trusted_provenance: dict[str, Any] | None,
+    ) -> FaissVectorRetriever:
+        """Load a legacy format 1.0 FAISS index strictly with trusted server-controlled provenance.
+
+        Args:
+            path: Directory containing legacy 'index.faiss' and 'metadata.json'.
+            embedder: Active BaseEmbedder instance.
+            trusted_provenance: Provenance payload stored in SQLite metadata.
+
+        Returns:
+            Restored FaissVectorRetriever marked with is_legacy=True.
+
+        Raises:
+            FileNotFoundError: If index directory or expected files do not exist.
+            LegacyIndexIncompatibilityError: If provenance is missing, invalid, or digests mismatch.
+            IncompatibleEmbeddingIdentityError: If provenance embedding identity
+                mismatches active embedder.
+            ValueError: If metadata or index is corrupt.
+        """
+        source_dir = Path(path)
+        if not source_dir.is_dir():
+            raise FileNotFoundError(f"FAISS index directory not found: '{source_dir.name}'.")
+
+        index_file = source_dir / "index.faiss"
+        meta_file = source_dir / "metadata.json"
+
+        if not index_file.is_file():
+            raise FileNotFoundError("Index binary not found: 'index.faiss'.")
+        if not meta_file.is_file():
+            raise FileNotFoundError("Index metadata not found: 'metadata.json'.")
+
+        if not trusted_provenance or not isinstance(trusted_provenance, dict):
+            raise LegacyIndexIncompatibilityError(
+                "Legacy index format 1.0 lacks trusted embedding provenance in SQLite metadata. "
+                "Reindexing is required before dense retrieval can proceed."
+            )
+
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        except Exception as err:
+            raise ValueError(f"Failed to parse metadata file 'metadata.json': {err}") from err
+
+        if not isinstance(meta, dict):
+            raise ValueError("Corrupt metadata: root JSON structure must be an object.")
+
+        format_version = str(meta.get("format_version", "1.0"))
+        if format_version != "1.0":
+            raise LegacyIndexIncompatibilityError(
+                f"Expected legacy format 1.0 but index metadata indicates '{format_version}'."
+            )
+
+        # 1. Cryptographic Artifact Binding: compare SHA-256 of index.faiss
+        artifact_bytes = index_file.read_bytes()
+        actual_artifact_digest = f"sha256:{hashlib.sha256(artifact_bytes).hexdigest()}"
+        expected_artifact_digest = trusted_provenance.get("artifact_digest")
+        if not expected_artifact_digest or actual_artifact_digest != expected_artifact_digest:
+            raise LegacyIndexIncompatibilityError(
+                f"Legacy index artifact digest mismatch: disk has {actual_artifact_digest}, "
+                f"trusted provenance recorded {expected_artifact_digest}. "
+                "Reindexing is required."
+            )
+
+        # 2. Cryptographic Chunk Manifest Binding
+        chunks_dict = meta.get("chunks", {})
+        actual_chunk_manifest = compute_chunk_manifest_hash(chunks_dict)
+        expected_chunk_manifest = trusted_provenance.get("chunk_manifest_hash")
+        if not expected_chunk_manifest or actual_chunk_manifest != expected_chunk_manifest:
+            raise LegacyIndexIncompatibilityError(
+                f"Legacy chunk manifest mismatch: actual is {actual_chunk_manifest}, "
+                f"trusted provenance recorded {expected_chunk_manifest}. "
+                "Reindexing is required."
+            )
+
+        # 3. Provenance Identity Verification against active embedder
+        provenance_identity = trusted_provenance.get("embedding_identity")
+        if not isinstance(provenance_identity, dict):
+            raise LegacyIndexIncompatibilityError(
+                "Trusted provenance is missing 'embedding_identity'. Reindexing is required."
+            )
+
+        if provenance_identity.get("pipeline_fingerprint") != embedder.pipeline_fingerprint:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Pipeline fingerprint mismatch: legacy provenance has "
+                f"{provenance_identity.get('pipeline_fingerprint')}, "
+                f"active embedder has {embedder.pipeline_fingerprint}."
+            )
+
+        # Dimension validation
+        expected_dimension = int(meta.get("dimension", 0))
+        if embedder.embedding_dim != expected_dimension:
+            raise ValueError(
+                f"Legacy index dimension ({expected_dimension}) does not match "
+                f"embedder dimension ({embedder.embedding_dim})."
+            )
+
+        faiss_mod = _require_faiss()
+        try:
+            loaded_index = faiss_mod.read_index(str(index_file))
+        except Exception as err:
+            logger.error("Failed to read FAISS index binary '%s': %s", index_file.name, err)
+            raise ValueError(f"Failed to read FAISS index binary '{index_file.name}'.") from err
+
+        retriever = cls(
+            embedder=embedder,
+            index_type=meta.get("index_type", "flat"),
+            metric=meta.get("metric", "ip"),
+            m=int(meta.get("m", 32)),
+            ef_construction=int(meta.get("ef_construction", 64)),
+            ef_search=int(meta.get("ef_search", 32)),
+            normalize=bool(meta.get("normalize", True)),
+        )
+
+        id_to_chunk: dict[int, Chunk] = {}
+        chunk_id_to_id: dict[str, int] = {}
+        for int_id_str, chunk_dict in chunks_dict.items():
+            int_id = int(int_id_str)
+            chunk = Chunk.from_dict(chunk_dict)
+            id_to_chunk[int_id] = chunk
+            chunk_id_to_id[chunk.chunk_id] = int_id
+
+        retriever._index = loaded_index
+        retriever._id_to_chunk = id_to_chunk
+        retriever._chunk_id_to_id = chunk_id_to_id
+        retriever._next_id = int(meta.get("next_id", len(id_to_chunk)))
+        retriever._is_legacy = True
+
+        if retriever._index_type == "hnsw":
+            base_index = faiss_mod.downcast_index(retriever._index.index)
+            base_index.hnsw.efSearch = retriever._ef_search
+
+        logger.info(
+            "Loaded %s index with %d chunks from %s (legacy format 1.0 verified)",
             retriever.name,
             len(id_to_chunk),
             source_dir,

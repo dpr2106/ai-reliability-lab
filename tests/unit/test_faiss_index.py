@@ -577,6 +577,8 @@ def test_validation_load_errors(tmp_path: Path) -> None:
 
     # Dimension mismatch
     meta_mismatch: dict[str, Any] = {
+        "format_version": "2.0",
+        "embedding_identity": embedder.embedding_identity.to_dict(),
         "dimension": 8,
         "index_type": "flat",
         "chunks": {},
@@ -589,6 +591,8 @@ def test_validation_load_errors(tmp_path: Path) -> None:
     # Strict dimension validation: boolean, float, zero, negative
     for invalid_dim in [True, False, 4.5, 0, -4]:
         meta_invalid: dict[str, Any] = {
+            "format_version": "2.0",
+            "embedding_identity": embedder.embedding_identity.to_dict(),
             "dimension": invalid_dim,
             "index_type": "flat",
             "chunks": {},
@@ -630,3 +634,115 @@ def test_bm25_workflow_completely_independent_of_faiss() -> None:
     results = bm25.retrieve("retrieval reliability", top_k=2)
     assert len(results) > 0
     assert results[0].retriever_name == "bm25"
+
+
+@requires_faiss
+class TestFormat2AndLegacyLoader:
+    """Tests for format 2.0 allowlist, embedding identity matching, and legacy 1.0 loader."""
+
+    def test_format_1_rejected_on_standard_load(self, tmp_path: Path) -> None:
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "legacy_idx"
+        retriever.save(save_dir)
+
+        # Downgrade metadata to format 1.0 without embedding_identity
+        meta_file = save_dir / "metadata.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta["format_version"] = "1.0"
+        meta.pop("embedding_identity", None)
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        from reliability_lab.indexing.faiss_index import UnsupportedIndexFormatError
+
+        with pytest.raises(
+            UnsupportedIndexFormatError, match=r"Unsupported index format version '1\.0'"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+    def test_format_2_fingerprint_mismatch_fails_closed(self, tmp_path: Path) -> None:
+        embedder1 = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder1, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "fmt2_idx"
+        retriever.save(save_dir)
+
+        from reliability_lab.indexing.faiss_index import IncompatibleEmbeddingIdentityError
+
+        # Create different embedder with different canonical model id / fingerprint
+        class OtherEmbedder(DeterministicFakeEmbedder):
+            @property
+            def model_name(self) -> str:
+                return "other-model"
+
+        embedder2 = OtherEmbedder(dim=4)
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="Pipeline fingerprint mismatch"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder2)
+
+    def test_legacy_loader_verified_success_and_tamper_rejection(self, tmp_path: Path) -> None:
+        import hashlib
+
+        from reliability_lab.indexing.faiss_index import (
+            LegacyIndexIncompatibilityError,
+            compute_chunk_manifest_hash,
+        )
+
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "verified_legacy_idx"
+        retriever.save(save_dir)
+
+        # Convert metadata to format 1.0
+        meta_file = save_dir / "metadata.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta["format_version"] = "1.0"
+        meta.pop("embedding_identity", None)
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        index_file = save_dir / "index.faiss"
+        actual_artifact_digest = f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+        actual_chunk_manifest = compute_chunk_manifest_hash(chunks)
+
+        provenance = {
+            "embedding_identity": embedder.embedding_identity.to_dict(),
+            "artifact_digest": actual_artifact_digest,
+            "chunk_manifest_hash": actual_chunk_manifest,
+        }
+
+        # 1. Success path
+        loaded = FaissVectorRetriever.load_legacy_verified(
+            save_dir, embedder=embedder, trusted_provenance=provenance
+        )
+        assert loaded.is_legacy is True
+        assert len(loaded._id_to_chunk) == 3
+
+        # 2. Missing provenance
+        with pytest.raises(
+            LegacyIndexIncompatibilityError, match="lacks trusted embedding provenance"
+        ):
+            FaissVectorRetriever.load_legacy_verified(
+                save_dir, embedder=embedder, trusted_provenance=None
+            )
+
+        # 3. Artifact digest mismatch (tampered index)
+        tampered_artifact_provenance = dict(provenance)
+        tampered_artifact_provenance["artifact_digest"] = "sha256:00000000000000000000000000000000"
+        with pytest.raises(LegacyIndexIncompatibilityError, match="artifact digest mismatch"):
+            FaissVectorRetriever.load_legacy_verified(
+                save_dir, embedder=embedder, trusted_provenance=tampered_artifact_provenance
+            )
+
+        # 4. Chunk manifest mismatch (tampered chunks)
+        tampered_chunk_provenance = dict(provenance)
+        tampered_chunk_provenance["chunk_manifest_hash"] = "sha256:11111111111111111111111111111111"
+        with pytest.raises(LegacyIndexIncompatibilityError, match="chunk manifest mismatch"):
+            FaissVectorRetriever.load_legacy_verified(
+                save_dir, embedder=embedder, trusted_provenance=tampered_chunk_provenance
+            )

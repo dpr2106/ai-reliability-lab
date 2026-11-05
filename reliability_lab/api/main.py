@@ -38,9 +38,14 @@ from reliability_lab.api.schemas import (
     DocumentSummarySchema,
     DocumentUploadResponse,
     HealthResponse,
+    MalformedCitationSchema,
+    QueryRequest,
+    QueryResponse,
+    ResolvedCitationSchema,
     RunDetailResponse,
     RunListResponse,
     RunSummarySchema,
+    UnresolvedCitationSchema,
 )
 from reliability_lab.core.models import Chunk, RetrievalResult
 from reliability_lab.evaluation.citation_metrics import CitationEvaluator, CitationParser
@@ -52,6 +57,12 @@ from reliability_lab.ingestion.service import (
     IngestionError,
     InvalidDocumentFormatError,
     UploadSizeLimitExceededError,
+)
+from reliability_lab.query import (
+    DocumentConflictError,
+    DocumentNotFoundError,
+    DocumentQueryService,
+    UnprocessableDocumentError,
 )
 from reliability_lab.storage.regression import (
     IncomparableRunsError,
@@ -91,9 +102,18 @@ def get_ingestion_service() -> DocumentIngestionService:
     return DocumentIngestionService(repository=repo)
 
 
+def get_query_service(
+    repo: Annotated[DocumentRepository, Depends(get_document_repository)],
+    ingestion: Annotated[DocumentIngestionService, Depends(get_ingestion_service)],
+) -> DocumentQueryService:
+    """FastAPI dependency providing DocumentQueryService."""
+    return DocumentQueryService(repository=repo, ingestion_service=ingestion)
+
+
 RepositoryDep = Annotated[ExperimentRepository, Depends(get_repository)]
 DocRepoDep = Annotated[DocumentRepository, Depends(get_document_repository)]
 IngestionServiceDep = Annotated[DocumentIngestionService, Depends(get_ingestion_service)]
+QueryServiceDep = Annotated[DocumentQueryService, Depends(get_query_service)]
 
 
 def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) -> int:
@@ -665,6 +685,73 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 detail=f"Document '{document_id}' not found.",
             )
         return DocumentDeleteResponse(status="deleted", doc_id=document_id)
+
+    @app.post("/api/query", response_model=QueryResponse)
+    def execute_query(
+        request: QueryRequest,
+        query_service: QueryServiceDep,
+    ) -> QueryResponse:
+        """Execute evidence-first document query and return answer with immutable trace."""
+        try:
+            answer, trace = query_service.query(
+                query_text=request.query,
+                selected_doc_ids=request.document_ids,
+                strategy=request.strategy,
+                top_k=request.top_k,
+                candidate_depth=request.candidate_depth,
+                min_dense_score=request.min_dense_score,
+            )
+        except DocumentNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except UnprocessableDocumentError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except DocumentConflictError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except Exception as exc:
+            logger.error("Unexpected error executing query: %s", exc, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+
+        return QueryResponse(
+            answer=answer,
+            query_text=trace.query_text,
+            selected_doc_ids=list(trace.selected_doc_ids),
+            strategy=trace.requested_strategy,
+            effective_strategy=trace.effective_strategy,
+            fallback_reason=trace.fallback_reason,
+            abstained=trace.abstained,
+            retrieval_abstained=trace.retrieval_abstained,
+            generation_abstained=trace.generation_abstained,
+            abstention_reason=trace.retrieval_abstention_reason
+            or trace.generation_abstention_reason,
+            resolved_citations=[
+                ResolvedCitationSchema(**c.to_dict()) for c in trace.resolved_citations
+            ],
+            unresolved_citations=[
+                UnresolvedCitationSchema(**c.to_dict()) for c in trace.unresolved_citations
+            ],
+            malformed_citations=[
+                MalformedCitationSchema(**c.to_dict()) for c in trace.malformed_citations
+            ],
+            trace=trace.to_dict(),
+            latency_ms=trace.total_latency_ms,
+        )
 
     return app
 

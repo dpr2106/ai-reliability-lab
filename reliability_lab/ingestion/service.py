@@ -7,15 +7,19 @@ import json
 import logging
 import os
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 from uuid import uuid4
 
 from reliability_lab.core.models import Chunk, Document
 from reliability_lab.core.privacy import sanitize_path_message
 from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransformerEmbedder
-from reliability_lab.indexing.faiss_index import FaissVectorRetriever
+from reliability_lab.indexing.faiss_index import (
+    FaissVectorRetriever,
+    compute_chunk_manifest_hash,
+)
 from reliability_lab.ingestion.chunker import RecursiveCharacterChunker
 from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, IndexingStatus
 from reliability_lab.ingestion.parser import (
@@ -125,6 +129,7 @@ class DocumentIngestionService:
         filename: str,
         file_stream: BinaryIO,
         doc_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> DocumentRecord:
         """Save an incoming file stream with streaming SHA-256 calculation and bounds check.
 
@@ -132,6 +137,7 @@ class DocumentIngestionService:
             filename: Original user filename (will be sanitized).
             file_stream: Readable binary file stream.
             doc_id: Optional explicit document ID.
+            metadata: Optional user metadata (server-reserved '__*' keys will be stripped).
 
         Returns:
             DocumentRecord initialized with status=UPLOADED.
@@ -158,6 +164,9 @@ class DocumentIngestionService:
         # Ensure safe path containment
         if not storage_path.is_relative_to(self.storage_dir.resolve()):
             raise InvalidDocumentFormatError("Unsafe filename detected (path traversal attempt).")
+
+        # Strip user-supplied reserved __* keys
+        clean_metadata = {k: v for k, v in (metadata or {}).items() if not k.startswith("__")}
 
         hasher = hashlib.sha256()
         total_size = 0
@@ -213,6 +222,7 @@ class DocumentIngestionService:
             content_hash=content_hash,
             status=DocumentStatus.UPLOADED,
             indexing_status=IndexingStatus.PENDING,
+            metadata=clean_metadata,
         )
 
         return self.repository.insert_document(record)
@@ -280,6 +290,7 @@ class DocumentIngestionService:
                 status=DocumentStatus.EXTRACTING,
                 indexing_status=IndexingStatus.PENDING,
             )
+            self.repository.remove_embedding_provenance(doc_id)
             self._cleanup_faiss_dir(doc_id)
             doc_index_dir = self.index_dir / doc_id
             bm25_file = doc_index_dir / "bm25_chunks.json"
@@ -425,11 +436,40 @@ class DocumentIngestionService:
                         if faiss_dir.exists():
                             shutil.rmtree(faiss_dir, ignore_errors=True)
                         faiss_tmp.rename(faiss_dir)
-                        faiss_available = True
+
+                        # Record server-controlled provenance only after atomic rename succeeds
+                        try:
+                            index_file = faiss_dir / "index.faiss"
+                            artifact_digest = (
+                                f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+                            )
+                            chunk_manifest_hash = compute_chunk_manifest_hash(chunks)
+                            provenance = {
+                                "embedding_identity": embedder.embedding_identity.to_dict(),
+                                "artifact_digest": artifact_digest,
+                                "chunk_manifest_hash": chunk_manifest_hash,
+                                "doc_id": doc_id,
+                                "document_content_hash": record.content_hash,
+                                "ingestion_timestamp": datetime.now(timezone.utc).isoformat(),
+                            }
+                            self.repository.set_embedding_provenance(doc_id, provenance)
+                            faiss_available = True
+                        except Exception as p_exc:
+                            logger.error(
+                                "Failed recording embedding provenance for %s: %s", doc_id, p_exc
+                            )
+                            self._cleanup_faiss_dir(doc_id)
+                            self.repository.remove_embedding_provenance(doc_id)
+                            index_err_msg = (
+                                f"FAISS dense indexing failed: failed to record provenance"
+                                f" ({p_exc})"
+                            )
+                            faiss_available = False
                     except Exception as exc:
                         logger.error("Dense FAISS indexing failed for %s: %s", doc_id, exc)
                         index_err_msg = f"FAISS dense indexing failed: {exc}"
                         self._cleanup_faiss_dir(doc_id)
+                        self.repository.remove_embedding_provenance(doc_id)
 
                 if faiss_available:
                     indexing_status = IndexingStatus.INDEXED
@@ -691,8 +731,23 @@ class DocumentIngestionService:
                 f"embedder dimension ({effective_embedder.embedding_dim})."
             )
 
+        format_version = str(meta_content.get("format_version", "1.0"))
         try:
-            return FaissVectorRetriever.load(faiss_dir, effective_embedder)
+            if format_version == "1.0":
+                trusted_provenance = (
+                    record.metadata.get("__embedding_provenance__") if record.metadata else None
+                )
+                return FaissVectorRetriever.load_legacy_verified(
+                    faiss_dir, effective_embedder, trusted_provenance=trusted_provenance
+                )
+            elif format_version == "2.0":
+                return FaissVectorRetriever.load(faiss_dir, effective_embedder)
+            else:
+                raise IngestionError(
+                    f"Unsupported index format version '{format_version}' for document '{doc_id}'."
+                )
+        except IngestionError:
+            raise
         except (ValueError, FileNotFoundError, RuntimeError, Exception) as exc:
             logger.error("Failed loading FAISS index for document '%s': %s", doc_id, exc)
             raise IngestionError(

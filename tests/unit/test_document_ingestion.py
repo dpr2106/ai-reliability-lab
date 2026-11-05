@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +13,7 @@ import pytest
 
 from reliability_lab.core.models import Chunk
 from reliability_lab.indexing.embeddings import BaseEmbedder
+from reliability_lab.ingestion.chunker import RecursiveCharacterChunker
 from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, IndexingStatus
 from reliability_lab.ingestion.parser import FileNotFoundParserError
 from reliability_lab.ingestion.repository import DocumentRepository
@@ -572,3 +575,467 @@ class TestDocumentIngestionService:
 
         with pytest.raises(InvalidDocumentFormatError, match="contains binary null bytes"):
             service.save_upload_stream("streaming_binary.txt", stream)
+
+    def test_faiss_retriever_rejects_pending_failed_and_skipped_states(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # 1a. UPLOADED state
+        stream1 = io.BytesIO(b"Pending document text.")
+        rec1 = service.save_upload_stream("pending.txt", stream1)
+        with pytest.raises(IngestionError, match="UPLOADED"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+        # 1b. PENDING state (READY status with PENDING indexing_status)
+        service.repository.update_document_status(
+            rec1.doc_id,
+            status=DocumentStatus.READY,
+            indexing_status=IndexingStatus.PENDING,
+        )
+        with pytest.raises(IngestionError, match="PENDING"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+        # 2. FAILED state
+        service.repository.update_document_status(
+            rec1.doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message="OOM during embedding",
+        )
+        with pytest.raises(IngestionError, match="FAILED: OOM during embedding"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+        # 3. SKIPPED state
+        service.repository.update_document_status(
+            rec1.doc_id,
+            status=DocumentStatus.READY,
+            indexing_status=IndexingStatus.SKIPPED,
+        )
+        with pytest.raises(IngestionError, match="skipped"):
+            service.get_faiss_retriever(rec1.doc_id)
+
+    def test_faiss_retriever_rejects_stale_directory_if_status_not_indexed(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # Create cleanly indexed document
+        stream = io.BytesIO(b"Valid text for FAISS indexing test.")
+        rec = service.save_upload_stream("stale_test.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        assert faiss_dir.is_dir()
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+
+        # Simulate failed re-indexing leaving stale directory on disk
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message="Re-indexing tokenizer failed",
+        )
+
+        # Must reject loading stale directory
+        with pytest.raises(IngestionError, match="FAILED"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_faiss_retriever_validates_corrupt_or_missing_index_files(
+        self, service: DocumentIngestionService
+    ) -> None:
+        stream = io.BytesIO(b"Content for corruption tests.")
+        rec = service.save_upload_stream("corrupt_test.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        index_file = faiss_dir / "index.faiss"
+        meta_file = faiss_dir / "metadata.json"
+
+        # Case 1: Missing index.faiss
+        index_file.unlink()
+        with pytest.raises(IngestionError, match=r"required index files.*missing"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Restore index.faiss
+        index_file.write_bytes(b"dummy")
+
+        # Case 2: Corrupt JSON in metadata.json
+        meta_file.write_text("invalid json junk", encoding="utf-8")
+        with pytest.raises(IngestionError, match=r"failed to parse 'metadata\.json'"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 3: JSON without 'dimension' key
+        meta_file.write_text('{"format_version": "1.0"}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="missing required 'dimension' key"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_process_document_cleans_stale_faiss_on_extraction_chunking_failure(
+        self, service: DocumentIngestionService
+    ) -> None:
+        # Index document cleanly first
+        stream = io.BytesIO(b"Valid text initially.")
+        rec = service.save_upload_stream("wipe_stale.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        assert faiss_dir.is_dir()
+
+        # Corrupt storage file so extraction fails on re-processing
+        storage_file = Path(rec.storage_path)
+        storage_file.write_bytes(b"corrupt\x00data")
+
+        processed = service.process_document(rec.doc_id)
+        assert processed.status == DocumentStatus.FAILED
+        assert processed.indexing_status == IndexingStatus.FAILED
+
+        # Stale FAISS directory must be cleaned up from disk
+        assert not faiss_dir.exists()
+
+    def test_faiss_retriever_during_reprocessing_is_rejected(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """FAISS retrieval must be blocked during reprocessing while status is not READY."""
+        stream = io.BytesIO(b"Text for reprocessing test.")
+        rec = service.save_upload_stream("reprocess_in_progress.txt", stream)
+        service.process_document(rec.doc_id)
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+
+        # Simulate reprocessing in progress: status transitioned to EXTRACTING / PENDING
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.EXTRACTING,
+            indexing_status=IndexingStatus.PENDING,
+        )
+
+        with pytest.raises(IngestionError, match="processing in progress"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Also test CHUNKING and INDEXING lifecycle phases
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.CHUNKING,
+        )
+        with pytest.raises(IngestionError, match="processing in progress"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.INDEXING,
+        )
+        with pytest.raises(IngestionError, match="processing in progress"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_faiss_retriever_after_extraction_failure_during_reprocessing(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """FAISS retrieval must be rejected after extraction failure during reprocessing."""
+        stream = io.BytesIO(b"Initially valid document content.")
+        rec = service.save_upload_stream("extraction_fail_reprocess.txt", stream)
+        service.process_document(rec.doc_id)
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+
+        # Corrupt the storage file
+        Path(rec.storage_path).write_bytes(b"bad\x00data")
+        processed = service.process_document(rec.doc_id)
+
+        assert processed.status == DocumentStatus.FAILED
+        assert processed.indexing_status == IndexingStatus.FAILED
+
+        with pytest.raises(IngestionError, match="FAILED"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_faiss_retriever_after_chunking_failure_during_reprocessing(
+        self, service: DocumentIngestionService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FAISS retrieval must be rejected after chunking failure during reprocessing."""
+        stream = io.BytesIO(b"Content for chunking failure reprocess.")
+        rec = service.save_upload_stream("chunk_fail_reprocess.txt", stream)
+        service.process_document(rec.doc_id)
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+
+        def mock_chunk(self, doc):
+            raise RuntimeError("Chunking buffer overflow error")
+
+        monkeypatch.setattr(RecursiveCharacterChunker, "chunk", mock_chunk)
+
+        processed = service.process_document(rec.doc_id)
+        assert processed.status == DocumentStatus.FAILED
+        assert processed.indexing_status == IndexingStatus.FAILED
+
+        with pytest.raises(IngestionError, match="FAILED"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_successful_reprocessing_restores_valid_faiss_retrieval(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Successful reprocessing must restore valid FAISS retrieval with updated chunks."""
+        stream = io.BytesIO(b"Version 1 text content.")
+        rec = service.save_upload_stream("reprocess_restore.txt", stream)
+        service.process_document(rec.doc_id)
+        retriever_v1 = service.get_faiss_retriever(rec.doc_id)
+        res1 = retriever_v1.retrieve("Version", top_k=1)
+        assert len(res1) == 1
+        assert "Version 1" in res1[0].chunk.content
+
+        # Update file with Version 2 content
+        Path(rec.storage_path).write_text("Version 2 updated content.", encoding="utf-8")
+        processed = service.process_document(rec.doc_id)
+
+        assert processed.status == DocumentStatus.READY
+        assert processed.indexing_status == IndexingStatus.INDEXED
+
+        retriever_v2 = service.get_faiss_retriever(rec.doc_id)
+        res2 = retriever_v2.retrieve("Version", top_k=1)
+        assert len(res2) == 1
+        assert "Version 2" in res2[0].chunk.content
+
+    def test_cleanup_faiss_filesystem_failure_does_not_mask_error_and_is_retryable(
+        self, service: DocumentIngestionService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Filesystem cleanup failure must be logged, retryable, and not mask errors."""
+        stream = io.BytesIO(b"Cleanup failure test document.")
+        rec = service.save_upload_stream("cleanup_fail.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        assert faiss_dir.is_dir()
+
+        # Simulate locked directory
+        def failing_rmtree(path, *args, **kwargs):
+            raise PermissionError("Directory locked by security scanner")
+
+        monkeypatch.setattr(shutil, "rmtree", failing_rmtree)
+
+        # 1. Direct cleanup returns False, does not raise
+        assert service.cleanup_faiss_index(rec.doc_id) is False
+        assert faiss_dir.is_dir()
+
+        # 2. Invalidate status in DB
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message="Ingestion failure occurred",
+        )
+
+        # Stale files remain on disk, but retrieval is strictly blocked by state
+        with pytest.raises(IngestionError, match="FAILED"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # 3. Restore rmtree: cleanup is retryable and succeeds
+        monkeypatch.undo()
+        assert service.cleanup_faiss_index(rec.doc_id) is True
+        assert not faiss_dir.exists()
+
+    def test_faiss_retriever_corrupted_artifacts_handling(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Handle malformed metadata, incompatible dimensions, and corrupt binary index files."""
+        stream = io.BytesIO(b"Content for artifact corruption tests.")
+        rec = service.save_upload_stream("corrupt_artifacts.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        meta_file = faiss_dir / "metadata.json"
+        index_file = faiss_dir / "index.faiss"
+
+        # Case 1: Metadata is JSON array instead of object
+        meta_file.write_text("[1, 2, 3]", encoding="utf-8")
+        with pytest.raises(IngestionError, match="must be an object"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 2: Dimension is negative or zero
+        meta_file.write_text('{"dimension": -5}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="positive integer"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 3: Dimension is incompatible with embedder
+        meta_file.write_text('{"dimension": 128}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="Incompatible embedding dimension"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 4: Corrupt binary index file
+        # Restore valid metadata with correct dimension for the active embedder
+        active_dim = service._embedder.embedding_dim if service._embedder else 16
+        meta_file.write_text(
+            json.dumps({"dimension": active_dim, "index_type": "flat", "chunks": {}}),
+            encoding="utf-8",
+        )
+        index_file.write_bytes(b"NOT_A_VALID_FAISS_INDEX_BINARY_DATA")
+        with pytest.raises(
+            IngestionError,
+            match=r"(Failed to read FAISS index binary|Invalid or corrupt FAISS index)",
+        ):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_process_document_invalidation_ordering_rejects_during_cleanup(
+        self, service: DocumentIngestionService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """State invalidation must precede cleanup so retrieval is blocked immediately."""
+        stream = io.BytesIO(b"Initial document content.")
+        rec = service.save_upload_stream("order_test.txt", stream)
+        service.process_document(rec.doc_id)
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+        assert service.get_bm25_retriever(rec.doc_id) is not None
+
+        cleanup_called = False
+        original_cleanup = service.cleanup_faiss_index
+
+        def intercept_cleanup(doc_id: str) -> bool:
+            nonlocal cleanup_called
+            cleanup_called = True
+            # At the moment cleanup runs, SQLite state must ALREADY be invalid
+            with pytest.raises(IngestionError, match="processing in progress"):
+                service.get_faiss_retriever(doc_id)
+            with pytest.raises(IngestionError, match="processing in progress"):
+                service.get_bm25_retriever(doc_id)
+            return original_cleanup(doc_id)
+
+        monkeypatch.setattr(service, "cleanup_faiss_index", intercept_cleanup)
+        service.process_document(rec.doc_id)
+        assert cleanup_called is True
+
+    def test_bm25_retriever_lifecycle_consistency(
+        self, service: DocumentIngestionService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """BM25 retriever strictly checks document lifecycle and rejects unready/failed states."""
+        # 1. Uploaded document (not ready)
+        stream = io.BytesIO(b"Version 1 text content.")
+        rec = service.save_upload_stream("bm25_lifecycle.txt", stream)
+        with pytest.raises(IngestionError, match="UPLOADED"):
+            service.get_bm25_retriever(rec.doc_id)
+
+        # 2. Ingest document to READY / INDEXED
+        service.process_document(rec.doc_id)
+        bm25_v1 = service.get_bm25_retriever(rec.doc_id)
+        res1 = bm25_v1.retrieve("Version", top_k=1)
+        assert len(res1) == 1
+        assert "Version 1" in res1[0].chunk.content
+
+        # 3. Blocked during reprocessing
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.EXTRACTING,
+            indexing_status=IndexingStatus.PENDING,
+        )
+        with pytest.raises(IngestionError, match="processing in progress"):
+            service.get_bm25_retriever(rec.doc_id)
+
+        # 4. Blocked after extraction failure during reprocessing
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.FAILED,
+            indexing_status=IndexingStatus.FAILED,
+            error_message="Extraction crashed",
+        )
+        with pytest.raises(IngestionError, match="FAILED: Extraction crashed"):
+            service.get_bm25_retriever(rec.doc_id)
+
+        # 5. Blocked after chunking failure during reprocessing
+        Path(rec.storage_path).write_text("Valid text for chunk fail.", encoding="utf-8")
+
+        def failing_chunk(self_c, doc):
+            raise RuntimeError("Chunking exploded")
+
+        monkeypatch.setattr(RecursiveCharacterChunker, "chunk", failing_chunk)
+        processed = service.process_document(rec.doc_id)
+        assert processed.status == DocumentStatus.FAILED
+        with pytest.raises(IngestionError, match="FAILED"):
+            service.get_bm25_retriever(rec.doc_id)
+
+        # 6. Restored after successful reprocessing with Version 2
+        monkeypatch.undo()
+        Path(rec.storage_path).write_text("Version 2 updated content.", encoding="utf-8")
+        processed2 = service.process_document(rec.doc_id)
+        assert processed2.status == DocumentStatus.READY
+        assert processed2.indexing_status == IndexingStatus.INDEXED
+
+        bm25_v2 = service.get_bm25_retriever(rec.doc_id)
+        res2 = bm25_v2.retrieve("Version", top_k=1)
+        assert len(res2) == 1
+        assert "Version 2" in res2[0].chunk.content
+
+        # 7. Valid BM25 fallback for READY / PARTIAL state
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.READY,
+            indexing_status=IndexingStatus.PARTIAL,
+        )
+        assert service.get_bm25_retriever(rec.doc_id) is not None
+        with pytest.raises(IngestionError, match="PARTIAL: BM25 lexical retrieval is available"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_metadata_dimension_validation_strictness(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Dimension validation strictly rejects boolean, fractional, zero, and negative values."""
+        stream = io.BytesIO(b"Data for strict dimension testing.")
+        rec = service.save_upload_stream("strict_dim.txt", stream)
+        service.process_document(rec.doc_id)
+
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        meta_file = faiss_dir / "metadata.json"
+
+        # Case 1: Boolean True
+        meta_file.write_text('{"dimension": true}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="positive integer"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 2: Boolean False
+        meta_file.write_text('{"dimension": false}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="positive integer"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 3: Fractional float
+        meta_file.write_text('{"dimension": 16.5}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="positive integer"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 4: Zero
+        meta_file.write_text('{"dimension": 0}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="positive integer"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 5: Negative integer
+        meta_file.write_text('{"dimension": -16}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="positive integer"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 6: Missing dimension key
+        meta_file.write_text('{"format_version": "1.0"}', encoding="utf-8")
+        with pytest.raises(IngestionError, match="missing required 'dimension' key"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # Case 7: Valid dimension
+        active_dim = service._embedder.embedding_dim if service._embedder else 16
+        meta_file.write_text(
+            json.dumps({"dimension": active_dim, "index_type": "flat", "chunks": {}}),
+            encoding="utf-8",
+        )
+        assert service.get_faiss_retriever(rec.doc_id) is not None
+
+    def test_error_messages_path_privacy(self, service: DocumentIngestionService) -> None:
+        """Internal storage and index directory paths must never leak into client error messages."""
+        stream = io.BytesIO(b"Path privacy test data.")
+        rec = service.save_upload_stream("path_privacy.txt", stream)
+
+        # 1. Missing storage file
+        Path(rec.storage_path).unlink()
+        failed_rec = service.process_document(rec.doc_id)
+        assert failed_rec.status == DocumentStatus.FAILED
+        assert str(service.storage_dir) not in str(failed_rec.error_message)
+
+        # 2. Corrupt FAISS binary error does not leak index_dir
+        faiss_dir = service.index_dir / rec.doc_id / "faiss"
+        faiss_dir.mkdir(parents=True, exist_ok=True)
+        active_dim = service._embedder.embedding_dim if service._embedder else 16
+        (faiss_dir / "metadata.json").write_text(
+            json.dumps({"dimension": active_dim, "index_type": "flat", "chunks": {}}),
+            encoding="utf-8",
+        )
+        (faiss_dir / "index.faiss").write_bytes(b"INVALID_FAISS_DATA")
+        service.repository.update_document_status(
+            rec.doc_id,
+            status=DocumentStatus.READY,
+            indexing_status=IndexingStatus.INDEXED,
+        )
+        with pytest.raises(IngestionError) as exc_info:
+            service.get_faiss_retriever(rec.doc_id)
+        assert str(service.index_dir) not in str(exc_info.value)

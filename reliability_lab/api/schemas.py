@@ -11,7 +11,7 @@ class HealthResponse(BaseModel):
     """Health and storage readiness response."""
 
     status: str = Field(..., description="Service status ('ok' or 'degraded')")
-    database: str = Field(..., description="Path to active SQLite experiment database")
+    database: str = Field(..., description="Filename of active SQLite experiment database")
     database_exists: bool = Field(..., description="True if database file exists on disk")
     total_runs: int = Field(0, description="Total number of persisted experiment runs")
 

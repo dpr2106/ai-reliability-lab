@@ -442,29 +442,45 @@ class FaissVectorRetriever(BaseRetriever):
 
         source_dir = Path(path)
         if not source_dir.is_dir():
-            raise FileNotFoundError(f"FAISS index directory not found: '{source_dir}'.")
+            raise FileNotFoundError(f"FAISS index directory not found: '{source_dir.name}'.")
 
         index_file = source_dir / "index.faiss"
         meta_file = source_dir / "metadata.json"
 
         if not index_file.is_file():
-            raise FileNotFoundError(f"Index binary not found: '{index_file}'.")
+            raise FileNotFoundError("Index binary not found: 'index.faiss'.")
         if not meta_file.is_file():
-            raise FileNotFoundError(f"Index metadata not found: '{meta_file}'.")
+            raise FileNotFoundError("Index metadata not found: 'metadata.json'.")
 
         try:
             meta = json.loads(meta_file.read_text(encoding="utf-8"))
         except Exception as err:
-            raise ValueError(f"Failed to parse metadata file '{meta_file}': {err}") from err
+            raise ValueError(f"Failed to parse metadata file 'metadata.json': {err}") from err
 
-        expected_dimension = int(meta["dimension"])
+        if not isinstance(meta, dict):
+            raise ValueError("Corrupt metadata: root JSON structure must be an object.")
+
+        if "dimension" not in meta:
+            raise ValueError("Corrupt metadata: missing required 'dimension' key.")
+
+        dim_val = meta["dimension"]
+        if isinstance(dim_val, bool) or not isinstance(dim_val, int) or dim_val <= 0:
+            raise ValueError(
+                f"Corrupt metadata: 'dimension' must be a positive integer, got {dim_val!r}."
+            )
+        expected_dimension = dim_val
+
         if embedder.embedding_dim != expected_dimension:
             raise ValueError(
                 f"Saved index dimension ({expected_dimension}) does not match "
                 f"embedder dimension ({embedder.embedding_dim})."
             )
 
-        loaded_index = faiss_mod.read_index(str(index_file))
+        try:
+            loaded_index = faiss_mod.read_index(str(index_file))
+        except Exception as err:
+            logger.error("Failed to read FAISS index binary '%s': %s", index_file.name, err)
+            raise ValueError(f"Failed to read FAISS index binary '{index_file.name}'.") from err
 
         retriever = cls(
             embedder=embedder,

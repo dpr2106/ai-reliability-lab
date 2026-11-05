@@ -12,6 +12,7 @@ from typing import BinaryIO
 from uuid import uuid4
 
 from reliability_lab.core.models import Chunk, Document
+from reliability_lab.core.privacy import sanitize_path_message
 from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransformerEmbedder
 from reliability_lab.indexing.faiss_index import FaissVectorRetriever
@@ -216,6 +217,38 @@ class DocumentIngestionService:
 
         return self.repository.insert_document(record)
 
+    def cleanup_faiss_index(self, doc_id: str) -> bool:
+        """Safely and retryably remove persisted FAISS index directory if present.
+
+        Returns:
+            True if the directory does not exist or was successfully removed.
+            False if removal failed due to an OS/filesystem error.
+
+        Guarantees:
+            - Safe error logging without raising, preventing cleanup errors from
+              masking underlying extraction/chunking/indexing exceptions.
+            - Calling this method is idempotent and retryable.
+        """
+        faiss_dir = self.index_dir / doc_id / "faiss"
+        if not faiss_dir.exists():
+            return True
+
+        try:
+            shutil.rmtree(faiss_dir)
+            logger.info("Cleaned up FAISS index directory for document '%s'", doc_id)
+            return True
+        except Exception as exc:
+            logger.error(
+                "Failed to remove FAISS index directory for document '%s': %s",
+                doc_id,
+                exc,
+            )
+            return False
+
+    def _cleanup_faiss_dir(self, doc_id: str) -> bool:
+        """Backward-compatible alias for cleanup_faiss_index."""
+        return self.cleanup_faiss_index(doc_id)
+
     def process_document(self, doc_id: str) -> DocumentRecord:
         """Execute extraction, citation-aware chunking, and index generation.
 
@@ -229,16 +262,30 @@ class DocumentIngestionService:
 
         storage_path = Path(record.storage_path)
         if not storage_path.is_file():
+            # Invalidate state in SQLite FIRST before filesystem cleanup
             self.repository.update_document_status(
                 doc_id,
                 status=DocumentStatus.FAILED,
-                error_message=f"Storage file missing: {record.storage_path}",
+                indexing_status=IndexingStatus.FAILED,
+                error_message=f"Storage file missing: {storage_path.name}",
             )
+            self._cleanup_faiss_dir(doc_id)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
         try:
             # 1. EXTRACTING
-            self.repository.update_document_status(doc_id, status=DocumentStatus.EXTRACTING)
+            # Invalidate prior indexing and ready states in SQLite FIRST
+            self.repository.update_document_status(
+                doc_id,
+                status=DocumentStatus.EXTRACTING,
+                indexing_status=IndexingStatus.PENDING,
+            )
+            self._cleanup_faiss_dir(doc_id)
+            doc_index_dir = self.index_dir / doc_id
+            bm25_file = doc_index_dir / "bm25_chunks.json"
+            if bm25_file.exists():
+                bm25_file.unlink(missing_ok=True)
+
             try:
                 document: Document
                 if record.file_type == "pdf":
@@ -252,16 +299,25 @@ class DocumentIngestionService:
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
-                    error_message=f"PDF is encrypted or requires password authentication: {exc}",
+                    indexing_status=IndexingStatus.FAILED,
+                    error_message=(
+                        "PDF is encrypted or requires password authentication: "
+                        f"{sanitize_path_message(str(exc))}"
+                    ),
                 )
+                self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
             except (InvalidPDFParserError, InvalidTextDocumentError, Exception) as exc:
-                logger.error("Extraction failed for %s: %s", doc_id, exc)
+                logger.error("Extraction failed for %s: %s", doc_id, exc, exc_info=True)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
-                    error_message=f"Document text extraction failed: {exc}",
+                    indexing_status=IndexingStatus.FAILED,
+                    error_message=(
+                        f"Document text extraction failed: {sanitize_path_message(str(exc))}"
+                    ),
                 )
+                self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
             page_count = document.page_count or 1
@@ -279,12 +335,16 @@ class DocumentIngestionService:
                 )
                 chunks = chunker.chunk(document)
             except Exception as exc:
-                logger.error("Chunking failed for %s: %s", doc_id, exc)
+                logger.error("Chunking failed for %s: %s", doc_id, exc, exc_info=True)
                 self.repository.update_document_status(
                     doc_id,
                     status=DocumentStatus.FAILED,
-                    error_message=f"Citation-aware chunking failed: {exc}",
+                    indexing_status=IndexingStatus.FAILED,
+                    error_message=(
+                        f"Citation-aware chunking failed: {sanitize_path_message(str(exc))}"
+                    ),
                 )
+                self._cleanup_faiss_dir(doc_id)
                 return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
             # Persist chunks in repository (safely replaces prior chunks to avoid duplicates)
@@ -324,9 +384,11 @@ class DocumentIngestionService:
             final_status: DocumentStatus
 
             if len(chunks) == 0:
+                self._cleanup_faiss_dir(doc_id)
                 indexing_status = IndexingStatus.SKIPPED
                 final_status = DocumentStatus.READY
             elif not bm25_indexing_ok:
+                self._cleanup_faiss_dir(doc_id)
                 indexing_status = IndexingStatus.FAILED
                 index_err_msg = "BM25 index generation failed."
                 final_status = DocumentStatus.FAILED
@@ -349,8 +411,7 @@ class DocumentIngestionService:
                             f"'all-MiniLM-L6-v2' not available ({exc}). "
                             "BM25 lexical retrieval is available."
                         )
-                        if faiss_dir.exists():
-                            shutil.rmtree(faiss_dir, ignore_errors=True)
+                        self._cleanup_faiss_dir(doc_id)
 
                 if embedder is not None:
                     try:
@@ -368,14 +429,14 @@ class DocumentIngestionService:
                     except Exception as exc:
                         logger.error("Dense FAISS indexing failed for %s: %s", doc_id, exc)
                         index_err_msg = f"FAISS dense indexing failed: {exc}"
-                        if faiss_dir.exists():
-                            shutil.rmtree(faiss_dir, ignore_errors=True)
+                        self._cleanup_faiss_dir(doc_id)
 
                 if faiss_available:
                     indexing_status = IndexingStatus.INDEXED
                     final_status = DocumentStatus.READY
                 else:
                     # BM25 is available, but FAISS is not available
+                    self._cleanup_faiss_dir(doc_id)
                     indexing_status = IndexingStatus.PARTIAL
                     final_status = DocumentStatus.READY
 
@@ -396,24 +457,107 @@ class DocumentIngestionService:
                 doc_id,
                 status=DocumentStatus.FAILED,
                 indexing_status=IndexingStatus.FAILED,
-                error_message=f"Unexpected processing error: {unhandled_exc}",
+                error_message=(
+                    f"Unexpected processing error: {sanitize_path_message(str(unhandled_exc))}"
+                ),
             )
+            self._cleanup_faiss_dir(doc_id)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
+    @classmethod
+    def validate_document_freshness(
+        cls,
+        record: DocumentRecord,
+        resource_name: str = "Chunks",
+    ) -> None:
+        """Validate that a document is in a ready, freshly indexed state for retrieval.
+
+        Permits retrieval only when status == READY and indexing_status in (INDEXED, PARTIAL).
+        Rejects access when UPLOADED, EXTRACTING, CHUNKING, INDEXING, FAILED, or READY with
+        PENDING, FAILED, or SKIPPED indexing status.
+
+        Raises:
+            IngestionError: If the document is not in a valid, fresh retrieval state.
+        """
+        if record.status != DocumentStatus.READY or record.indexing_status not in (
+            IndexingStatus.INDEXED,
+            IndexingStatus.PARTIAL,
+        ):
+            if record.status == DocumentStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"{resource_name} not available for document '{record.doc_id}' "
+                    f"(document status is FAILED{err_detail})."
+                )
+            if record.status in (
+                DocumentStatus.EXTRACTING,
+                DocumentStatus.CHUNKING,
+                DocumentStatus.INDEXING,
+            ):
+                status_val = (
+                    record.status.value if hasattr(record.status, "value") else str(record.status)
+                )
+                raise IngestionError(
+                    f"{resource_name} not ready for document '{record.doc_id}' "
+                    f"(document status is {status_val}: processing in progress)."
+                )
+            if record.status == DocumentStatus.UPLOADED:
+                raise IngestionError(
+                    f"{resource_name} not ready for document '{record.doc_id}' "
+                    "(document status is UPLOADED: processing has not started)."
+                )
+
+            # Document is READY, but indexing status is not INDEXED or PARTIAL
+            if record.indexing_status == IndexingStatus.PENDING:
+                raise IngestionError(
+                    f"{resource_name} not ready for document '{record.doc_id}' "
+                    "(indexing status is PENDING: indexing in progress)."
+                )
+            if record.indexing_status == IndexingStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"{resource_name} failed for document '{record.doc_id}' "
+                    f"(indexing status is FAILED{err_detail})."
+                )
+            if record.indexing_status == IndexingStatus.SKIPPED:
+                raise IngestionError(
+                    f"{resource_name} skipped for document '{record.doc_id}' "
+                    "(document has 0 chunks)."
+                )
+            raise IngestionError(
+                f"{resource_name} not available for document '{record.doc_id}' "
+                f"(status: {record.status}, indexing status: {record.indexing_status})."
+            )
+
     def get_bm25_retriever(self, doc_id: str) -> BM25Retriever:
-        """Construct and populate a BM25Retriever from persisted document chunks."""
+        """Construct and populate a BM25Retriever from persisted document chunks.
+
+        Guarantees:
+        1. Validates document existence in the repository.
+        2. Strictly verifies document lifecycle freshness: BM25 retrieval is permitted
+           ONLY when status == READY AND indexing_status in (INDEXED, PARTIAL).
+        3. Rejects access during active processing (EXTRACTING, CHUNKING, INDEXING, UPLOADED)
+           and after processing failures (FAILED, SKIPPED).
+        4. Rejects stale previous-version chunks after a failed reprocessing attempt.
+        """
+        record = self.repository.get_document(doc_id)
+        if record is None:
+            raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
+
+        self.validate_document_freshness(record, resource_name="BM25 index")
+
         chunks = self.repository.get_chunks(doc_id)
         if not chunks:
             # Fallback to index json file
             bm25_file = self.index_dir / doc_id / "bm25_chunks.json"
             if bm25_file.is_file():
-                raw = json.loads(bm25_file.read_text(encoding="utf-8"))
-                chunks = [Chunk.from_dict(item) for item in raw]
+                try:
+                    raw = json.loads(bm25_file.read_text(encoding="utf-8"))
+                    chunks = [Chunk.from_dict(item) for item in raw]
+                except Exception as exc:
+                    logger.error("Failed to read BM25 chunks JSON for %s: %s", doc_id, exc)
 
         if not chunks:
-            record = self.repository.get_document(doc_id)
-            if record is None:
-                raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
             raise IngestionError(f"No chunks available for document '{doc_id}'.")
 
         retriever = BM25Retriever()
@@ -425,22 +569,135 @@ class DocumentIngestionService:
         doc_id: str,
         embedder: BaseEmbedder | None = None,
     ) -> FaissVectorRetriever:
-        """Load a persisted FAISS vector retriever from disk."""
-        faiss_dir = self.index_dir / doc_id / "faiss"
-        if not faiss_dir.is_dir():
-            record = self.repository.get_document(doc_id)
-            if record is not None and record.indexing_status == IndexingStatus.PARTIAL:
+        """Load a persisted FAISS vector retriever from disk.
+
+        Guarantees:
+        1. Validates document existence in the repository.
+        2. Strictly verifies that document status is READY AND indexing_status is INDEXED.
+           Rejects access for non-ready document states (EXTRACTING, CHUNKING, INDEXING,
+           UPLOADED, FAILED) and non-indexed states (PARTIAL, PENDING, FAILED, SKIPPED)
+           with actionable diagnostics indicating whether BM25 lexical retrieval remains available.
+        3. Protects against stale indexes: even if a legacy faiss directory exists on disk,
+           it will not be loaded if the database record is not in READY and INDEXED states.
+        4. Validates presence and integrity of index.faiss and metadata.json before loading.
+        5. Validates positive integer embedding dimension and compatibility with embedder.
+        """
+        record = self.repository.get_document(doc_id)
+        if record is None:
+            raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
+
+        # Guard: FAISS retrieval is permitted ONLY when status == READY
+        # AND indexing_status == INDEXED
+        if (
+            record.status != DocumentStatus.READY
+            or record.indexing_status != IndexingStatus.INDEXED
+        ):
+            # 1. Document-level lifecycle checks
+            if record.status == DocumentStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"FAISS dense index not available for document '{doc_id}' "
+                    f"(document status is FAILED{err_detail})."
+                )
+            if record.status in (
+                DocumentStatus.EXTRACTING,
+                DocumentStatus.CHUNKING,
+                DocumentStatus.INDEXING,
+            ):
+                raise IngestionError(
+                    f"FAISS dense index not ready for document '{doc_id}' "
+                    f"(document status is {record.status}: processing in progress)."
+                )
+            if record.status == DocumentStatus.UPLOADED:
+                raise IngestionError(
+                    f"FAISS dense index not ready for document '{doc_id}' "
+                    "(document status is UPLOADED: processing has not started)."
+                )
+
+            # 2. Indexing-level checks when document status is READY
+            if record.indexing_status == IndexingStatus.PARTIAL:
                 raise IngestionError(
                     f"FAISS dense index not available for document '{doc_id}' "
                     "(indexing status is PARTIAL: BM25 lexical retrieval is available)."
                 )
-            raise FileNotFoundError(f"FAISS index directory not found for document '{doc_id}'.")
+            if record.indexing_status == IndexingStatus.PENDING:
+                raise IngestionError(
+                    f"FAISS dense index not ready for document '{doc_id}' "
+                    "(indexing status is PENDING: indexing in progress)."
+                )
+            if record.indexing_status == IndexingStatus.FAILED:
+                err_detail = f": {record.error_message}" if record.error_message else ""
+                raise IngestionError(
+                    f"FAISS dense index failed for document '{doc_id}' "
+                    f"(indexing status is FAILED{err_detail})."
+                )
+            if record.indexing_status == IndexingStatus.SKIPPED:
+                raise IngestionError(
+                    f"FAISS dense index skipped for document '{doc_id}' (document has 0 chunks)."
+                )
+            raise IngestionError(
+                f"FAISS dense index not available for document '{doc_id}' "
+                f"(status: {record.status}, indexing status: {record.indexing_status})."
+            )
+
+        faiss_dir = self.index_dir / doc_id / "faiss"
+        if not faiss_dir.is_dir():
+            raise FileNotFoundError(
+                f"FAISS index directory missing for indexed document '{doc_id}'."
+            )
+
+        index_file = faiss_dir / "index.faiss"
+        meta_file = faiss_dir / "metadata.json"
+
+        if not index_file.is_file() or not meta_file.is_file():
+            raise IngestionError(
+                f"Corrupt FAISS index directory for document '{doc_id}': "
+                "required index files ('index.faiss', 'metadata.json') are missing."
+            )
+
+        try:
+            meta_content = json.loads(meta_file.read_text(encoding="utf-8"))
+            if not isinstance(meta_content, dict):
+                raise IngestionError(
+                    f"Corrupt FAISS index metadata for document '{doc_id}': "
+                    "root JSON structure must be an object."
+                )
+            if "dimension" not in meta_content:
+                raise IngestionError(
+                    f"Corrupt FAISS index metadata for document '{doc_id}': "
+                    "missing required 'dimension' key."
+                )
+            dim_val = meta_content["dimension"]
+            if isinstance(dim_val, bool) or not isinstance(dim_val, int) or dim_val <= 0:
+                raise IngestionError(
+                    f"Corrupt FAISS index metadata for document '{doc_id}': "
+                    f"'dimension' must be a positive integer, got {dim_val!r}."
+                )
+            expected_dimension = dim_val
+        except json.JSONDecodeError as exc:
+            raise IngestionError(
+                f"Corrupt FAISS index metadata for document '{doc_id}': "
+                f"failed to parse 'metadata.json' ({exc})."
+            ) from exc
 
         effective_embedder = embedder or self._embedder
         if effective_embedder is None:
             effective_embedder = SentenceTransformerEmbedder(local_files_only=True)
 
-        return FaissVectorRetriever.load(faiss_dir, effective_embedder)
+        if effective_embedder.embedding_dim != expected_dimension:
+            raise IngestionError(
+                f"Incompatible embedding dimension for document '{doc_id}': "
+                f"saved index dimension ({expected_dimension}) does not match "
+                f"embedder dimension ({effective_embedder.embedding_dim})."
+            )
+
+        try:
+            return FaissVectorRetriever.load(faiss_dir, effective_embedder)
+        except (ValueError, FileNotFoundError, RuntimeError, Exception) as exc:
+            logger.error("Failed loading FAISS index for document '%s': %s", doc_id, exc)
+            raise IngestionError(
+                f"Invalid or corrupt FAISS index for document '{doc_id}': {exc}"
+            ) from exc
 
     def delete_document(self, doc_id: str) -> bool:
         """Safely delete original document file, indexes, and database records.

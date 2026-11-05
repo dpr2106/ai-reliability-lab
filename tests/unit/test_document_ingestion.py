@@ -40,6 +40,10 @@ class DummyMockEmbedder(BaseEmbedder):
         return "dummy-mock-embedder"
 
     @property
+    def artifact_fingerprint(self) -> str:
+        return "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+    @property
     def embedding_dim(self) -> int:
         return self._dim
 
@@ -853,9 +857,18 @@ class TestDocumentIngestionService:
 
         # Case 4: Corrupt binary index file
         # Restore valid metadata with correct dimension for the active embedder
-        active_dim = service._embedder.embedding_dim if service._embedder else 16
+        active_embedder = service._embedder or DummyMockEmbedder(16)
+        active_dim = active_embedder.embedding_dim
         meta_file.write_text(
-            json.dumps({"dimension": active_dim, "index_type": "flat", "chunks": {}}),
+            json.dumps(
+                {
+                    "format_version": "2.0",
+                    "embedding_identity": active_embedder.embedding_identity.to_dict(),
+                    "dimension": active_dim,
+                    "index_type": "flat",
+                    "chunks": {},
+                }
+            ),
             encoding="utf-8",
         )
         index_file.write_bytes(b"NOT_A_VALID_FAISS_INDEX_BINARY_DATA")
@@ -1036,9 +1049,18 @@ class TestDocumentIngestionService:
         # 2. Corrupt FAISS binary error does not leak index_dir
         faiss_dir = service.index_dir / rec.doc_id / "faiss"
         faiss_dir.mkdir(parents=True, exist_ok=True)
-        active_dim = service._embedder.embedding_dim if service._embedder else 16
+        active_embedder = service._embedder or DummyMockEmbedder(16)
+        active_dim = active_embedder.embedding_dim
         (faiss_dir / "metadata.json").write_text(
-            json.dumps({"dimension": active_dim, "index_type": "flat", "chunks": {}}),
+            json.dumps(
+                {
+                    "format_version": "2.0",
+                    "embedding_identity": active_embedder.embedding_identity.to_dict(),
+                    "dimension": active_dim,
+                    "index_type": "flat",
+                    "chunks": {},
+                }
+            ),
             encoding="utf-8",
         )
         (faiss_dir / "index.faiss").write_bytes(b"INVALID_FAISS_DATA")
@@ -1084,3 +1106,71 @@ class TestDocumentIngestionService:
         interim = service.repository.get_document(rec.doc_id)
         assert interim is not None
         assert "__embedding_provenance__" not in interim.metadata
+
+    def test_ingestion_generation_mismatch_and_stale_attempt_safety(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Stale concurrent ingestion attempts cannot publish provenance or leave valid indexes."""
+        from unittest.mock import patch
+
+        from reliability_lab.ingestion.repository import GenerationMismatchError
+        from reliability_lab.ingestion.service import DenseIndexIntegrityError
+
+        stream = io.BytesIO(b"Content for generation safety.")
+        rec = service.save_upload_stream("gen_safety.txt", stream)
+
+        # 1. Concurrent attempt generation mismatch
+        gen1 = service.repository.create_ingestion_generation(rec.doc_id)
+        gen2 = service.repository.create_ingestion_generation(rec.doc_id)
+        assert gen1 != gen2
+
+        prov_dummy = {"doc_id": rec.doc_id, "data": "test"}
+        with pytest.raises(GenerationMismatchError, match="does not match active generation"):
+            service.repository.publish_embedding_provenance(rec.doc_id, gen1, prov_dummy)
+
+        # Worker with active generation succeeds
+        service.repository.publish_embedding_provenance(rec.doc_id, gen2, prov_dummy)
+        doc = service.repository.get_document(rec.doc_id)
+        assert doc is not None
+        assert doc.metadata["__embedding_provenance__"]["generation"] == gen2
+
+        # 2. Failed provenance persistence cleans up filesystem and marks PARTIAL
+        stream2 = io.BytesIO(b"Content for failure cleanup test.")
+        rec2 = service.save_upload_stream("fail_cleanup.txt", stream2)
+
+        with patch.object(
+            service.repository,
+            "publish_embedding_provenance",
+            side_effect=GenerationMismatchError("Stale generation"),
+        ):
+            failed_doc = service.process_document(rec2.doc_id)
+            assert failed_doc.indexing_status == IndexingStatus.PARTIAL
+            faiss_dir = service.index_dir / rec2.doc_id / "faiss"
+            assert not faiss_dir.exists()
+
+        # 3. Provenance generation mismatch raises DenseIndexIntegrityError
+        service.repository.update_document_status(
+            rec.doc_id, status=DocumentStatus.READY, indexing_status=IndexingStatus.INDEXED
+        )
+        # Modify active generation in doc metadata to simulate out-of-sync generation
+        with service.repository._db.get_connection() as conn:
+            meta = json.loads(
+                conn.execute(
+                    "SELECT metadata_json FROM documents WHERE doc_id = ?", (rec.doc_id,)
+                ).fetchone()["metadata_json"]
+            )
+            meta["__active_generation__"] = "newer_generation_xyz"
+            conn.execute(
+                "UPDATE documents SET metadata_json = ? WHERE doc_id = ?",
+                (json.dumps(meta), rec.doc_id),
+            )
+
+        faiss_dir2 = service.index_dir / rec.doc_id / "faiss"
+        faiss_dir2.mkdir(parents=True, exist_ok=True)
+        (faiss_dir2 / "index.faiss").write_bytes(b"dummy_index")
+        (faiss_dir2 / "metadata.json").write_text(
+            json.dumps({"dimension": 16, "format_version": "2.0"}), encoding="utf-8"
+        )
+
+        with pytest.raises(DenseIndexIntegrityError, match="generation mismatch"):
+            service.get_faiss_retriever(rec.doc_id)

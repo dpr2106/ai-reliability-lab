@@ -3,22 +3,29 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from reliability_lab.core.models import Chunk, RetrievalResult
 from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransformerEmbedder
 from reliability_lab.indexing.faiss_index import (
+    DenseIndexCompatibilityError,
     IncompatibleEmbeddingIdentityError,
+    LegacyIndexIncompatibilityError,
+    UnsupportedIndexFormatError,
 )
 from reliability_lab.indexing.hybrid import HybridFusionConfig, HybridRetriever
 from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, IndexingStatus
 from reliability_lab.ingestion.repository import DocumentRepository
-from reliability_lab.ingestion.service import DocumentIngestionService
+from reliability_lab.ingestion.service import (
+    DenseIndexIntegrityError,
+    DocumentIngestionService,
+)
 from reliability_lab.llm.client import BaseLLMClient, OllamaLLMClient
 from reliability_lab.llm.models import LLMMessage
 from reliability_lab.pipeline.prompt import build_rag_prompt
@@ -31,6 +38,14 @@ from reliability_lab.query.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+DENSE_COMPATIBILITY_AND_INTEGRITY_ERRORS = (
+    DenseIndexCompatibilityError,
+    IncompatibleEmbeddingIdentityError,
+    LegacyIndexIncompatibilityError,
+    UnsupportedIndexFormatError,
+    DenseIndexIntegrityError,
+)
 
 STRUCTURED_ABSTENTION_DIRECTIVE: str = (
     "\n\nSTRUCTURED ABSTENTION DIRECTIVE:\n"
@@ -191,9 +206,23 @@ class DocumentQueryService:
                 f"Invalid retrieval strategy '{strategy}'. Must be 'bm25', 'dense', or 'hybrid'."
             )
 
+        if not selected_doc_ids:
+            raise ValueError("selected_doc_ids must contain at least one document ID.")
+        normalized_doc_ids = tuple(dict.fromkeys(selected_doc_ids))
+        if not normalized_doc_ids:
+            raise ValueError("selected_doc_ids must contain at least one document ID.")
+
+        if min_dense_score is not None:
+            if isinstance(min_dense_score, bool) or not isinstance(min_dense_score, (int, float)):
+                raise ValueError(
+                    f"min_dense_score must be a finite float, got {type(min_dense_score).__name__}"
+                )
+            if not math.isfinite(min_dense_score):
+                raise ValueError("min_dense_score must be a finite float (not NaN or Inf).")
+
         # Lifecycle validation
         doc_map, has_partial = self._validate_lifecycle_and_get_documents(
-            selected_doc_ids, requested_strategy
+            normalized_doc_ids, requested_strategy
         )
 
         effective_strategy = requested_strategy
@@ -211,7 +240,7 @@ class DocumentQueryService:
         raw_sparse: list[RetrievalResult] = []
         if effective_strategy in ("bm25", "hybrid"):
             all_chunks: list[Chunk] = []
-            for doc_id in selected_doc_ids:
+            for doc_id in normalized_doc_ids:
                 all_chunks.extend(self.repository.get_chunks(doc_id))
             if all_chunks:
                 scoped_bm25 = BM25Retriever()
@@ -221,59 +250,81 @@ class DocumentQueryService:
         # 2. Dense retrieval across selected documents
         raw_dense: list[RetrievalResult] = []
         dense_search_mode = "flat_exact"
+        has_hnsw = False
+
         if effective_strategy in ("dense", "hybrid"):
-            pooled_dense: list[RetrievalResult] = []
-            has_hnsw = False
+            dense_retrievers: dict[str, Any] = {}
             dense_failed = False
 
-            for doc_id in selected_doc_ids:
+            for doc_id in normalized_doc_ids:
                 try:
                     retriever = self.ingestion_service.get_faiss_retriever(doc_id, self.embedder)
-                    if retriever._index_type == "hnsw":
+                    dense_retrievers[doc_id] = retriever
+                    if retriever.index_type == "hnsw":
                         has_hnsw = True
-                    fetch_depth = candidate_depth * 2 if has_hnsw else candidate_depth
-                    results = retriever.retrieve(clean_query, top_k=fetch_depth)
-                    pooled_dense.extend(results)
-                except IncompatibleEmbeddingIdentityError as exc:
-                    if effective_strategy == "hybrid":
-                        logger.warning(
-                            "Hybrid fallback to bm25 due to incompatible embedding identity "
-                            "on %s: %s",
-                            doc_id,
-                            exc,
-                        )
-                        effective_strategy = "bm25"
-                        fallback_reason = "unverifiable_or_mismatched_embedding_identity"
-                        dense_failed = True
-                        pooled_dense = []
-                        break
-                    raise
-
-            if not dense_failed and pooled_dense:
-                # Global sort by score DESC, tie-break chunk_id ASC
-                pooled_dense.sort(key=lambda r: (-r.score, r.chunk.chunk_id))
-                # Deduplicate by chunk_id
-                seen_chunk_ids: set[str] = set()
-                deduped_dense: list[RetrievalResult] = []
-                for res in pooled_dense:
-                    if res.chunk.chunk_id not in seen_chunk_ids:
-                        seen_chunk_ids.add(res.chunk.chunk_id)
-                        deduped_dense.append(res)
-
-                # Re-assign global contiguous ranks 1..N
-                ranked_dense: list[RetrievalResult] = []
-                for global_rank, res in enumerate(deduped_dense[:candidate_depth], start=1):
-                    ranked_dense.append(
-                        RetrievalResult(
-                            chunk=res.chunk,
-                            score=res.score,
-                            rank=global_rank,
-                            retriever_name=res.retriever_name,
-                            metadata=res.metadata,
-                        )
+                except DENSE_COMPATIBILITY_AND_INTEGRITY_ERRORS as exc:
+                    if requested_strategy == "dense":
+                        raise UnprocessableDocumentError(
+                            f"Dense retrieval unavailable for document '{doc_id}': {exc}"
+                        ) from exc
+                    logger.warning(
+                        "Hybrid fallback to bm25 due to dense index incompatibility on %s: %s",
+                        doc_id,
+                        exc,
                     )
-                raw_dense = ranked_dense
-                dense_search_mode = "approximate_pooled" if has_hnsw else "flat_exact"
+                    effective_strategy = "bm25"
+                    fallback_reason = "dense_index_incompatible_or_unverifiable"
+                    dense_failed = True
+                    dense_retrievers.clear()
+                    break
+
+            # Multi-document HNSW policy enforcement
+            if not dense_failed and has_hnsw and len(normalized_doc_ids) > 1:
+                if requested_strategy == "dense":
+                    raise UnprocessableDocumentError(
+                        "Multi-document dense retrieval requires exact Flat indexes; "
+                        "HNSW approximate index is not supported for multi-document dense search."
+                    )
+                logger.warning(
+                    "Hybrid fallback to bm25: multi-document dense retrieval requires Flat indexes "
+                    "but HNSW was found among selected documents."
+                )
+                effective_strategy = "bm25"
+                fallback_reason = "multi_document_hnsw_unsupported"
+                dense_failed = True
+                dense_retrievers.clear()
+
+            if not dense_failed and effective_strategy in ("dense", "hybrid"):
+                pooled_dense: list[RetrievalResult] = []
+                for _doc_id, retriever in dense_retrievers.items():
+                    results = retriever.retrieve(clean_query, top_k=candidate_depth)
+                    pooled_dense.extend(results)
+
+                if pooled_dense:
+                    # Global sort by score DESC, tie-break chunk_id ASC
+                    pooled_dense.sort(key=lambda r: (-r.score, r.chunk.chunk_id))
+                    # Deduplicate by chunk_id
+                    seen_chunk_ids: set[str] = set()
+                    deduped_dense: list[RetrievalResult] = []
+                    for res in pooled_dense:
+                        if res.chunk.chunk_id not in seen_chunk_ids:
+                            seen_chunk_ids.add(res.chunk.chunk_id)
+                            deduped_dense.append(res)
+
+                    # Re-assign global contiguous ranks 1..N
+                    ranked_dense: list[RetrievalResult] = []
+                    for global_rank, res in enumerate(deduped_dense[:candidate_depth], start=1):
+                        ranked_dense.append(
+                            RetrievalResult(
+                                chunk=res.chunk,
+                                score=res.score,
+                                rank=global_rank,
+                                retriever_name=res.retriever_name,
+                                metadata=res.metadata,
+                            )
+                        )
+                    raw_dense = ranked_dense
+                dense_search_mode = "hnsw_approximate" if has_hnsw else "flat_exact"
 
         # 3. Hybrid RRF fusion
         raw_fused: list[RetrievalResult] = []
@@ -376,7 +427,7 @@ class DocumentQueryService:
                 trace_id=trace_id,
                 query_text=clean_query,
                 normalized_query=normalized_query,
-                selected_doc_ids=tuple(selected_doc_ids),
+                selected_doc_ids=normalized_doc_ids,
                 requested_strategy=requested_strategy,
                 effective_strategy=effective_strategy,
                 fallback_reason=fallback_reason,
@@ -400,6 +451,11 @@ class DocumentQueryService:
                 generation_latency_ms=0.0,
                 total_latency_ms=total_latency_ms,
                 dense_search_mode=dense_search_mode,
+                rrf_k=60,
+                candidate_depth=candidate_depth,
+                sparse_retriever_name="bm25",
+                dense_retriever_name="faiss-hnsw" if has_hnsw else "faiss-flat",
+                hybrid_retriever_name="hybrid-rrf",
             )
             return answer, trace
 
@@ -439,8 +495,8 @@ class DocumentQueryService:
 
         answer_text = llm_response.text
 
-        # Tier-2 Generation Abstention Evaluation
-        gen_abstain_match = re.search(r"\[ABSTAIN:\s*([^\]]+)\]", answer_text, re.IGNORECASE)
+        # Tier-2 Generation Abstention Evaluation (Anchored at start of response)
+        gen_abstain_match = re.match(r"^\s*\[ABSTAIN:\s*([^\]]+)\]", answer_text, re.IGNORECASE)
         if gen_abstain_match:
             generation_abstained = True
             generation_abstention_reason = gen_abstain_match.group(1).strip().lower()
@@ -461,7 +517,7 @@ class DocumentQueryService:
             trace_id=trace_id,
             query_text=clean_query,
             normalized_query=normalized_query,
-            selected_doc_ids=tuple(selected_doc_ids),
+            selected_doc_ids=normalized_doc_ids,
             requested_strategy=requested_strategy,
             effective_strategy=effective_strategy,
             fallback_reason=fallback_reason,
@@ -485,6 +541,11 @@ class DocumentQueryService:
             generation_latency_ms=generation_latency_ms,
             total_latency_ms=total_latency_ms,
             dense_search_mode=dense_search_mode,
+            rrf_k=60,
+            candidate_depth=candidate_depth,
+            sparse_retriever_name="bm25",
+            dense_retriever_name="faiss-hnsw" if has_hnsw else "faiss-flat",
+            hybrid_retriever_name="hybrid-rrf",
         )
 
         return answer_text, trace

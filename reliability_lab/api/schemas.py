@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -201,6 +202,40 @@ class QueryRequest(BaseModel):
     min_dense_score: float | None = Field(
         None, description="Optional dense retrieval abstention threshold"
     )
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("query must be a non-empty string.")
+        return s
+
+    @field_validator("document_ids")
+    @classmethod
+    def validate_document_ids(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("document_ids must contain at least one document ID.")
+        cleaned = [d.strip() for d in v if d.strip()]
+        if not cleaned:
+            raise ValueError("document_ids must contain at least one non-empty document ID.")
+        return list(dict.fromkeys(cleaned))
+
+    @field_validator("min_dense_score")
+    @classmethod
+    def validate_min_dense_score(cls, v: float | None) -> float | None:
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError("min_dense_score must be a finite float (not NaN or Inf).")
+        return v
+
+    @field_validator("strategy")
+    @classmethod
+    def validate_strategy(cls, v: str) -> str:
+        s = v.strip().lower()
+        if s not in ("bm25", "dense", "hybrid"):
+            raise ValueError(f"Invalid strategy '{v}'. Must be 'bm25', 'dense', or 'hybrid'.")
+        return s
 
 
 class ResolvedCitationSchema(BaseModel):

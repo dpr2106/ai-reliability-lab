@@ -18,6 +18,9 @@ from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransformerEmbedder
 from reliability_lab.indexing.faiss_index import (
     FaissVectorRetriever,
+    IncompatibleEmbeddingIdentityError,
+    LegacyIndexIncompatibilityError,
+    UnsupportedIndexFormatError,
     compute_chunk_manifest_hash,
 )
 from reliability_lab.ingestion.chunker import RecursiveCharacterChunker
@@ -58,6 +61,11 @@ class DocumentNotFoundError(IngestionError):
 
 class DocumentDeletionError(IngestionError):
     """Raised when deletion of document files or indexes fails on the filesystem."""
+
+
+class DenseIndexIntegrityError(IngestionError):
+    """Raised when dense index metadata, files, or provenance are corrupt, tampered,
+    or mismatched."""
 
 
 class DocumentIngestionService:
@@ -283,14 +291,9 @@ class DocumentIngestionService:
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
         try:
-            # 1. EXTRACTING
-            # Invalidate prior indexing and ready states in SQLite FIRST
-            self.repository.update_document_status(
-                doc_id,
-                status=DocumentStatus.EXTRACTING,
-                indexing_status=IndexingStatus.PENDING,
-            )
-            self.repository.remove_embedding_provenance(doc_id)
+            # 1. EXTRACTING & Ingestion Generation Initialization
+            # Invalidate prior provenance and create new generation in SQLite FIRST
+            generation = self.repository.create_ingestion_generation(doc_id)
             self._cleanup_faiss_dir(doc_id)
             doc_index_dir = self.index_dir / doc_id
             bm25_file = doc_index_dir / "bm25_chunks.json"
@@ -451,8 +454,11 @@ class DocumentIngestionService:
                                 "doc_id": doc_id,
                                 "document_content_hash": record.content_hash,
                                 "ingestion_timestamp": datetime.now(timezone.utc).isoformat(),
+                                "generation": generation,
                             }
-                            self.repository.set_embedding_provenance(doc_id, provenance)
+                            self.repository.publish_embedding_provenance(
+                                doc_id, generation, provenance
+                            )
                             faiss_available = True
                         except Exception as p_exc:
                             logger.error(
@@ -690,7 +696,7 @@ class DocumentIngestionService:
         meta_file = faiss_dir / "metadata.json"
 
         if not index_file.is_file() or not meta_file.is_file():
-            raise IngestionError(
+            raise DenseIndexIntegrityError(
                 f"Corrupt FAISS index directory for document '{doc_id}': "
                 "required index files ('index.faiss', 'metadata.json') are missing."
             )
@@ -698,27 +704,40 @@ class DocumentIngestionService:
         try:
             meta_content = json.loads(meta_file.read_text(encoding="utf-8"))
             if not isinstance(meta_content, dict):
-                raise IngestionError(
+                raise DenseIndexIntegrityError(
                     f"Corrupt FAISS index metadata for document '{doc_id}': "
                     "root JSON structure must be an object."
                 )
             if "dimension" not in meta_content:
-                raise IngestionError(
+                raise DenseIndexIntegrityError(
                     f"Corrupt FAISS index metadata for document '{doc_id}': "
                     "missing required 'dimension' key."
                 )
             dim_val = meta_content["dimension"]
             if isinstance(dim_val, bool) or not isinstance(dim_val, int) or dim_val <= 0:
-                raise IngestionError(
+                raise DenseIndexIntegrityError(
                     f"Corrupt FAISS index metadata for document '{doc_id}': "
                     f"'dimension' must be a positive integer, got {dim_val!r}."
                 )
             expected_dimension = dim_val
         except json.JSONDecodeError as exc:
-            raise IngestionError(
+            raise DenseIndexIntegrityError(
                 f"Corrupt FAISS index metadata for document '{doc_id}': "
                 f"failed to parse 'metadata.json' ({exc})."
             ) from exc
+
+        # Verify trusted provenance generation matches active generation
+        trusted_provenance = (
+            record.metadata.get("__embedding_provenance__") if record.metadata else None
+        )
+        active_gen = record.metadata.get("__active_generation__") if record.metadata else None
+        if trusted_provenance is not None and active_gen is not None:
+            prov_gen = trusted_provenance.get("generation")
+            if prov_gen is not None and prov_gen != active_gen:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance generation mismatch for document '{doc_id}': "
+                    f"provenance has '{prov_gen}', active generation is '{active_gen}'."
+                )
 
         effective_embedder = embedder or self._embedder
         if effective_embedder is None:
@@ -734,19 +753,27 @@ class DocumentIngestionService:
         format_version = str(meta_content.get("format_version", "1.0"))
         try:
             if format_version == "1.0":
-                trusted_provenance = (
-                    record.metadata.get("__embedding_provenance__") if record.metadata else None
-                )
+                if not trusted_provenance:
+                    raise LegacyIndexIncompatibilityError(
+                        f"Legacy format 1.0 index for document '{doc_id}' lacks "
+                        "trusted server provenance; reindexing is required."
+                    )
                 return FaissVectorRetriever.load_legacy_verified(
                     faiss_dir, effective_embedder, trusted_provenance=trusted_provenance
                 )
             elif format_version == "2.0":
                 return FaissVectorRetriever.load(faiss_dir, effective_embedder)
             else:
-                raise IngestionError(
+                raise UnsupportedIndexFormatError(
                     f"Unsupported index format version '{format_version}' for document '{doc_id}'."
                 )
-        except IngestionError:
+        except (
+            IncompatibleEmbeddingIdentityError,
+            LegacyIndexIncompatibilityError,
+            UnsupportedIndexFormatError,
+            DenseIndexIntegrityError,
+            IngestionError,
+        ):
             raise
         except (ValueError, FileNotFoundError, RuntimeError, Exception) as exc:
             logger.error("Failed loading FAISS index for document '%s': %s", doc_id, exc)

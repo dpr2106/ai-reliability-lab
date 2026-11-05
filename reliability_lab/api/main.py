@@ -725,7 +725,7 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
             logger.error("Unexpected error executing query: %s", exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=sanitize_path_message(str(exc)),
+                detail="An internal server error occurred while executing the query.",
             ) from exc
 
         return QueryResponse(

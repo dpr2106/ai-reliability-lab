@@ -222,6 +222,11 @@ class QueryTrace:
     generation_latency_ms: float
     total_latency_ms: float
     dense_search_mode: str = "flat_exact"
+    rrf_k: int = 60
+    candidate_depth: int = 20
+    sparse_retriever_name: str | None = "bm25"
+    dense_retriever_name: str | None = "faiss-flat"
+    hybrid_retriever_name: str | None = "hybrid-rrf"
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -235,6 +240,11 @@ class QueryTrace:
             "effective_strategy": self.effective_strategy,
             "fallback_reason": self.fallback_reason,
             "dense_search_mode": self.dense_search_mode,
+            "rrf_k": self.rrf_k,
+            "candidate_depth": self.candidate_depth,
+            "sparse_retriever_name": self.sparse_retriever_name,
+            "dense_retriever_name": self.dense_retriever_name,
+            "hybrid_retriever_name": self.hybrid_retriever_name,
             "sparse_candidates": [c.to_dict() for c in self.sparse_candidates],
             "dense_candidates": [c.to_dict() for c in self.dense_candidates],
             "fused_candidates": [c.to_dict() for c in self.fused_candidates],
@@ -256,4 +266,3 @@ class QueryTrace:
             "total_latency_ms": self.total_latency_ms,
             "timestamp": self.timestamp,
         }
-

@@ -392,3 +392,70 @@ class TestConstructorValidations:
             SentenceTransformerEmbedder(normalize_embeddings="yes", model=fake_model)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="local_files_only must be a boolean"):
             SentenceTransformerEmbedder(local_files_only=1, model=fake_model)  # type: ignore[arg-type]
+
+
+class TestEmbeddingIdentity:
+    """Tests for EmbeddingIdentity and pipeline fingerprint contract."""
+
+    def test_default_embedding_identity(self) -> None:
+        fake_model = FakeSentenceTransformer(384)
+        embedder = SentenceTransformerEmbedder(model=fake_model)
+        ident = embedder.embedding_identity
+
+        assert ident.canonical_model_id == "sentence-transformers/all-MiniLM-L6-v2"
+        assert ident.display_label == "all-MiniLM-L6-v2"
+        assert ident.dimension == 384
+        assert ident.sentence_transformer_normalize is True
+        assert ident.faiss_normalize is True
+        assert ident.distance_metric == "ip"
+        assert ident.pooling_strategy == "mean"
+        assert ident.max_seq_length == 256
+        assert ident.pipeline_fingerprint.startswith("sha256:")
+        assert ident.artifact_fingerprint.startswith("sha256:")
+
+    def test_local_path_privacy_enforcement(self) -> None:
+        """Verify that absolute local filesystem paths do not leak into canonical model IDs."""
+        fake_model = FakeSentenceTransformer(384)
+        embedder = SentenceTransformerEmbedder(
+            model_name_or_path="C:\\Users\\alice\\models\\secret-weights",
+            model=fake_model,
+        )
+        ident = embedder.embedding_identity
+
+        assert "alice" not in ident.canonical_model_id
+        assert "secret-weights" not in ident.canonical_model_id
+        assert "C:\\" not in ident.canonical_model_id
+        assert ident.display_label == "local-model"
+        assert ident.canonical_model_id.startswith("local-model:")
+
+    def test_pipeline_fingerprint_changes_on_parameter_delta(self) -> None:
+        fake_model = FakeSentenceTransformer(384)
+        emb1 = SentenceTransformerEmbedder(
+            model=fake_model,
+            normalize_embeddings=True,
+            pooling_strategy="mean",
+        )
+        emb2 = SentenceTransformerEmbedder(
+            model=fake_model,
+            normalize_embeddings=False,
+            pooling_strategy="mean",
+        )
+        emb3 = SentenceTransformerEmbedder(
+            model=fake_model,
+            normalize_embeddings=True,
+            pooling_strategy="cls",
+        )
+
+        assert emb1.pipeline_fingerprint != emb2.pipeline_fingerprint
+        assert emb1.pipeline_fingerprint != emb3.pipeline_fingerprint
+
+    def test_identity_serialization_roundtrip(self) -> None:
+        fake_model = FakeSentenceTransformer(384)
+        embedder = SentenceTransformerEmbedder(model=fake_model)
+        ident = embedder.embedding_identity
+        data = ident.to_dict()
+        restored = embedder.embedding_identity.from_dict(data)
+
+        assert ident == restored
+        assert restored.canonical_model_id == ident.canonical_model_id
+        assert restored.pipeline_fingerprint == ident.pipeline_fingerprint

@@ -7,9 +7,12 @@ and offline operation support.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +22,122 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 DEFAULT_EMBEDDING_DIM = 384
+DEFAULT_MODEL_REVISION = "e4ce9877abf3ed59ced85d2278ed52520f93874b"
+DEFAULT_ARTIFACT_FINGERPRINT = (
+    "sha256:d8a9f6580f8452e82f5b61406e2a7e782d9213bc04825944d18ecba1c20bc4b7"
+)
+
+
+def compute_pipeline_fingerprint(
+    canonical_model_id: str,
+    dimension: int,
+    artifact_fingerprint: str,
+    model_revision: str | None = None,
+    distance_metric: str = "ip",
+    document_instruction: str = "",
+    faiss_normalize: bool = True,
+    max_seq_length: int = 256,
+    pooling_strategy: str = "mean",
+    query_instruction: str = "",
+    sentence_transformer_normalize: bool = True,
+    truncation_side: str = "right",
+    truncation_strategy: str = "longest_first",
+) -> str:
+    """Compute deterministic SHA-256 pipeline fingerprint over canonical parameters."""
+    pipeline_payload = {
+        "artifact_fingerprint": artifact_fingerprint,
+        "canonical_model_id": canonical_model_id,
+        "dimension": dimension,
+        "distance_metric": distance_metric,
+        "document_instruction": document_instruction or "",
+        "faiss_normalize": faiss_normalize,
+        "max_seq_length": max_seq_length,
+        "model_revision": model_revision or "",
+        "pooling_strategy": pooling_strategy,
+        "query_instruction": query_instruction or "",
+        "sentence_transformer_normalize": sentence_transformer_normalize,
+        "truncation_side": truncation_side,
+        "truncation_strategy": truncation_strategy,
+    }
+    digest = hashlib.sha256(
+        json.dumps(pipeline_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"sha256:{digest}"
+
+
+@dataclass(frozen=True)
+class EmbeddingIdentity:
+    """Cryptographic and architectural identity specification for dense embeddings."""
+
+    canonical_model_id: str
+    display_label: str
+    model_revision: str | None
+    artifact_fingerprint: str
+    pipeline_fingerprint: str
+    dimension: int
+    sentence_transformer_normalize: bool
+    faiss_normalize: bool
+    distance_metric: str = "ip"
+    pooling_strategy: str = "mean"
+    max_seq_length: int = 256
+    truncation_side: str = "right"
+    truncation_strategy: str = "longest_first"
+    query_instruction: str = ""
+    document_instruction: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize embedding identity to dictionary representation."""
+        return {
+            "canonical_model_id": self.canonical_model_id,
+            "display_label": self.display_label,
+            "model_revision": self.model_revision,
+            "artifact_fingerprint": self.artifact_fingerprint,
+            "pipeline_fingerprint": self.pipeline_fingerprint,
+            "dimension": self.dimension,
+            "sentence_transformer_normalize": self.sentence_transformer_normalize,
+            "faiss_normalize": self.faiss_normalize,
+            "distance_metric": self.distance_metric,
+            "pooling_strategy": self.pooling_strategy,
+            "max_seq_length": self.max_seq_length,
+            "truncation_side": self.truncation_side,
+            "truncation_strategy": self.truncation_strategy,
+            "query_instruction": self.query_instruction,
+            "document_instruction": self.document_instruction,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EmbeddingIdentity:
+        """Instantiate EmbeddingIdentity from dictionary representation."""
+        if not isinstance(data, dict):
+            raise TypeError("Embedding identity data must be a dictionary.")
+        required_keys = (
+            "canonical_model_id",
+            "artifact_fingerprint",
+            "pipeline_fingerprint",
+            "dimension",
+        )
+        for k in required_keys:
+            if k not in data:
+                raise ValueError(f"Missing required embedding identity field: '{k}'")
+        return cls(
+            canonical_model_id=str(data["canonical_model_id"]),
+            display_label=str(data.get("display_label", data["canonical_model_id"])),
+            model_revision=(
+                str(data["model_revision"]) if data.get("model_revision") is not None else None
+            ),
+            artifact_fingerprint=str(data["artifact_fingerprint"]),
+            pipeline_fingerprint=str(data["pipeline_fingerprint"]),
+            dimension=int(data["dimension"]),
+            sentence_transformer_normalize=bool(data.get("sentence_transformer_normalize", True)),
+            faiss_normalize=bool(data.get("faiss_normalize", True)),
+            distance_metric=str(data.get("distance_metric", "ip")),
+            pooling_strategy=str(data.get("pooling_strategy", "mean")),
+            max_seq_length=int(data.get("max_seq_length", 256)),
+            truncation_side=str(data.get("truncation_side", "right")),
+            truncation_strategy=str(data.get("truncation_strategy", "longest_first")),
+            query_instruction=str(data.get("query_instruction", "")),
+            document_instruction=str(data.get("document_instruction", "")),
+        )
 
 
 class BaseEmbedder(ABC):
@@ -35,6 +154,113 @@ class BaseEmbedder(ABC):
     def embedding_dim(self) -> int:
         """Return the output vector dimension (e.g. 384)."""
         ...
+
+    @property
+    def canonical_model_id(self) -> str:
+        """Return the public canonical identifier for the embedding model."""
+        name = self.model_name
+        if name in (DEFAULT_MODEL_NAME, f"sentence-transformers/{DEFAULT_MODEL_NAME}"):
+            return f"sentence-transformers/{DEFAULT_MODEL_NAME}"
+        return name
+
+    @property
+    def display_label(self) -> str:
+        """Return user-facing sanitized label without local paths."""
+        name = self.model_name
+        if "/" in name:
+            return name.split("/")[-1]
+        return name
+
+    @property
+    def model_revision(self) -> str | None:
+        """Return git commit hash or revision if established."""
+        return None
+
+    @property
+    def artifact_fingerprint(self) -> str:
+        """Return SHA-256 digest of model artifact or deterministic identity hash."""
+        digest = hashlib.sha256(self.canonical_model_id.encode("utf-8")).hexdigest()
+        return f"sha256:{digest}"
+
+    @property
+    def distance_metric(self) -> str:
+        """Return distance metric, default 'ip' (inner product)."""
+        return "ip"
+
+    @property
+    def pooling_strategy(self) -> str:
+        """Return pooling strategy, default 'mean'."""
+        return "mean"
+
+    @property
+    def max_seq_length(self) -> int:
+        """Return maximum sequence length in tokens."""
+        return 256
+
+    @property
+    def truncation_side(self) -> str:
+        """Return truncation side, default 'right'."""
+        return "right"
+
+    @property
+    def truncation_strategy(self) -> str:
+        """Return truncation strategy, default 'longest_first'."""
+        return "longest_first"
+
+    @property
+    def query_instruction(self) -> str:
+        """Return query instruction prefix, default empty."""
+        return ""
+
+    @property
+    def document_instruction(self) -> str:
+        """Return document instruction prefix, default empty."""
+        return ""
+
+    @property
+    def normalize_embeddings(self) -> bool:
+        """Return whether embeddings are normalized."""
+        return True
+
+    @property
+    def pipeline_fingerprint(self) -> str:
+        """Return SHA-256 over 13 canonical parameters."""
+        return compute_pipeline_fingerprint(
+            canonical_model_id=self.canonical_model_id,
+            dimension=self.embedding_dim,
+            artifact_fingerprint=self.artifact_fingerprint,
+            model_revision=self.model_revision,
+            distance_metric=self.distance_metric,
+            document_instruction=self.document_instruction,
+            faiss_normalize=True,
+            max_seq_length=self.max_seq_length,
+            pooling_strategy=self.pooling_strategy,
+            query_instruction=self.query_instruction,
+            sentence_transformer_normalize=self.normalize_embeddings,
+            truncation_side=self.truncation_side,
+            truncation_strategy=self.truncation_strategy,
+        )
+
+    @property
+    def embedding_identity(self) -> EmbeddingIdentity:
+        """Return complete EmbeddingIdentity dataclass."""
+        return EmbeddingIdentity(
+            canonical_model_id=self.canonical_model_id,
+            display_label=self.display_label,
+            model_revision=self.model_revision,
+            artifact_fingerprint=self.artifact_fingerprint,
+            pipeline_fingerprint=self.pipeline_fingerprint,
+            dimension=self.embedding_dim,
+            sentence_transformer_normalize=self.normalize_embeddings,
+            faiss_normalize=True,
+            distance_metric=self.distance_metric,
+            pooling_strategy=self.pooling_strategy,
+            max_seq_length=self.max_seq_length,
+            truncation_side=self.truncation_side,
+            truncation_strategy=self.truncation_strategy,
+            query_instruction=self.query_instruction,
+            document_instruction=self.document_instruction,
+        )
 
     @abstractmethod
     def embed_texts(self, texts: Sequence[str], batch_size: int = 32) -> np.ndarray:
@@ -125,6 +351,12 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         cache_folder: str | Path | None = None,
         model: Any = None,
         model_factory: Callable[..., Any] | None = None,
+        model_revision: str | None = None,
+        artifact_fingerprint: str | None = None,
+        max_seq_length: int | None = None,
+        pooling_strategy: str = "mean",
+        query_instruction: str = "",
+        document_instruction: str = "",
     ) -> None:
         """Initialize the SentenceTransformerEmbedder.
 
@@ -137,6 +369,13 @@ class SentenceTransformerEmbedder(BaseEmbedder):
             cache_folder: Optional local path for caching Hugging Face model files.
             model: Optional pre-instantiated model instance for testing and dependency injection.
             model_factory: Optional factory callable to instantiate the model.
+            model_revision: Optional immutable model revision git commit hash.
+            artifact_fingerprint: Optional SHA-256 digest of model artifact.
+            max_seq_length: Optional max sequence length in tokens
+                (defaults to model setting or 256).
+            pooling_strategy: Pooling strategy ('mean', 'cls', etc.). Defaults to 'mean'.
+            query_instruction: Optional instruction prefix for queries.
+            document_instruction: Optional instruction prefix for documents.
 
         Raises:
             TypeError: If arguments are of invalid types.
@@ -177,6 +416,55 @@ class SentenceTransformerEmbedder(BaseEmbedder):
             )
         else:
             self._model = self._load_sentence_transformer()
+
+        # Resolve canonical identity without exposing local host paths
+        is_path = (
+            (":\\" in self._model_name or ":/" in self._model_name)
+            or self._model_name.startswith(("/", "\\", "./", ".\\"))
+            or ("\\" in self._model_name)
+        )
+        if is_path:
+            path_hash = hashlib.sha256(self._model_name.encode("utf-8")).hexdigest()[:16]
+            self._canonical_model_id = f"local-model:{path_hash}"
+            self._display_label = "local-model"
+        elif self._model_name in (
+            DEFAULT_MODEL_NAME,
+            f"sentence-transformers/{DEFAULT_MODEL_NAME}",
+        ):
+            self._canonical_model_id = f"sentence-transformers/{DEFAULT_MODEL_NAME}"
+            self._display_label = DEFAULT_MODEL_NAME
+        else:
+            self._canonical_model_id = self._model_name
+            self._display_label = self._model_name.split("/")[-1]
+
+        if model_revision is not None:
+            self._model_revision: str | None = model_revision
+        elif self._canonical_model_id == f"sentence-transformers/{DEFAULT_MODEL_NAME}":
+            self._model_revision = DEFAULT_MODEL_REVISION
+        elif hasattr(self._model, "config") and getattr(self._model.config, "_commit_hash", None):
+            self._model_revision = self._model.config._commit_hash
+        else:
+            self._model_revision = None
+
+        if artifact_fingerprint is not None:
+            self._artifact_fingerprint = artifact_fingerprint
+        elif (
+            self._canonical_model_id == f"sentence-transformers/{DEFAULT_MODEL_NAME}"
+            and self._model_revision == DEFAULT_MODEL_REVISION
+        ):
+            self._artifact_fingerprint = DEFAULT_ARTIFACT_FINGERPRINT
+        else:
+            digest = hashlib.sha256(self._canonical_model_id.encode("utf-8")).hexdigest()
+            self._artifact_fingerprint = f"sha256:{digest}"
+
+        if max_seq_length is not None:
+            self._max_seq_length = max_seq_length
+        else:
+            self._max_seq_length = int(getattr(self._model, "max_seq_length", 256))
+
+        self._pooling_strategy = pooling_strategy
+        self._query_instruction = query_instruction
+        self._document_instruction = document_instruction
 
         # Validate declared dimension if supported by the model interface
         if hasattr(self._model, "get_sentence_embedding_dimension"):
@@ -253,6 +541,46 @@ class SentenceTransformerEmbedder(BaseEmbedder):
     def local_files_only(self) -> bool:
         """Return whether offline local-only operation is enforced."""
         return self._local_files_only
+
+    @property
+    def canonical_model_id(self) -> str:
+        """Return canonical model identifier."""
+        return self._canonical_model_id
+
+    @property
+    def display_label(self) -> str:
+        """Return sanitized display label."""
+        return self._display_label
+
+    @property
+    def model_revision(self) -> str | None:
+        """Return model revision hash."""
+        return self._model_revision
+
+    @property
+    def artifact_fingerprint(self) -> str:
+        """Return artifact fingerprint."""
+        return self._artifact_fingerprint
+
+    @property
+    def max_seq_length(self) -> int:
+        """Return maximum sequence length."""
+        return self._max_seq_length
+
+    @property
+    def pooling_strategy(self) -> str:
+        """Return pooling strategy."""
+        return self._pooling_strategy
+
+    @property
+    def query_instruction(self) -> str:
+        """Return query instruction prefix."""
+        return self._query_instruction
+
+    @property
+    def document_instruction(self) -> str:
+        """Return document instruction prefix."""
+        return self._document_instruction
 
     def embed_texts(self, texts: Sequence[str], batch_size: int = 32) -> np.ndarray:
         """Encode a sequence of text strings into an L2-normalized 2D float32 numpy array.

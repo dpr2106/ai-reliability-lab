@@ -12,7 +12,7 @@ import pymupdf
 import pytest
 
 from reliability_lab.core.models import Chunk
-from reliability_lab.indexing.embeddings import BaseEmbedder
+from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransformerEmbedder
 from reliability_lab.ingestion.chunker import RecursiveCharacterChunker
 from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, IndexingStatus
 from reliability_lab.ingestion.parser import FileNotFoundParserError
@@ -1004,9 +1004,20 @@ class TestDocumentIngestionService:
             service.get_faiss_retriever(rec.doc_id)
 
         # Case 7: Valid dimension
-        active_dim = service._embedder.embedding_dim if service._embedder else 16
+        active_embedder = service._embedder or SentenceTransformerEmbedder(local_files_only=True)
+        active_dim = active_embedder.embedding_dim
+        real_chunks = service.repository.get_chunks(rec.doc_id)
+        chunks_dict = {str(i): c.to_dict() for i, c in enumerate(real_chunks)}
         meta_file.write_text(
-            json.dumps({"dimension": active_dim, "index_type": "flat", "chunks": {}}),
+            json.dumps(
+                {
+                    "format_version": "2.0",
+                    "embedding_identity": active_embedder.embedding_identity.to_dict(),
+                    "dimension": active_dim,
+                    "index_type": "flat",
+                    "chunks": chunks_dict,
+                }
+            ),
             encoding="utf-8",
         )
         assert service.get_faiss_retriever(rec.doc_id) is not None
@@ -1039,3 +1050,37 @@ class TestDocumentIngestionService:
         with pytest.raises(IngestionError) as exc_info:
             service.get_faiss_retriever(rec.doc_id)
         assert str(service.index_dir) not in str(exc_info.value)
+
+    def test_server_controlled_embedding_provenance_lifecycle(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Embedding provenance is set on success, cleared on reprocessing, and protected
+        from injection."""
+        # 1. User metadata injection stripped
+        stream = io.BytesIO(b"Content for provenance lifecycle testing.")
+        rec = service.save_upload_stream(
+            "provenance_test.txt",
+            stream,
+            metadata={"user_tag": "test", "__embedding_provenance__": "malicious_override"},
+        )
+        assert "__embedding_provenance__" not in rec.metadata
+        assert rec.metadata.get("user_tag") == "test"
+
+        # 2. Process document sets server-controlled provenance
+        processed = service.process_document(rec.doc_id)
+        assert processed.status == DocumentStatus.READY
+        assert processed.indexing_status == IndexingStatus.INDEXED
+        assert "__embedding_provenance__" in processed.metadata
+        prov = processed.metadata["__embedding_provenance__"]
+        assert "embedding_identity" in prov
+        assert "artifact_digest" in prov
+        assert "chunk_manifest_hash" in prov
+
+        # 3. Reprocessing removes previous provenance
+        service.repository.update_document_status(
+            rec.doc_id, status=DocumentStatus.EXTRACTING, indexing_status=IndexingStatus.PENDING
+        )
+        service.repository.remove_embedding_provenance(rec.doc_id)
+        interim = service.repository.get_document(rec.doc_id)
+        assert interim is not None
+        assert "__embedding_provenance__" not in interim.metadata

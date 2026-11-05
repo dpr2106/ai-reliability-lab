@@ -375,3 +375,49 @@ class DocumentRepository:
         with self._db.get_connection() as conn:
             cursor = conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
             return cursor.rowcount > 0
+
+    def set_embedding_provenance(self, doc_id: str, provenance: dict[str, Any]) -> None:
+        """Store server-controlled embedding provenance in documents.metadata_json."""
+        with self._db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT metadata_json FROM documents WHERE doc_id = ?",
+                (doc_id,),
+            ).fetchone()
+            if not row:
+                raise KeyError(f"Document '{doc_id}' not found.")
+            try:
+                meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+            except Exception:
+                meta = {}
+            meta["__embedding_provenance__"] = provenance
+            conn.execute(
+                "UPDATE documents SET metadata_json = ?, updated_at = ? WHERE doc_id = ?",
+                (
+                    json.dumps(meta, ensure_ascii=False),
+                    datetime.now(timezone.utc).isoformat(),
+                    doc_id,
+                ),
+            )
+
+    def remove_embedding_provenance(self, doc_id: str) -> None:
+        """Explicitly delete the reserved embedding provenance key from metadata."""
+        with self._db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT metadata_json FROM documents WHERE doc_id = ?",
+                (doc_id,),
+            ).fetchone()
+            if not row:
+                raise KeyError(f"Document '{doc_id}' not found.")
+            try:
+                meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+            except Exception:
+                meta = {}
+            meta.pop("__embedding_provenance__", None)
+            conn.execute(
+                "UPDATE documents SET metadata_json = ?, updated_at = ? WHERE doc_id = ?",
+                (
+                    json.dumps(meta, ensure_ascii=False),
+                    datetime.now(timezone.utc).isoformat(),
+                    doc_id,
+                ),
+            )

@@ -20,6 +20,33 @@ DEFAULT_HYBRID_NAME: str = "hybrid_rrf"
 
 
 @dataclass(frozen=True)
+class HybridFusionConfig:
+    """Configuration for Reciprocal Rank Fusion of sparse and dense candidates."""
+
+    rrf_k: int = 60
+    candidate_depth: int = 60
+    sparse_name: str = "bm25"
+    dense_name: str = "faiss_vector"
+    hybrid_name: str = "hybrid_rrf"
+
+    def __post_init__(self) -> None:
+        if isinstance(self.rrf_k, bool) or not isinstance(self.rrf_k, int) or self.rrf_k < 1:
+            raise ValueError(f"rrf_k must be an integer >= 1, got {self.rrf_k}")
+        if (
+            isinstance(self.candidate_depth, bool)
+            or not isinstance(self.candidate_depth, int)
+            or self.candidate_depth < 1
+        ):
+            raise ValueError(f"candidate_depth must be an integer >= 1, got {self.candidate_depth}")
+        if not isinstance(self.sparse_name, str) or not self.sparse_name.strip():
+            raise ValueError("sparse_name must be a non-empty string.")
+        if not isinstance(self.dense_name, str) or not self.dense_name.strip():
+            raise ValueError("dense_name must be a non-empty string.")
+        if not isinstance(self.hybrid_name, str) or not self.hybrid_name.strip():
+            raise ValueError("hybrid_name must be a non-empty string.")
+
+
+@dataclass(frozen=True)
 class _FusedCandidate:
     """Internal helper tracking merged candidate properties prior to result creation."""
 
@@ -263,15 +290,63 @@ class HybridRetriever(BaseRetriever):
         sparse_candidates = self._sparse_retriever.retrieve(query, top_k=fetch_k)
         dense_candidates = self._dense_retriever.retrieve(query, top_k=fetch_k)
 
-        _validate_child_results(sparse_candidates, self._sparse_retriever.name)
-        _validate_child_results(dense_candidates, self._dense_retriever.name)
+        config = HybridFusionConfig(
+            rrf_k=self._rrf_k,
+            candidate_depth=fetch_k,
+            sparse_name=self._sparse_retriever.name,
+            dense_name=self._dense_retriever.name,
+            hybrid_name=self.name,
+        )
+        return self.fuse_candidates(
+            sparse_candidates=sparse_candidates,
+            dense_candidates=dense_candidates,
+            top_k=top_k,
+            config=config,
+        )
 
-        if not sparse_candidates and not dense_candidates:
+    @classmethod
+    def fuse_candidates(
+        cls,
+        sparse_candidates: Sequence[RetrievalResult],
+        dense_candidates: Sequence[RetrievalResult],
+        top_k: int = 5,
+        config: HybridFusionConfig | None = None,
+    ) -> list[RetrievalResult]:
+        """Fuse pre-retrieved sparse and dense candidates using unweighted
+        Reciprocal Rank Fusion (RRF).
+
+        Args:
+            sparse_candidates: Lexical candidates from sparse retriever.
+            dense_candidates: Semantic candidates from dense retriever.
+            top_k: Maximum number of ranked results to return (must be > 0).
+            config: Optional HybridFusionConfig specifying rrf_k and component names.
+
+        Returns:
+            List of RetrievalResult objects ordered by descending fused score.
+
+        Raises:
+            TypeError: If arguments are of invalid types.
+            ValueError: If top_k < 1 or candidate results contain conflicting provenance/ranks.
+        """
+        if isinstance(top_k, bool) or not isinstance(top_k, int):
+            raise TypeError(f"top_k must be an integer, got {type(top_k).__name__}.")
+        if top_k <= 0:
+            return []
+
+        cfg = config or HybridFusionConfig()
+
+        s_list = list(sparse_candidates)
+        d_list = list(dense_candidates)
+
+        _validate_child_results(s_list, cfg.sparse_name)
+        _validate_child_results(d_list, cfg.dense_name)
+
+        if not s_list and not d_list:
             return []
 
         # Build fast lookup maps by chunk_id
-        sparse_by_id = {res.chunk.chunk_id: res for res in sparse_candidates}
-        dense_by_id = {res.chunk.chunk_id: res for res in dense_candidates}
+        sparse_by_id = {res.chunk.chunk_id: res for res in s_list}
+        dense_by_id = {res.chunk.chunk_id: res for res in d_list}
 
         # Check for conflicting provenance across common chunk IDs
         common_ids = set(sparse_by_id.keys()) & set(dense_by_id.keys())
@@ -288,15 +363,13 @@ class HybridRetriever(BaseRetriever):
             ):
                 raise ValueError(
                     f"Conflicting chunk provenance detected for chunk ID '{chunk_id}' across "
-                    f"sparse retriever '{self._sparse_retriever.name}' and dense retriever "
-                    f"'{self._dense_retriever.name}'."
+                    f"sparse retriever '{cfg.sparse_name}' and dense retriever '{cfg.dense_name}'."
                 )
 
         # Merge candidates and compute RRF scores
         all_ids: list[str] = list(
             dict.fromkeys(
-                [res.chunk.chunk_id for res in sparse_candidates]
-                + [res.chunk.chunk_id for res in dense_candidates]
+                [res.chunk.chunk_id for res in s_list] + [res.chunk.chunk_id for res in d_list]
             )
         )
 
@@ -313,16 +386,16 @@ class HybridRetriever(BaseRetriever):
             s_rank = s_res.rank if s_res is not None else None
             s_score = s_res.score if s_res is not None else None
             if s_rank is not None:
-                contrib_s = 1.0 / (self._rrf_k + s_rank)
+                contrib_s = 1.0 / (cfg.rrf_k + s_rank)
                 fused_score += contrib_s
-                contributions[self._sparse_retriever.name] = contrib_s
+                contributions[cfg.sparse_name] = contrib_s
 
             d_rank = d_res.rank if d_res is not None else None
             d_score = d_res.score if d_res is not None else None
             if d_rank is not None:
-                contrib_d = 1.0 / (self._rrf_k + d_rank)
+                contrib_d = 1.0 / (cfg.rrf_k + d_rank)
                 fused_score += contrib_d
-                contributions[self._dense_retriever.name] = contrib_d
+                contributions[cfg.dense_name] = contrib_d
 
             retriever_count = int(s_res is not None) + int(d_res is not None)
             best_rank = min(
@@ -363,9 +436,9 @@ class HybridRetriever(BaseRetriever):
         results: list[RetrievalResult] = []
         for rank_idx, cand in enumerate(top_candidates, start=1):
             metadata: dict[str, Any] = {
-                "rrf_k": self._rrf_k,
-                "sparse_retriever_name": self._sparse_retriever.name,
-                "dense_retriever_name": self._dense_retriever.name,
+                "rrf_k": cfg.rrf_k,
+                "sparse_retriever_name": cfg.sparse_name,
+                "dense_retriever_name": cfg.dense_name,
                 "sparse_rank": cand.sparse_rank,
                 "sparse_score": cand.sparse_score,
                 "dense_rank": cand.dense_rank,
@@ -377,7 +450,7 @@ class HybridRetriever(BaseRetriever):
                     chunk=cand.chunk,
                     score=float(cand.fused_score),
                     rank=rank_idx,
-                    retriever_name=self.name,
+                    retriever_name=cfg.hybrid_name,
                     metadata=metadata,
                 )
             )

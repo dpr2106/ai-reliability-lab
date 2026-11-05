@@ -636,3 +636,54 @@ def test_real_faiss_and_bm25_hybrid_integration() -> None:
     assert results[0].rank == 1
     assert results[0].metadata["sparse_retriever_name"] == "bm25"
     assert results[0].metadata["dense_retriever_name"] == "faiss-flat"
+
+
+class TestFuseCandidates:
+    """Tests for reusable HybridRetriever.fuse_candidates() method and config."""
+
+    def test_fuse_candidates_parity_with_retrieve(self) -> None:
+        from reliability_lab.indexing.hybrid import HybridFusionConfig
+
+        chunks = [_make_chunk(f"c{i}") for i in range(5)]
+        sparse_res = [_make_result(chunks[i], 5.0 - i, i + 1, "sparse") for i in range(5)]
+        dense_res = [_make_result(chunks[4 - i], 0.9 - (i * 0.1), i + 1, "dense") for i in range(5)]
+
+        hybrid = HybridRetriever(
+            sparse_retriever=StubRetriever("sparse", sparse_res),
+            dense_retriever=StubRetriever("dense", dense_res),
+            rrf_k=60,
+        )
+        hybrid.index(chunks)
+        results_via_retrieve = hybrid.retrieve("query", top_k=3)
+
+        cfg = HybridFusionConfig(
+            rrf_k=60,
+            candidate_depth=60,
+            sparse_name="sparse",
+            dense_name="dense",
+            hybrid_name="hybrid_rrf",
+        )
+        results_via_fuse = HybridRetriever.fuse_candidates(
+            sparse_candidates=sparse_res,
+            dense_candidates=dense_res,
+            top_k=3,
+            config=cfg,
+        )
+
+        assert len(results_via_retrieve) == len(results_via_fuse)
+        for r1, r2 in zip(results_via_retrieve, results_via_fuse, strict=True):
+            assert r1.chunk.chunk_id == r2.chunk.chunk_id
+            assert pytest.approx(r1.score) == r2.score
+            assert r1.rank == r2.rank
+
+    def test_fusion_config_validation(self) -> None:
+        from reliability_lab.indexing.hybrid import HybridFusionConfig
+
+        with pytest.raises(ValueError, match="rrf_k must be an integer >= 1"):
+            HybridFusionConfig(rrf_k=0)
+        with pytest.raises(ValueError, match="candidate_depth must be an integer >= 1"):
+            HybridFusionConfig(candidate_depth=-5)
+        with pytest.raises(ValueError, match="sparse_name must be a non-empty string"):
+            HybridFusionConfig(sparse_name="")
+        with pytest.raises(ValueError, match="dense_name must be a non-empty string"):
+            HybridFusionConfig(dense_name="   ")

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
+import uuid
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +13,11 @@ from typing import Any
 from reliability_lab.core.models import Chunk
 from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, IndexingStatus
 from reliability_lab.storage.database import Database
+
+
+class GenerationMismatchError(ValueError):
+    """Raised when active ingestion generation does not match worker generation."""
+
 
 CREATE_DOCUMENT_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -376,6 +383,94 @@ class DocumentRepository:
             cursor = conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
             return cursor.rowcount > 0
 
+    def create_ingestion_generation(self, doc_id: str) -> str:
+        """Create a new unique ingestion generation and clear prior provenance in a transaction."""
+        generation_id = f"gen_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
+        now = datetime.now(timezone.utc).isoformat()
+        with self._db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT metadata_json FROM documents WHERE doc_id = ?",
+                (doc_id,),
+            ).fetchone()
+            if not row:
+                raise KeyError(f"Document '{doc_id}' not found.")
+            try:
+                meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+            except Exception:
+                meta = {}
+            meta["__active_generation__"] = generation_id
+            meta.pop("__embedding_provenance__", None)
+            conn.execute(
+                """
+                UPDATE documents
+                SET status = ?,
+                    indexing_status = ?,
+                    metadata_json = ?,
+                    updated_at = ?
+                WHERE doc_id = ?
+                """,
+                (
+                    DocumentStatus.EXTRACTING.value,
+                    IndexingStatus.PENDING.value,
+                    json.dumps(meta, ensure_ascii=False),
+                    now,
+                    doc_id,
+                ),
+            )
+        return generation_id
+
+    def get_active_generation(self, doc_id: str) -> str | None:
+        """Return the current active ingestion generation for the document, if any."""
+        with self._db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT metadata_json FROM documents WHERE doc_id = ?",
+                (doc_id,),
+            ).fetchone()
+            if not row:
+                return None
+            try:
+                meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+                return meta.get("__active_generation__")
+            except Exception:
+                return None
+
+    def publish_embedding_provenance(
+        self, doc_id: str, generation: str, provenance: dict[str, Any]
+    ) -> None:
+        """Publish server-controlled provenance after verifying active generation matches."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self._db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT metadata_json FROM documents WHERE doc_id = ?",
+                (doc_id,),
+            ).fetchone()
+            if not row:
+                raise KeyError(f"Document '{doc_id}' not found.")
+            try:
+                meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+            except Exception:
+                meta = {}
+
+            active_gen = meta.get("__active_generation__")
+            if active_gen != generation:
+                raise GenerationMismatchError(
+                    f"Cannot publish embedding provenance for document '{doc_id}': "
+                    f"worker generation '{generation}' does not match active generation "
+                    f"'{active_gen}'."
+                )
+
+            prov_with_gen = dict(provenance)
+            prov_with_gen["generation"] = generation
+            meta["__embedding_provenance__"] = prov_with_gen
+            conn.execute(
+                "UPDATE documents SET metadata_json = ?, updated_at = ? WHERE doc_id = ?",
+                (
+                    json.dumps(meta, ensure_ascii=False),
+                    now,
+                    doc_id,
+                ),
+            )
+
     def set_embedding_provenance(self, doc_id: str, provenance: dict[str, Any]) -> None:
         """Store server-controlled embedding provenance in documents.metadata_json."""
         with self._db.get_connection() as conn:
@@ -389,6 +484,9 @@ class DocumentRepository:
                 meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
             except Exception:
                 meta = {}
+            gen = provenance.get("generation", meta.get("__active_generation__"))
+            if gen:
+                meta["__active_generation__"] = gen
             meta["__embedding_provenance__"] = provenance
             conn.execute(
                 "UPDATE documents SET metadata_json = ?, updated_at = ? WHERE doc_id = ?",

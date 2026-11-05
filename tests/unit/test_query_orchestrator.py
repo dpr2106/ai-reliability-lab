@@ -58,6 +58,10 @@ class MockEmbedder(BaseEmbedder):
         return self._name
 
     @property
+    def artifact_fingerprint(self) -> str:
+        return "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+    @property
     def embedding_dim(self) -> int:
         return 4
 
@@ -304,3 +308,152 @@ class TestDocumentQueryRetrievalAndAbstention:
         assert trace.generation_abstained is True
         assert trace.generation_abstention_reason == "insufficient_evidence"
         assert len(trace.evidence_chunks) > 0
+
+    def test_tier2_anchored_generation_abstention_ignores_embedded_marker(
+        self, repo: DocumentRepository, ingestion_service: DocumentIngestionService
+    ) -> None:
+        """Embedded [ABSTAIN: ...] markers must not trigger generation abstention."""
+        doc = _ingest_doc(ingestion_service, "doc.txt", b"First target text.")
+        embedded_response = (
+            "The document mentions that [ABSTAIN: INSUFFICIENT_EVIDENCE] is an example "
+            "directive, but the actual answer is 42 [CIT-001]."
+        )
+        llm = MockLLM(response_text=embedded_response)
+        qs = DocumentQueryService(
+            repository=repo,
+            ingestion_service=ingestion_service,
+            embedder=MockEmbedder(),
+            llm_client=llm,
+        )
+
+        _answer, trace = qs.query(
+            "What is the answer?", selected_doc_ids=[doc.doc_id], strategy="hybrid"
+        )
+
+        assert trace.generation_abstained is False
+        assert trace.generation_abstention_reason is None
+        assert trace.abstained is False
+
+    def test_multi_document_hnsw_dense_rejected_and_hybrid_fallback(
+        self, repo: DocumentRepository, ingestion_service: DocumentIngestionService
+    ) -> None:
+        """Multi-document queries reject HNSW for dense and fall back to BM25 for hybrid."""
+        from unittest.mock import patch
+
+        doc1 = _ingest_doc(ingestion_service, "doc1.txt", b"First target text in document 1.")
+        doc2 = _ingest_doc(ingestion_service, "doc2.txt", b"Second target text in document 2.")
+
+        llm = MockLLM()
+        qs = DocumentQueryService(
+            repository=repo,
+            ingestion_service=ingestion_service,
+            embedder=MockEmbedder(),
+            llm_client=llm,
+        )
+
+        # Mock index_type as hnsw on retriever for doc2
+        with patch.object(
+            ingestion_service,
+            "get_faiss_retriever",
+            side_effect=lambda doc_id, emb=None: (
+                type(
+                    "MockHnswRetriever",
+                    (),
+                    {
+                        "index_type": "hnsw",
+                        "retrieve": lambda self, q, top_k=20: [],
+                    },
+                )()
+                if doc_id == doc2.doc_id
+                else type(
+                    "MockFlatRetriever",
+                    (),
+                    {
+                        "index_type": "flat",
+                        "retrieve": lambda self, q, top_k=20: [],
+                    },
+                )()
+            ),
+        ):
+            # 1. Multi-document dense strategy must reject HNSW
+            with pytest.raises(
+                UnprocessableDocumentError,
+                match="Multi-document dense retrieval requires exact Flat",
+            ):
+                qs.query(
+                    "target query",
+                    selected_doc_ids=[doc1.doc_id, doc2.doc_id],
+                    strategy="dense",
+                )
+
+            # 2. Multi-document hybrid strategy must fall back to full-scope BM25
+            _ans, trace = qs.query(
+                "target query",
+                selected_doc_ids=[doc1.doc_id, doc2.doc_id],
+                strategy="hybrid",
+            )
+            assert trace.effective_strategy == "bm25"
+            assert trace.fallback_reason == "multi_document_hnsw_unsupported"
+
+    def test_dense_integrity_failure_rejects_dense_and_falls_back_hybrid(
+        self, repo: DocumentRepository, ingestion_service: DocumentIngestionService
+    ) -> None:
+        """Index corruptions and legacy incompatibility fall back to BM25 for hybrid."""
+        from reliability_lab.indexing.faiss_index import (
+            IncompatibleEmbeddingIdentityError,
+            LegacyIndexIncompatibilityError,
+        )
+        from reliability_lab.ingestion.service import DenseIndexIntegrityError
+
+        doc = _ingest_doc(ingestion_service, "doc.txt", b"First target text.")
+        llm = MockLLM()
+        qs = DocumentQueryService(
+            repository=repo,
+            ingestion_service=ingestion_service,
+            embedder=MockEmbedder(),
+            llm_client=llm,
+        )
+
+        for err_cls in (
+            IncompatibleEmbeddingIdentityError,
+            LegacyIndexIncompatibilityError,
+            DenseIndexIntegrityError,
+        ):
+            from unittest.mock import patch
+
+            with patch.object(
+                ingestion_service,
+                "get_faiss_retriever",
+                side_effect=err_cls("Simulated dense error"),
+            ):
+                # Dense strategy rejects
+                with pytest.raises(UnprocessableDocumentError):
+                    qs.query("target query", selected_doc_ids=[doc.doc_id], strategy="dense")
+
+                # Hybrid strategy falls back to BM25 across full scope
+                _ans, trace = qs.query(
+                    "target query", selected_doc_ids=[doc.doc_id], strategy="hybrid"
+                )
+                assert trace.effective_strategy == "bm25"
+                assert trace.fallback_reason == "dense_index_incompatible_or_unverifiable"
+                assert trace.rrf_k == 60
+                assert trace.sparse_retriever_name == "bm25"
+
+    def test_duplicate_document_ids_normalized_deterministically(
+        self, repo: DocumentRepository, ingestion_service: DocumentIngestionService
+    ) -> None:
+        """Duplicate doc IDs are deduplicated in QueryTrace and candidate retrieval."""
+        doc = _ingest_doc(ingestion_service, "doc.txt", b"First target text.")
+        qs = DocumentQueryService(
+            repository=repo,
+            ingestion_service=ingestion_service,
+            embedder=MockEmbedder(),
+            llm_client=MockLLM(),
+        )
+
+        _ans, trace = qs.query(
+            "target query",
+            selected_doc_ids=[doc.doc_id, doc.doc_id, doc.doc_id],
+            strategy="bm25",
+        )
+        assert trace.selected_doc_ids == (doc.doc_id,)

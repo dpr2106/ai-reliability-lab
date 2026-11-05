@@ -67,8 +67,10 @@ class CitationResolver:
 
     # Matches bracketed expressions
     _BRACKET_PATTERN = re.compile(r"\[([^\]]+)\]")
-    # Matches valid citation alias formats: CIT-001 or CHK-001
-    _VALID_ALIAS_PATTERN = re.compile(r"^(?:CIT|CHK)-(\d+)$", re.IGNORECASE)
+    # Matches valid query citation alias formats: CIT-001
+    _VALID_CIT_PATTERN = re.compile(r"^CIT-(\d+)$", re.IGNORECASE)
+    # Matches CHK aliases (legacy or non-query formats): CHK-001
+    _CHK_ALIAS_PATTERN = re.compile(r"^CHK-(\d+)$", re.IGNORECASE)
     # Matches citation-like markers that fail standard syntax
     _MALFORMED_CANDIDATE_PATTERN = re.compile(
         r"^(?:CIT|CHK)-[A-Za-z0-9_-]+$|^(?:citation|cite|source|ref|chunk)[\s:-]*\w+$",
@@ -113,9 +115,10 @@ class CitationResolver:
             if inner.upper().startswith("ABSTAIN:"):
                 continue
 
-            valid_alias_match = self._VALID_ALIAS_PATTERN.match(inner)
-            if valid_alias_match:
-                alias_num = int(valid_alias_match.group(1))
+            # 1. Match standard query CIT-### aliases
+            valid_cit_match = self._VALID_CIT_PATTERN.match(inner)
+            if valid_cit_match:
+                alias_num = int(valid_cit_match.group(1))
                 canonical_alias = f"CIT-{alias_num:03d}"
                 trace = self._alias_map.get_by_alias(canonical_alias)
 
@@ -148,7 +151,43 @@ class CitationResolver:
                         )
                 continue
 
-            # Check if it looks like a malformed citation marker
+            # 2. Match CHK-### aliases (only resolve if explicitly registered in query alias map)
+            chk_match = self._CHK_ALIAS_PATTERN.match(inner)
+            if chk_match:
+                alias_num = int(chk_match.group(1))
+                canonical_chk = f"CHK-{alias_num:03d}"
+                trace = self._alias_map.get_by_alias(canonical_chk)
+
+                if trace is not None:
+                    if canonical_chk not in seen_resolved:
+                        seen_resolved.add(canonical_chk)
+                        snippet = trace.content[:200]
+                        resolved.append(
+                            ResolvedCitation(
+                                marker=raw_marker,
+                                alias=canonical_chk,
+                                chunk_id=trace.chunk_id,
+                                doc_id=trace.doc_id,
+                                filename=trace.filename,
+                                page_number=trace.page_number,
+                                char_start=trace.char_start,
+                                char_end=trace.char_end,
+                                snippet=snippet,
+                            )
+                        )
+                else:
+                    if canonical_chk not in seen_unresolved:
+                        seen_unresolved.add(canonical_chk)
+                        unresolved.append(
+                            UnresolvedCitation(
+                                marker=raw_marker,
+                                alias=canonical_chk,
+                                reason="unsupplied_chk_alias_not_in_query",
+                            )
+                        )
+                continue
+
+            # 3. Check if it looks like a malformed citation marker
             if self._MALFORMED_CANDIDATE_PATTERN.match(inner):
                 if raw_marker not in seen_malformed:
                     seen_malformed.add(raw_marker)

@@ -23,9 +23,59 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 DEFAULT_EMBEDDING_DIM = 384
 DEFAULT_MODEL_REVISION = "e4ce9877abf3ed59ced85d2278ed52520f93874b"
-DEFAULT_ARTIFACT_FINGERPRINT = (
-    "sha256:d8a9f6580f8452e82f5b61406e2a7e782d9213bc04825944d18ecba1c20bc4b7"
-)
+
+
+def compute_model_artifact_fingerprint(model_dir_or_path: Path | str) -> str:
+    """Build a deterministic SHA-256 manifest over loaded model and tokenizer assets.
+
+    Never includes absolute filesystem paths in the manifest or fingerprint.
+    Sorts files deterministically by relative POSIX path.
+    """
+    model_dir = Path(model_dir_or_path)
+    if not model_dir.exists():
+        raise FileNotFoundError(f"Model artifact path '{model_dir.name}' does not exist.")
+
+    manifest: list[dict[str, Any]] = []
+
+    if model_dir.is_file():
+        content_hash = hashlib.sha256(model_dir.read_bytes()).hexdigest()
+        manifest.append(
+            {
+                "path": model_dir.name,
+                "sha256": content_hash,
+                "size": model_dir.stat().st_size,
+            }
+        )
+    else:
+        for path in sorted(model_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            # Ignore hidden files, documentation, and VCS metadata
+            if path.name.startswith(".") or path.name.lower() in (
+                "readme.md",
+                "license.txt",
+                "notice",
+            ):
+                continue
+            if ".git" in path.parts:
+                continue
+
+            rel_posix = path.relative_to(model_dir).as_posix()
+            content_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+            manifest.append(
+                {
+                    "path": rel_posix,
+                    "sha256": content_hash,
+                    "size": path.stat().st_size,
+                }
+            )
+
+    if not manifest:
+        raise ValueError(f"No valid model assets found in '{model_dir.name}'.")
+
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.sha256(manifest_bytes).hexdigest()
+    return f"sha256:{digest}"
 
 
 def compute_pipeline_fingerprint(
@@ -107,36 +157,105 @@ class EmbeddingIdentity:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EmbeddingIdentity:
-        """Instantiate EmbeddingIdentity from dictionary representation."""
+        """Instantiate and strictly validate EmbeddingIdentity from dictionary representation.
+
+        Rejects missing fields, invalid types, malformed fingerprints, and internally
+        inconsistent pipeline fingerprints.
+        """
+        import re
+
         if not isinstance(data, dict):
             raise TypeError("Embedding identity data must be a dictionary.")
+
         required_keys = (
             "canonical_model_id",
+            "display_label",
             "artifact_fingerprint",
             "pipeline_fingerprint",
             "dimension",
+            "sentence_transformer_normalize",
+            "faiss_normalize",
+            "distance_metric",
+            "pooling_strategy",
+            "max_seq_length",
+            "truncation_side",
+            "truncation_strategy",
+            "query_instruction",
+            "document_instruction",
         )
         for k in required_keys:
             if k not in data:
                 raise ValueError(f"Missing required embedding identity field: '{k}'")
+
+        dim = data["dimension"]
+        if isinstance(dim, bool) or not isinstance(dim, int) or dim <= 0:
+            raise ValueError(f"Invalid dimension in embedding identity: {dim!r}")
+
+        max_seq = data["max_seq_length"]
+        if isinstance(max_seq, bool) or not isinstance(max_seq, int) or max_seq <= 0:
+            raise ValueError(f"Invalid max_seq_length in embedding identity: {max_seq!r}")
+
+        st_norm = data["sentence_transformer_normalize"]
+        if not isinstance(st_norm, bool):
+            raise ValueError(
+                f"Invalid sentence_transformer_normalize in embedding identity: {st_norm!r}"
+            )
+
+        faiss_norm = data["faiss_normalize"]
+        if not isinstance(faiss_norm, bool):
+            raise ValueError(f"Invalid faiss_normalize in embedding identity: {faiss_norm!r}")
+
+        art_fp = str(data["artifact_fingerprint"])
+        if not re.match(r"^sha256:[0-9a-f]{64}$", art_fp):
+            raise ValueError(
+                f"Invalid or unverified artifact_fingerprint in embedding identity: '{art_fp}'"
+            )
+
+        pipe_fp = str(data["pipeline_fingerprint"])
+        if not re.match(r"^sha256:[0-9a-f]{64}$", pipe_fp):
+            raise ValueError(
+                f"Invalid pipeline_fingerprint format in embedding identity: '{pipe_fp}'"
+            )
+
+        model_rev = str(data["model_revision"]) if data.get("model_revision") is not None else None
+
+        recomputed_fp = compute_pipeline_fingerprint(
+            canonical_model_id=str(data["canonical_model_id"]),
+            dimension=dim,
+            artifact_fingerprint=art_fp,
+            model_revision=model_rev,
+            distance_metric=str(data["distance_metric"]),
+            document_instruction=str(data["document_instruction"]),
+            faiss_normalize=faiss_norm,
+            max_seq_length=max_seq,
+            pooling_strategy=str(data["pooling_strategy"]),
+            query_instruction=str(data["query_instruction"]),
+            sentence_transformer_normalize=st_norm,
+            truncation_side=str(data["truncation_side"]),
+            truncation_strategy=str(data["truncation_strategy"]),
+        )
+        if recomputed_fp != pipe_fp:
+            raise ValueError(
+                f"Internally inconsistent or tampered embedding identity: declared pipeline "
+                f"fingerprint '{pipe_fp}' does not match recomputed '{recomputed_fp}'."
+            )
+
         return cls(
             canonical_model_id=str(data["canonical_model_id"]),
-            display_label=str(data.get("display_label", data["canonical_model_id"])),
-            model_revision=(
-                str(data["model_revision"]) if data.get("model_revision") is not None else None
-            ),
-            artifact_fingerprint=str(data["artifact_fingerprint"]),
-            pipeline_fingerprint=str(data["pipeline_fingerprint"]),
-            dimension=int(data["dimension"]),
-            sentence_transformer_normalize=bool(data.get("sentence_transformer_normalize", True)),
-            faiss_normalize=bool(data.get("faiss_normalize", True)),
-            distance_metric=str(data.get("distance_metric", "ip")),
-            pooling_strategy=str(data.get("pooling_strategy", "mean")),
-            max_seq_length=int(data.get("max_seq_length", 256)),
-            truncation_side=str(data.get("truncation_side", "right")),
-            truncation_strategy=str(data.get("truncation_strategy", "longest_first")),
-            query_instruction=str(data.get("query_instruction", "")),
-            document_instruction=str(data.get("document_instruction", "")),
+            display_label=str(data["display_label"]),
+            model_revision=model_rev,
+            artifact_fingerprint=art_fp,
+            pipeline_fingerprint=pipe_fp,
+            dimension=dim,
+            sentence_transformer_normalize=st_norm,
+            faiss_normalize=faiss_norm,
+            distance_metric=str(data["distance_metric"]),
+            pooling_strategy=str(data["pooling_strategy"]),
+            max_seq_length=max_seq,
+            truncation_side=str(data["truncation_side"]),
+            truncation_strategy=str(data["truncation_strategy"]),
+            query_instruction=str(data["query_instruction"]),
+            document_instruction=str(data["document_instruction"]),
         )
 
 
@@ -178,9 +297,8 @@ class BaseEmbedder(ABC):
 
     @property
     def artifact_fingerprint(self) -> str:
-        """Return SHA-256 digest of model artifact or deterministic identity hash."""
-        digest = hashlib.sha256(self.canonical_model_id.encode("utf-8")).hexdigest()
-        return f"sha256:{digest}"
+        """Return SHA-256 digest of loaded model assets, or 'unavailable' if unverified."""
+        return "unavailable:unverified_model_artifacts"
 
     @property
     def distance_metric(self) -> str:
@@ -437,25 +555,51 @@ class SentenceTransformerEmbedder(BaseEmbedder):
             self._canonical_model_id = self._model_name
             self._display_label = self._model_name.split("/")[-1]
 
+        # Discover underlying model artifact directory for cryptographic asset fingerprinting
+        discovered_dir: Path | None = None
+        if Path(self._model_name).is_dir():
+            discovered_dir = Path(self._model_name)
+        elif hasattr(self._model, "_first_module"):
+            try:
+                first_module = self._model._first_module()
+                if hasattr(first_module, "tokenizer") and getattr(
+                    first_module.tokenizer, "vocab_file", None
+                ):
+                    vocab_path = Path(first_module.tokenizer.vocab_file)
+                    if vocab_path.is_file():
+                        discovered_dir = vocab_path.parent
+            except Exception as e:
+                logger.debug("Could not inspect tokenizer for artifact dir: %s", e)
+
         if model_revision is not None:
             self._model_revision: str | None = model_revision
-        elif self._canonical_model_id == f"sentence-transformers/{DEFAULT_MODEL_NAME}":
-            self._model_revision = DEFAULT_MODEL_REVISION
         elif hasattr(self._model, "config") and getattr(self._model.config, "_commit_hash", None):
             self._model_revision = self._model.config._commit_hash
+        elif (
+            discovered_dir is not None
+            and len(discovered_dir.name) == 40
+            and all(c in "0123456789abcdefABCDEF" for c in discovered_dir.name)
+        ):
+            self._model_revision = discovered_dir.name
+        elif self._canonical_model_id == f"sentence-transformers/{DEFAULT_MODEL_NAME}":
+            self._model_revision = DEFAULT_MODEL_REVISION
         else:
             self._model_revision = None
 
         if artifact_fingerprint is not None:
             self._artifact_fingerprint = artifact_fingerprint
-        elif (
-            self._canonical_model_id == f"sentence-transformers/{DEFAULT_MODEL_NAME}"
-            and self._model_revision == DEFAULT_MODEL_REVISION
-        ):
-            self._artifact_fingerprint = DEFAULT_ARTIFACT_FINGERPRINT
+        elif discovered_dir is not None:
+            try:
+                self._artifact_fingerprint = compute_model_artifact_fingerprint(discovered_dir)
+            except Exception as exc:
+                logger.warning(
+                    "Failed computing model artifact fingerprint for %s: %s",
+                    self._model_name,
+                    exc,
+                )
+                self._artifact_fingerprint = "unavailable:unverified_model_artifacts"
         else:
-            digest = hashlib.sha256(self._canonical_model_id.encode("utf-8")).hexdigest()
-            self._artifact_fingerprint = f"sha256:{digest}"
+            self._artifact_fingerprint = "unavailable:unverified_model_artifacts"
 
         if max_seq_length is not None:
             self._max_seq_length = max_seq_length

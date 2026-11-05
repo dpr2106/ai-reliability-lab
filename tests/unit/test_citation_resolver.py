@@ -158,3 +158,51 @@ class TestCitationResolver:
         assert len(resolved) == 2
         assert resolved[0].alias == "CIT-002"
         assert resolved[1].alias == "CIT-001"
+
+    def test_chk_alias_unresolved_and_never_fabricated(self) -> None:
+        """CHK aliases are not query aliases and must not be rewritten to CIT aliases."""
+        chunks = _make_test_chunks()
+        alias_map, _ = CitationAliasMap.from_chunks(chunks)
+        resolver = CitationResolver(alias_map)
+
+        text = "Model used old format [CHK-001] and cross-query citation [CIT-005]."
+        resolved, unresolved, malformed = resolver.resolve(text)
+
+        assert len(resolved) == 0
+        assert len(unresolved) == 2
+        assert len(malformed) == 0
+
+        # Verify CHK-001 was NOT rewritten to CIT-001
+        assert unresolved[0].marker == "[CHK-001]"
+        assert unresolved[0].alias == "CHK-001"
+        assert unresolved[0].reason == "unsupplied_chk_alias_not_in_query"
+
+        # Verify cross-query unknown citation
+        assert unresolved[1].marker == "[CIT-005]"
+        assert unresolved[1].alias == "CIT-005"
+        assert unresolved[1].reason == "unknown_alias_not_in_evidence"
+
+    def test_supplied_chk_alias_resolves_when_in_query_map(self) -> None:
+        """When CHK aliases are explicitly supplied to the query, they resolve cleanly."""
+        from reliability_lab.query.models import EvidenceChunkTrace
+
+        chk_trace = EvidenceChunkTrace(
+            alias="CHK-001",
+            chunk_id="doc_x:chunk_0",
+            doc_id="doc_x",
+            filename="doc_x.txt",
+            page_number=1,
+            char_start=0,
+            char_end=50,
+            content="Explicitly supplied CHK chunk content.",
+        )
+        alias_map = CitationAliasMap((chk_trace,))
+        resolver = CitationResolver(alias_map)
+
+        text = "Answer with explicitly supplied [CHK-001]."
+        resolved, unresolved, _malformed = resolver.resolve(text)
+
+        assert len(resolved) == 1
+        assert len(unresolved) == 0
+        assert resolved[0].alias == "CHK-001"
+        assert resolved[0].chunk_id == "doc_x:chunk_0"

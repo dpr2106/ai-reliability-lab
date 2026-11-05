@@ -28,15 +28,19 @@ SUPPORTED_METRICS = ("ip",)
 SUPPORTED_INDEX_FORMAT_VERSIONS: frozenset[str] = frozenset({"2.0"})
 
 
-class UnsupportedIndexFormatError(ValueError):
+class DenseIndexCompatibilityError(ValueError):
+    """Base class for dense index compatibility and format validation failures."""
+
+
+class UnsupportedIndexFormatError(DenseIndexCompatibilityError):
     """Raised when index format version is unrecognized or unsupported."""
 
 
-class IncompatibleEmbeddingIdentityError(ValueError):
+class IncompatibleEmbeddingIdentityError(DenseIndexCompatibilityError):
     """Raised when index embedding identity does not match runtime embedder."""
 
 
-class LegacyIndexIncompatibilityError(ValueError):
+class LegacyIndexIncompatibilityError(DenseIndexCompatibilityError):
     """Raised when legacy format 1.0 index lacks trusted provenance or digests mismatch."""
 
 
@@ -543,21 +547,8 @@ class FaissVectorRetriever(BaseRetriever):
             saved_identity = EmbeddingIdentity.from_dict(meta["embedding_identity"])
         except Exception as exc:
             raise IncompatibleEmbeddingIdentityError(
-                f"Malformed embedding identity in index metadata: {exc}"
+                f"Malformed or internally inconsistent embedding identity: {exc}"
             ) from exc
-
-        # Compare pipeline and artifact fingerprints against active embedder
-        if saved_identity.pipeline_fingerprint != embedder.pipeline_fingerprint:
-            raise IncompatibleEmbeddingIdentityError(
-                f"Pipeline fingerprint mismatch: index has {saved_identity.pipeline_fingerprint}, "
-                f"active embedder has {embedder.pipeline_fingerprint}."
-            )
-
-        if saved_identity.artifact_fingerprint != embedder.artifact_fingerprint:
-            raise IncompatibleEmbeddingIdentityError(
-                f"Artifact fingerprint mismatch: index has {saved_identity.artifact_fingerprint}, "
-                f"active embedder has {embedder.artifact_fingerprint}."
-            )
 
         # 3. Validate Dimension
         if "dimension" not in meta:
@@ -570,10 +561,36 @@ class FaissVectorRetriever(BaseRetriever):
             )
         expected_dimension = dim_val
 
+        if saved_identity.dimension != expected_dimension:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Dimension mismatch in saved metadata: identity declared "
+                f"{saved_identity.dimension} but metadata root has {expected_dimension}."
+            )
+
         if embedder.embedding_dim != expected_dimension:
             raise ValueError(
                 f"Saved index dimension ({expected_dimension}) does not match "
                 f"embedder dimension ({embedder.embedding_dim})."
+            )
+
+        # Fail closed if active embedder's artifact identity is unavailable
+        if embedder.artifact_fingerprint.startswith("unavailable"):
+            raise IncompatibleEmbeddingIdentityError(
+                "Active embedder artifact identity cannot be cryptographically verified; "
+                "failing closed for dense retrieval."
+            )
+
+        # Compare pipeline and artifact fingerprints against active embedder
+        if saved_identity.pipeline_fingerprint != embedder.pipeline_fingerprint:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Pipeline fingerprint mismatch: index has {saved_identity.pipeline_fingerprint}, "
+                f"active embedder has {embedder.pipeline_fingerprint}."
+            )
+
+        if saved_identity.artifact_fingerprint != embedder.artifact_fingerprint:
+            raise IncompatibleEmbeddingIdentityError(
+                f"Artifact fingerprint mismatch: index has {saved_identity.artifact_fingerprint}, "
+                f"active embedder has {embedder.artifact_fingerprint}."
             )
 
         try:

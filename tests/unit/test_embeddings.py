@@ -7,6 +7,7 @@ without downloading external model weights.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -399,7 +400,12 @@ class TestEmbeddingIdentity:
 
     def test_default_embedding_identity(self) -> None:
         fake_model = FakeSentenceTransformer(384)
-        embedder = SentenceTransformerEmbedder(model=fake_model)
+        embedder_unverified = SentenceTransformerEmbedder(model=fake_model)
+        ident_unverified = embedder_unverified.embedding_identity
+        assert ident_unverified.artifact_fingerprint == "unavailable:unverified_model_artifacts"
+
+        test_fp = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        embedder = SentenceTransformerEmbedder(model=fake_model, artifact_fingerprint=test_fp)
         ident = embedder.embedding_identity
 
         assert ident.canonical_model_id == "sentence-transformers/all-MiniLM-L6-v2"
@@ -411,7 +417,7 @@ class TestEmbeddingIdentity:
         assert ident.pooling_strategy == "mean"
         assert ident.max_seq_length == 256
         assert ident.pipeline_fingerprint.startswith("sha256:")
-        assert ident.artifact_fingerprint.startswith("sha256:")
+        assert ident.artifact_fingerprint == test_fp
 
     def test_local_path_privacy_enforcement(self) -> None:
         """Verify that absolute local filesystem paths do not leak into canonical model IDs."""
@@ -451,7 +457,8 @@ class TestEmbeddingIdentity:
 
     def test_identity_serialization_roundtrip(self) -> None:
         fake_model = FakeSentenceTransformer(384)
-        embedder = SentenceTransformerEmbedder(model=fake_model)
+        test_fp = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        embedder = SentenceTransformerEmbedder(model=fake_model, artifact_fingerprint=test_fp)
         ident = embedder.embedding_identity
         data = ident.to_dict()
         restored = embedder.embedding_identity.from_dict(data)
@@ -459,3 +466,35 @@ class TestEmbeddingIdentity:
         assert ident == restored
         assert restored.canonical_model_id == ident.canonical_model_id
         assert restored.pipeline_fingerprint == ident.pipeline_fingerprint
+
+    def test_artifact_fingerprint_differs_for_different_model_assets(self, tmp_path: Path) -> None:
+        """Two different artifact contents with the same model name must yield
+        different fingerprints."""
+        from reliability_lab.indexing.embeddings import compute_model_artifact_fingerprint
+
+        dir_a = tmp_path / "model_a"
+        dir_b = tmp_path / "model_b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+
+        (dir_a / "config.json").write_text('{"dim": 384}', encoding="utf-8")
+        (dir_a / "model.safetensors").write_bytes(b"WEIGHTS_VERSION_1")
+
+        (dir_b / "config.json").write_text('{"dim": 384}', encoding="utf-8")
+        (dir_b / "model.safetensors").write_bytes(b"WEIGHTS_VERSION_2")
+
+        fp_a = compute_model_artifact_fingerprint(dir_a)
+        fp_b = compute_model_artifact_fingerprint(dir_b)
+
+        assert fp_a.startswith("sha256:")
+        assert fp_b.startswith("sha256:")
+        assert fp_a != fp_b
+
+        fake_model = FakeSentenceTransformer(384)
+        emb_a = SentenceTransformerEmbedder(model_name_or_path=str(dir_a), model=fake_model)
+        emb_b = SentenceTransformerEmbedder(model_name_or_path=str(dir_b), model=fake_model)
+
+        assert emb_a.artifact_fingerprint == fp_a
+        assert emb_b.artifact_fingerprint == fp_b
+        assert emb_a.artifact_fingerprint != emb_b.artifact_fingerprint
+        assert emb_a.pipeline_fingerprint != emb_b.pipeline_fingerprint

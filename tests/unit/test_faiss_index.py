@@ -53,6 +53,10 @@ class DeterministicFakeEmbedder(BaseEmbedder):
         return "deterministic-fake-embedder"
 
     @property
+    def artifact_fingerprint(self) -> str:
+        return "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+    @property
     def embedding_dim(self) -> int:
         return self._dim
 
@@ -576,9 +580,10 @@ def test_validation_load_errors(tmp_path: Path) -> None:
         FaissVectorRetriever.load(empty_dir, embedder=embedder)
 
     # Dimension mismatch
+    emb8 = DeterministicFakeEmbedder(dim=8)
     meta_mismatch: dict[str, Any] = {
         "format_version": "2.0",
-        "embedding_identity": embedder.embedding_identity.to_dict(),
+        "embedding_identity": emb8.embedding_identity.to_dict(),
         "dimension": 8,
         "index_type": "flat",
         "chunks": {},
@@ -746,3 +751,61 @@ class TestFormat2AndLegacyLoader:
             FaissVectorRetriever.load_legacy_verified(
                 save_dir, embedder=embedder, trusted_provenance=tampered_chunk_provenance
             )
+
+    def test_format_2_tampered_metadata_fails_closed(self, tmp_path: Path) -> None:
+        """Tampered metadata, copied fingerprints, and unverified embedders fail closed."""
+        from reliability_lab.indexing.faiss_index import IncompatibleEmbeddingIdentityError
+
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "tamper_test_idx"
+        retriever.save(save_dir)
+
+        meta_file = save_dir / "metadata.json"
+        original_meta = json.loads(meta_file.read_text(encoding="utf-8"))
+
+        # Case 1: Copied fingerprint with modified model ID (internal inconsistency)
+        tampered1 = json.loads(json.dumps(original_meta))
+        tampered1["embedding_identity"]["canonical_model_id"] = "different-model-id"
+        meta_file.write_text(json.dumps(tampered1), encoding="utf-8")
+        with pytest.raises(IncompatibleEmbeddingIdentityError, match="tampered"):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+        # Case 2: Missing required identity field (faiss_normalize)
+        tampered2 = json.loads(json.dumps(original_meta))
+        tampered2["embedding_identity"].pop("faiss_normalize")
+        meta_file.write_text(json.dumps(tampered2), encoding="utf-8")
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="Missing required embedding identity field"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+        # Case 3: Invalid dimension
+        tampered3 = json.loads(json.dumps(original_meta))
+        tampered3["embedding_identity"]["dimension"] = -1
+        meta_file.write_text(json.dumps(tampered3), encoding="utf-8")
+        with pytest.raises(IncompatibleEmbeddingIdentityError, match="Invalid dimension"):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+        # Case 4: Malformed artifact fingerprint
+        tampered4 = json.loads(json.dumps(original_meta))
+        tampered4["embedding_identity"]["artifact_fingerprint"] = "malformed_hash"
+        meta_file.write_text(json.dumps(tampered4), encoding="utf-8")
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="Invalid or unverified artifact_fingerprint"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+        # Case 5: Active embedder has unavailable artifact fingerprint
+        meta_file.write_text(json.dumps(original_meta), encoding="utf-8")
+
+        class UnverifiedEmbedder(DeterministicFakeEmbedder):
+            @property
+            def artifact_fingerprint(self) -> str:
+                return "unavailable:unverified_model_artifacts"
+
+        unverified = UnverifiedEmbedder(dim=4)
+        with pytest.raises(IncompatibleEmbeddingIdentityError, match="failing closed"):
+            FaissVectorRetriever.load(save_dir, embedder=unverified)

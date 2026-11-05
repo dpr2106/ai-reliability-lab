@@ -34,6 +34,10 @@ class ApiTestEmbedder(BaseEmbedder):
         return "api-test-model"
 
     @property
+    def artifact_fingerprint(self) -> str:
+        return "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+    @property
     def embedding_dim(self) -> int:
         return 4
 

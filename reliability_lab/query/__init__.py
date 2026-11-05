@@ -44,4 +44,3 @@ __all__ = [
     "UnprocessableDocumentError",
     "UnresolvedCitation",
 ]
-

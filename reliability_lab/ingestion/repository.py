@@ -217,6 +217,11 @@ class DocumentRepository:
                 (doc_id,),
             ).fetchone()
             if not current:
+                if generation is not None:
+                    raise KeyError(
+                        f"Cannot update status: document '{doc_id}' not found for "
+                        f"generation '{generation}'."
+                    )
                 return
 
             try:
@@ -289,19 +294,23 @@ class DocumentRepository:
                     "SELECT metadata_json FROM documents WHERE doc_id = ?",
                     (doc_id,),
                 ).fetchone()
-                if current:
-                    try:
-                        cur_meta = (
-                            json.loads(current["metadata_json"]) if current["metadata_json"] else {}
-                        )
-                    except Exception:
-                        cur_meta = {}
-                    active_gen = cur_meta.get("__active_generation__")
-                    if active_gen != generation:
-                        raise GenerationMismatchError(
-                            f"Cannot save chunks for document '{doc_id}': worker generation "
-                            f"'{generation}' does not match active generation '{active_gen}'."
-                        )
+                if not current:
+                    raise KeyError(
+                        f"Cannot save chunks: document '{doc_id}' not found for "
+                        f"generation '{generation}'."
+                    )
+                try:
+                    cur_meta = (
+                        json.loads(current["metadata_json"]) if current["metadata_json"] else {}
+                    )
+                except Exception:
+                    cur_meta = {}
+                active_gen = cur_meta.get("__active_generation__")
+                if active_gen != generation:
+                    raise GenerationMismatchError(
+                        f"Cannot save chunks for document '{doc_id}': worker generation "
+                        f"'{generation}' does not match active generation '{active_gen}'."
+                    )
 
             # Delete existing chunks for this doc_id to avoid duplicates
             conn.execute("DELETE FROM document_chunks WHERE doc_id = ?", (doc_id,))
@@ -504,7 +513,9 @@ class DocumentRepository:
                 ),
             )
 
-    def set_embedding_provenance(self, doc_id: str, provenance: dict[str, Any]) -> None:
+    def set_embedding_provenance(
+        self, doc_id: str, provenance: dict[str, Any], generation: str | None = None
+    ) -> None:
         """Store server-controlled embedding provenance in documents.metadata_json."""
         with self._db.transaction() as conn:
             row = conn.execute(
@@ -517,6 +528,14 @@ class DocumentRepository:
                 meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
             except Exception:
                 meta = {}
+            if generation is not None:
+                active_gen = meta.get("__active_generation__")
+                if active_gen != generation:
+                    raise GenerationMismatchError(
+                        f"Cannot set embedding provenance for document '{doc_id}': "
+                        f"worker generation '{generation}' does not match active generation "
+                        f"'{active_gen}'."
+                    )
             gen = provenance.get("generation", meta.get("__active_generation__"))
             if gen:
                 meta["__active_generation__"] = gen
@@ -530,7 +549,7 @@ class DocumentRepository:
                 ),
             )
 
-    def remove_embedding_provenance(self, doc_id: str) -> None:
+    def remove_embedding_provenance(self, doc_id: str, generation: str | None = None) -> None:
         """Explicitly delete the reserved embedding provenance key from metadata."""
         with self._db.transaction() as conn:
             row = conn.execute(
@@ -543,6 +562,14 @@ class DocumentRepository:
                 meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
             except Exception:
                 meta = {}
+            if generation is not None:
+                active_gen = meta.get("__active_generation__")
+                if active_gen != generation:
+                    raise GenerationMismatchError(
+                        f"Cannot remove embedding provenance for document '{doc_id}': "
+                        f"worker generation '{generation}' does not match active generation "
+                        f"'{active_gen}'."
+                    )
             meta.pop("__embedding_provenance__", None)
             conn.execute(
                 "UPDATE documents SET metadata_json = ?, updated_at = ? WHERE doc_id = ?",

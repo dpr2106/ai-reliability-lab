@@ -551,7 +551,9 @@ class DocumentIngestionService:
                                 )
                                 self._cleanup_faiss_dir(doc_id, generation=generation)
                                 try:
-                                    self.repository.remove_embedding_provenance(doc_id)
+                                    self.repository.remove_embedding_provenance(
+                                        doc_id, generation=generation
+                                    )
                                 except Exception:
                                     pass
                                 index_err_msg = (
@@ -566,7 +568,9 @@ class DocumentIngestionService:
                         index_err_msg = f"FAISS dense indexing failed: {exc}"
                         self._cleanup_faiss_dir(doc_id, generation=generation)
                         try:
-                            self.repository.remove_embedding_provenance(doc_id)
+                            self.repository.remove_embedding_provenance(
+                                doc_id, generation=generation
+                            )
                         except Exception:
                             pass
 
@@ -836,40 +840,11 @@ class DocumentIngestionService:
                 f"failed to parse 'metadata.json' ({exc})."
             ) from exc
 
-        # Verify trusted provenance generation matches active generation
-        trusted_provenance = (
-            record.metadata.get("__embedding_provenance__") if record.metadata else None
-        )
-        active_gen = record.metadata.get("__active_generation__") if record.metadata else None
-        if trusted_provenance is not None and active_gen is not None:
-            prov_gen = trusted_provenance.get("generation")
-            if prov_gen is not None and prov_gen != active_gen:
-                raise DenseIndexIntegrityError(
-                    f"Embedding provenance generation mismatch for document '{doc_id}': "
-                    f"provenance has '{prov_gen}', active generation is '{active_gen}'."
-                )
-
-        if trusted_provenance is not None:
-            expected_binary_digest = trusted_provenance.get("artifact_digest")
-            if expected_binary_digest is not None:
-                actual_binary_digest = (
-                    f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
-                )
-                if actual_binary_digest != expected_binary_digest:
-                    raise DenseIndexIntegrityError(
-                        f"FAISS index binary artifact digest mismatch for document '{doc_id}': "
-                        f"database provenance has '{expected_binary_digest}', "
-                        f"on-disk file has '{actual_binary_digest}'."
-                    )
-            expected_manifest_hash = trusted_provenance.get("chunk_manifest_hash")
-            if expected_manifest_hash is not None:
-                meta_manifest = meta_content.get("chunk_manifest_hash")
-                if meta_manifest is not None and meta_manifest != expected_manifest_hash:
-                    raise DenseIndexIntegrityError(
-                        f"Chunk manifest hash mismatch in FAISS metadata for document '{doc_id}': "
-                        f"database provenance has '{expected_manifest_hash}', "
-                        f"metadata has '{meta_manifest}'."
-                    )
+        format_version = str(meta_content.get("format_version", "1.0"))
+        if format_version not in {"1.0", "2.0"}:
+            raise UnsupportedIndexFormatError(
+                f"Unsupported index format version '{format_version}' for document '{doc_id}'."
+            )
 
         effective_embedder = embedder or self._embedder
         if effective_embedder is None:
@@ -882,7 +857,10 @@ class DocumentIngestionService:
                 f"embedder dimension ({effective_embedder.embedding_dim})."
             )
 
-        format_version = str(meta_content.get("format_version", "1.0"))
+        trusted_provenance = (
+            record.metadata.get("__embedding_provenance__") if record.metadata else None
+        )
+
         try:
             if format_version == "1.0":
                 if not trusted_provenance:
@@ -893,12 +871,141 @@ class DocumentIngestionService:
                 return FaissVectorRetriever.load_legacy_verified(
                     faiss_dir, effective_embedder, trusted_provenance=trusted_provenance
                 )
-            elif format_version == "2.0":
-                return FaissVectorRetriever.load(faiss_dir, effective_embedder)
-            else:
-                raise UnsupportedIndexFormatError(
-                    f"Unsupported index format version '{format_version}' for document '{doc_id}'."
+
+            # Format 2.0 path: strictly enforce complete provenance, manifest & binary digests
+            if not trusted_provenance:
+                raise DenseIndexIntegrityError(
+                    f"Format 2.0 index for document '{doc_id}' lacks trusted server provenance; "
+                    "reindexing is required."
                 )
+
+            active_gen = record.metadata.get("__active_generation__") if record.metadata else None
+            prov_gen = trusted_provenance.get("generation")
+            if prov_gen is None or active_gen is None or prov_gen != active_gen:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance generation mismatch for document '{doc_id}': "
+                    f"provenance has '{prov_gen}', active generation is '{active_gen}'."
+                )
+
+            # Binary digest verification
+            expected_binary_digest = trusted_provenance.get("artifact_digest")
+            if not expected_binary_digest:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance for document '{doc_id}' missing required "
+                    "'artifact_digest'."
+                )
+            meta_digest = meta_content.get("artifact_digest")
+            if not meta_digest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS metadata for document '{doc_id}' missing required 'artifact_digest'."
+                )
+            if meta_digest != expected_binary_digest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS index binary artifact digest mismatch for document '{doc_id}': "
+                    f"database provenance has '{expected_binary_digest}', "
+                    f"metadata has '{meta_digest}'."
+                )
+            actual_binary_digest = f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+            if actual_binary_digest != expected_binary_digest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS index binary artifact digest mismatch for document '{doc_id}': "
+                    f"database provenance has '{expected_binary_digest}', "
+                    f"on-disk file has '{actual_binary_digest}'."
+                )
+
+            # Chunk manifest hash verification across provenance, metadata, and repository
+            expected_manifest_hash = trusted_provenance.get("chunk_manifest_hash")
+            if not expected_manifest_hash:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance for document '{doc_id}' missing required "
+                    "'chunk_manifest_hash'."
+                )
+            meta_manifest = meta_content.get("chunk_manifest_hash")
+            if not meta_manifest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS metadata for document '{doc_id}' missing required "
+                    "'chunk_manifest_hash'."
+                )
+            if meta_manifest != expected_manifest_hash:
+                raise DenseIndexIntegrityError(
+                    f"Chunk manifest hash mismatch in FAISS metadata for document '{doc_id}': "
+                    f"database provenance has '{expected_manifest_hash}', "
+                    f"metadata has '{meta_manifest}'."
+                )
+            repo_chunks = self.repository.get_chunks(doc_id)
+            actual_repo_chunk_manifest = compute_chunk_manifest_hash(repo_chunks)
+            if actual_repo_chunk_manifest != expected_manifest_hash:
+                raise DenseIndexIntegrityError(
+                    f"Repository chunk manifest hash mismatch for document '{doc_id}': "
+                    f"database provenance has '{expected_manifest_hash}', "
+                    f"repository chunks produce '{actual_repo_chunk_manifest}'."
+                )
+
+            return FaissVectorRetriever.load(faiss_dir, effective_embedder)
+
+            active_gen = record.metadata.get("__active_generation__") if record.metadata else None
+            prov_gen = trusted_provenance.get("generation")
+            if prov_gen is None or active_gen is None or prov_gen != active_gen:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance generation mismatch for document '{doc_id}': "
+                    f"provenance has '{prov_gen}', active generation is '{active_gen}'."
+                )
+
+            # Binary digest verification
+            expected_binary_digest = trusted_provenance.get("artifact_digest")
+            if not expected_binary_digest:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance for document '{doc_id}' missing required "
+                    "'artifact_digest'."
+                )
+            meta_digest = meta_content.get("artifact_digest")
+            if not meta_digest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS metadata for document '{doc_id}' missing required 'artifact_digest'."
+                )
+            if meta_digest != expected_binary_digest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS index binary artifact digest mismatch for document '{doc_id}': "
+                    f"database provenance has '{expected_binary_digest}', "
+                    f"metadata has '{meta_digest}'."
+                )
+            actual_binary_digest = f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+            if actual_binary_digest != expected_binary_digest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS index binary artifact digest mismatch for document '{doc_id}': "
+                    f"database provenance has '{expected_binary_digest}', "
+                    f"on-disk file has '{actual_binary_digest}'."
+                )
+
+            # Chunk manifest hash verification across provenance, metadata, and repository
+            expected_manifest_hash = trusted_provenance.get("chunk_manifest_hash")
+            if not expected_manifest_hash:
+                raise DenseIndexIntegrityError(
+                    f"Embedding provenance for document '{doc_id}' missing required "
+                    "'chunk_manifest_hash'."
+                )
+            meta_manifest = meta_content.get("chunk_manifest_hash")
+            if not meta_manifest:
+                raise DenseIndexIntegrityError(
+                    f"FAISS metadata for document '{doc_id}' missing required "
+                    "'chunk_manifest_hash'."
+                )
+            if meta_manifest != expected_manifest_hash:
+                raise DenseIndexIntegrityError(
+                    f"Chunk manifest hash mismatch in FAISS metadata for document '{doc_id}': "
+                    f"database provenance has '{expected_manifest_hash}', "
+                    f"metadata has '{meta_manifest}'."
+                )
+            repo_chunks = self.repository.get_chunks(doc_id)
+            actual_repo_chunk_manifest = compute_chunk_manifest_hash(repo_chunks)
+            if actual_repo_chunk_manifest != expected_manifest_hash:
+                raise DenseIndexIntegrityError(
+                    f"Repository chunk manifest hash mismatch for document '{doc_id}': "
+                    f"database provenance has '{expected_manifest_hash}', "
+                    f"repository chunks produce '{actual_repo_chunk_manifest}'."
+                )
+
+            return FaissVectorRetriever.load(faiss_dir, effective_embedder)
         except (
             IncompatibleEmbeddingIdentityError,
             LegacyIndexIncompatibilityError,

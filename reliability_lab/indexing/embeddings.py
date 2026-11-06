@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -666,7 +667,35 @@ class SentenceTransformerEmbedder(BaseEmbedder):
             self._model_revision = None
 
         if artifact_fingerprint is not None:
-            self._artifact_fingerprint = artifact_fingerprint
+            if not isinstance(artifact_fingerprint, str) or not re.match(
+                r"^sha256:[0-9a-f]{64}$", artifact_fingerprint
+            ):
+                raise ValueError(f"Invalid artifact_fingerprint format: '{artifact_fingerprint}'")
+            if ambiguous_snapshot:
+                self._artifact_fingerprint = "unavailable:incomplete_or_ambiguous_assets"
+            elif discovered_dir is not None:
+                try:
+                    computed_fp = compute_model_artifact_fingerprint(
+                        discovered_dir, require_complete=True
+                    )
+                    if artifact_fingerprint != computed_fp:
+                        raise ValueError(
+                            f"Supplied artifact_fingerprint '{artifact_fingerprint}' does not "
+                            f"match computed fingerprint '{computed_fp}' for "
+                            f"model directory '{discovered_dir}'."
+                        )
+                    self._artifact_fingerprint = artifact_fingerprint
+                except Exception as exc:
+                    if isinstance(exc, ValueError) and "does not match" in str(exc):
+                        raise
+                    logger.warning(
+                        "Failed computing model artifact fingerprint for %s: %s",
+                        self._model_name,
+                        exc,
+                    )
+                    self._artifact_fingerprint = "unavailable:incomplete_or_ambiguous_assets"
+            else:
+                self._artifact_fingerprint = artifact_fingerprint
         elif ambiguous_snapshot:
             self._artifact_fingerprint = "unavailable:incomplete_or_ambiguous_assets"
         elif discovered_dir is not None:

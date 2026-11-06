@@ -483,6 +483,11 @@ class FaissVectorRetriever(BaseRetriever):
             tmp_meta = Path(tmp_dir) / "metadata.json"
 
             self._faiss.write_index(self._index, str(tmp_index))
+            artifact_digest = f"sha256:{hashlib.sha256(tmp_index.read_bytes()).hexdigest()}"
+            chunk_manifest_hash = compute_chunk_manifest_hash(list(self._id_to_chunk.values()))
+            meta_payload["artifact_digest"] = artifact_digest
+            meta_payload["chunk_manifest_hash"] = chunk_manifest_hash
+
             tmp_meta.write_text(json.dumps(meta_payload, indent=2), encoding="utf-8")
 
             # Move files to target directory
@@ -622,6 +627,32 @@ class FaissVectorRetriever(BaseRetriever):
                 f"Artifact fingerprint mismatch: index has {saved_identity.artifact_fingerprint}, "
                 f"active embedder has {embedder.artifact_fingerprint}."
             )
+
+        # 5. Validate Binary Artifact Digest and Chunk Manifest Hash (if present in metadata)
+        expected_digest = meta.get("artifact_digest")
+        if expected_digest is not None:
+            actual_digest = f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+            if actual_digest != expected_digest:
+                raise IncompatibleEmbeddingIdentityError(
+                    f"FAISS index binary artifact digest mismatch: expected '{expected_digest}', "
+                    f"got '{actual_digest}'."
+                )
+
+        expected_chunk_manifest = meta.get("chunk_manifest_hash")
+        if expected_chunk_manifest is not None:
+            chunks_dict = meta.get("chunks", {})
+            try:
+                chunks_list = [Chunk.from_dict(c) for c in chunks_dict.values()]
+                actual_chunk_manifest = compute_chunk_manifest_hash(chunks_list)
+            except Exception as exc:
+                raise IncompatibleEmbeddingIdentityError(
+                    f"Failed computing chunk manifest hash from saved metadata: {exc}"
+                ) from exc
+            if actual_chunk_manifest != expected_chunk_manifest:
+                raise IncompatibleEmbeddingIdentityError(
+                    f"Chunk manifest hash mismatch in saved index metadata: "
+                    f"expected '{expected_chunk_manifest}', got '{actual_chunk_manifest}'."
+                )
 
         try:
             loaded_index = faiss_mod.read_index(str(index_file))

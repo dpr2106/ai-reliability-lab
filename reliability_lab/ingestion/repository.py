@@ -211,7 +211,7 @@ class DocumentRepository:
         now = datetime.now(timezone.utc).isoformat()
         status_val = status.value if isinstance(status, DocumentStatus) else str(status)
 
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             current = conn.execute(
                 "SELECT * FROM documents WHERE doc_id = ?",
                 (doc_id,),
@@ -283,7 +283,7 @@ class DocumentRepository:
     ) -> None:
         """Persist extracted chunks in the database for a document."""
         now = datetime.now(timezone.utc).isoformat()
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             if generation is not None:
                 current = conn.execute(
                     "SELECT metadata_json FROM documents WHERE doc_id = ?",
@@ -412,7 +412,7 @@ class DocumentRepository:
 
         Returns True if a document was deleted, False if not found.
         """
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             cursor = conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
             return cursor.rowcount > 0
 
@@ -420,7 +420,7 @@ class DocumentRepository:
         """Create a new unique ingestion generation and clear prior provenance in a transaction."""
         generation_id = f"gen_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
         now = datetime.now(timezone.utc).isoformat()
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute(
                 "SELECT metadata_json FROM documents WHERE doc_id = ?",
                 (doc_id,),
@@ -472,7 +472,7 @@ class DocumentRepository:
     ) -> None:
         """Publish server-controlled provenance after verifying active generation matches."""
         now = datetime.now(timezone.utc).isoformat()
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute(
                 "SELECT metadata_json FROM documents WHERE doc_id = ?",
                 (doc_id,),
@@ -506,7 +506,7 @@ class DocumentRepository:
 
     def set_embedding_provenance(self, doc_id: str, provenance: dict[str, Any]) -> None:
         """Store server-controlled embedding provenance in documents.metadata_json."""
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute(
                 "SELECT metadata_json FROM documents WHERE doc_id = ?",
                 (doc_id,),
@@ -532,7 +532,7 @@ class DocumentRepository:
 
     def remove_embedding_provenance(self, doc_id: str) -> None:
         """Explicitly delete the reserved embedding provenance key from metadata."""
-        with self._db.get_connection() as conn:
+        with self._db.transaction() as conn:
             row = conn.execute(
                 "SELECT metadata_json FROM documents WHERE doc_id = ?",
                 (doc_id,),

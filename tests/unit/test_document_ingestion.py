@@ -16,8 +16,9 @@ from reliability_lab.indexing.embeddings import BaseEmbedder, SentenceTransforme
 from reliability_lab.ingestion.chunker import RecursiveCharacterChunker
 from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus, IndexingStatus
 from reliability_lab.ingestion.parser import FileNotFoundParserError
-from reliability_lab.ingestion.repository import DocumentRepository
+from reliability_lab.ingestion.repository import DocumentRepository, GenerationMismatchError
 from reliability_lab.ingestion.service import (
+    DenseIndexIntegrityError,
     DocumentDeletionError,
     DocumentIngestionService,
     EmptyFileError,
@@ -875,7 +876,10 @@ class TestDocumentIngestionService:
         index_file.write_bytes(b"NOT_A_VALID_FAISS_INDEX_BINARY_DATA")
         with pytest.raises(
             IngestionError,
-            match=r"(Failed to read FAISS index binary|Invalid or corrupt FAISS index)",
+            match=(
+                r"(Failed to read FAISS index binary|Invalid or corrupt FAISS index|"
+                r"artifact digest mismatch)"
+            ),
         ):
             service.get_faiss_retriever(rec.doc_id)
 
@@ -1253,3 +1257,71 @@ class TestDocumentIngestionService:
         retriever = service.get_faiss_retriever(doc_id)
         assert retriever is not None
         assert retriever.size > 0
+
+    def test_tampered_index_faiss_binary_rejected_by_get_faiss_retriever(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Tampering with index.faiss on disk raises DenseIndexIntegrityError."""
+        stream = io.BytesIO(b"Document content for binary tampering verification test.")
+        rec = service.save_upload_stream("tamper_binary_test.txt", stream)
+        doc = service.process_document(rec.doc_id)
+        assert doc.status == DocumentStatus.READY
+        assert doc.indexing_status == IndexingStatus.INDEXED
+
+        # Tamper with the index.faiss binary file
+        index_file = service.index_dir / rec.doc_id / "faiss" / "index.faiss"
+        index_file.write_bytes(index_file.read_bytes() + b"\x00\x00\x00")
+
+        with pytest.raises(DenseIndexIntegrityError, match="artifact digest mismatch"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_tampered_chunk_manifest_rejected_by_get_faiss_retriever(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Tampering with chunk manifest hash in metadata raises DenseIndexIntegrityError."""
+        stream = io.BytesIO(b"Document content for chunk manifest tampering test.")
+        rec = service.save_upload_stream("tamper_manifest_test.txt", stream)
+        doc = service.process_document(rec.doc_id)
+        assert doc.status == DocumentStatus.READY
+        assert doc.indexing_status == IndexingStatus.INDEXED
+
+        # Tamper with chunk_manifest_hash in metadata.json
+        meta_file = service.index_dir / rec.doc_id / "faiss" / "metadata.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta["chunk_manifest_hash"] = "sha256:" + "0" * 64
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        with pytest.raises(DenseIndexIntegrityError, match="Chunk manifest hash mismatch"):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_missing_storage_path_superseded_worker_does_not_downgrade(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """A worker encountering a missing storage file respects generation ownership."""
+        stream = io.BytesIO(b"Valid document content for storage validation test.")
+        rec = service.save_upload_stream("missing_storage_test.txt", stream)
+        doc_id = rec.doc_id
+
+        # Worker 2 successfully completes document processing
+        doc2 = service.process_document(doc_id)
+        assert doc2.status == DocumentStatus.READY
+        assert doc2.indexing_status == IndexingStatus.INDEXED
+        active_gen = service.repository.get_active_generation(doc_id)
+
+        # Stale Worker 1 attempts status update with an old generation
+        stale_gen = "gen_stale_12345"
+        with pytest.raises(GenerationMismatchError):
+            service.repository.update_document_status(
+                doc_id,
+                status=DocumentStatus.FAILED,
+                indexing_status=IndexingStatus.FAILED,
+                error_message="Storage file missing: test.txt",
+                generation=stale_gen,
+            )
+
+        # State remains unchanged
+        current = service.repository.get_document(doc_id)
+        assert current is not None
+        assert current.status == DocumentStatus.READY
+        assert current.indexing_status == IndexingStatus.INDEXED
+        assert service.repository.get_active_generation(doc_id) == active_gen

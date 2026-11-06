@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -97,10 +98,12 @@ class Database:
 
         # For in-memory databases, maintain an open connection so data persists
         self._memory_connection: sqlite3.Connection | None = None
+        self._memory_lock = threading.RLock()
         if self._is_memory:
             self._memory_connection = self._create_connection()
 
         self._closed = False
+        self._transaction_lock = threading.RLock()
         self.initialize_schema()
 
     @property
@@ -139,7 +142,8 @@ class Database:
 
         if self._is_memory:
             assert self._memory_connection is not None
-            yield self._memory_connection
+            with self._memory_lock:
+                yield self._memory_connection
         else:
             conn = self._create_connection()
             try:
@@ -153,14 +157,15 @@ class Database:
 
         Commits on clean exit; rolls back on unhandled exception.
         """
-        with self.get_connection() as conn:
-            conn.execute("BEGIN IMMEDIATE;")
-            try:
-                yield conn
-                conn.execute("COMMIT;")
-            except Exception:
-                conn.execute("ROLLBACK;")
-                raise
+        with self._transaction_lock:
+            with self.get_connection() as conn:
+                conn.execute("BEGIN IMMEDIATE;")
+                try:
+                    yield conn
+                    conn.execute("COMMIT;")
+                except Exception:
+                    conn.execute("ROLLBACK;")
+                    raise
 
     def initialize_schema(self) -> None:
         """Idempotently initialize relational tables and indexes.

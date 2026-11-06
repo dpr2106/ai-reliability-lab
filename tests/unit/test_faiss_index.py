@@ -25,6 +25,7 @@ from reliability_lab.indexing.bm25_index import BM25Retriever
 from reliability_lab.indexing.embeddings import BaseEmbedder
 from reliability_lab.indexing.faiss_index import (
     FaissVectorRetriever,
+    IncompatibleEmbeddingIdentityError,
     _require_faiss,
 )
 
@@ -912,5 +913,43 @@ class TestFormat2AndLegacyLoader:
 
         with pytest.raises(
             IncompatibleEmbeddingIdentityError, match="Chunk manifest hash mismatch"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+    def test_format_2_missing_artifact_digest_fails_closed(self, tmp_path: Path) -> None:
+        """Format 2.0 metadata missing required artifact_digest fails closed."""
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "missing_digest_idx"
+        retriever.save(save_dir)
+
+        meta_file = save_dir / "metadata.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta.pop("artifact_digest")
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="missing required 'artifact_digest'"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+    def test_format_2_missing_chunk_manifest_fails_closed(self, tmp_path: Path) -> None:
+        """Format 2.0 metadata missing required chunk_manifest_hash fails closed."""
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "missing_manifest_idx"
+        retriever.save(save_dir)
+
+        meta_file = save_dir / "metadata.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        meta.pop("chunk_manifest_hash")
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="missing required 'chunk_manifest_hash'"
         ):
             FaissVectorRetriever.load(save_dir, embedder=embedder)

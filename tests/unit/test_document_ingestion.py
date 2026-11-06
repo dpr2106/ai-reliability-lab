@@ -5,7 +5,9 @@ from __future__ import annotations
 import io
 import json
 import shutil
+import threading
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pymupdf
@@ -540,8 +542,6 @@ class TestDocumentIngestionService:
         if storage_file.exists():
             storage_file.unlink()
         if index_dir.exists():
-            import shutil
-
             shutil.rmtree(index_dir)
 
         # delete_document should handle cleanly and delete database record
@@ -860,6 +860,9 @@ class TestDocumentIngestionService:
         # Restore valid metadata with correct dimension for the active embedder
         active_embedder = service._embedder or DummyMockEmbedder(16)
         active_dim = active_embedder.embedding_dim
+        doc = service.repository.get_document(rec.doc_id)
+        assert doc is not None and doc.metadata is not None
+        prov = doc.metadata["__embedding_provenance__"]
         meta_file.write_text(
             json.dumps(
                 {
@@ -869,6 +872,8 @@ class TestDocumentIngestionService:
                     "index_type": "flat",
                     "normalize": True,
                     "chunks": {},
+                    "artifact_digest": prov["artifact_digest"],
+                    "chunk_manifest_hash": prov["chunk_manifest_hash"],
                 }
             ),
             encoding="utf-8",
@@ -1026,6 +1031,9 @@ class TestDocumentIngestionService:
         active_dim = active_embedder.embedding_dim
         real_chunks = service.repository.get_chunks(rec.doc_id)
         chunks_dict = {str(i): c.to_dict() for i, c in enumerate(real_chunks)}
+        doc = service.repository.get_document(rec.doc_id)
+        assert doc is not None and doc.metadata is not None
+        prov = doc.metadata["__embedding_provenance__"]
         meta_file.write_text(
             json.dumps(
                 {
@@ -1035,6 +1043,8 @@ class TestDocumentIngestionService:
                     "index_type": "flat",
                     "normalize": True,
                     "chunks": chunks_dict,
+                    "artifact_digest": prov["artifact_digest"],
+                    "chunk_manifest_hash": prov["chunk_manifest_hash"],
                 }
             ),
             encoding="utf-8",
@@ -1325,3 +1335,212 @@ class TestDocumentIngestionService:
         assert current.status == DocumentStatus.READY
         assert current.indexing_status == IndexingStatus.INDEXED
         assert service.repository.get_active_generation(doc_id) == active_gen
+
+    def test_get_faiss_retriever_missing_provenance_fields_fail_closed(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Missing artifact_digest or chunk_manifest_hash in database provenance fails closed."""
+        stream = io.BytesIO(b"Document content for missing provenance field checks.")
+        rec = service.save_upload_stream("prov_fields_test.txt", stream)
+        service.process_document(rec.doc_id)
+
+        # 1. Pop artifact_digest from trusted provenance
+        doc = service.repository.get_document(rec.doc_id)
+        assert doc is not None and doc.metadata is not None
+        orig_prov = dict(doc.metadata["__embedding_provenance__"])
+        orig_digest = orig_prov["artifact_digest"]
+
+        # 1. Pop artifact_digest from trusted provenance
+        prov = dict(orig_prov)
+        prov.pop("artifact_digest")
+        service.repository.set_embedding_provenance(rec.doc_id, prov)
+
+        with pytest.raises(DenseIndexIntegrityError, match="missing required 'artifact_digest'"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # 2. Restore artifact_digest but pop chunk_manifest_hash
+        prov["artifact_digest"] = orig_digest
+        prov.pop("chunk_manifest_hash", None)
+        service.repository.set_embedding_provenance(rec.doc_id, prov)
+
+        with pytest.raises(
+            DenseIndexIntegrityError, match="missing required 'chunk_manifest_hash'"
+        ):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_get_faiss_retriever_missing_metadata_fields_fail_closed(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Missing artifact_digest or chunk_manifest_hash in metadata.json fails closed."""
+        stream = io.BytesIO(b"Document content for metadata missing field checks.")
+        rec = service.save_upload_stream("meta_fields_test.txt", stream)
+        service.process_document(rec.doc_id)
+
+        meta_file = service.index_dir / rec.doc_id / "faiss" / "metadata.json"
+        original_meta = json.loads(meta_file.read_text(encoding="utf-8"))
+
+        # 1. Missing artifact_digest
+        m1 = dict(original_meta)
+        m1.pop("artifact_digest")
+        meta_file.write_text(json.dumps(m1), encoding="utf-8")
+        with pytest.raises(DenseIndexIntegrityError, match="missing required 'artifact_digest'"):
+            service.get_faiss_retriever(rec.doc_id)
+
+        # 2. Missing chunk_manifest_hash
+        m2 = dict(original_meta)
+        m2.pop("chunk_manifest_hash")
+        meta_file.write_text(json.dumps(m2), encoding="utf-8")
+        with pytest.raises(
+            DenseIndexIntegrityError, match="missing required 'chunk_manifest_hash'"
+        ):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_get_faiss_retriever_repository_chunks_tampered_fails_closed(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Tampering with chunks in database repository triggers manifest mismatch."""
+        stream = io.BytesIO(b"Document content for database repository chunk integrity test.")
+        rec = service.save_upload_stream("repo_chunk_tamper.txt", stream)
+        service.process_document(rec.doc_id)
+
+        # Tamper directly with chunk content in the SQLite repository
+        with service.repository._db.transaction() as conn:
+            conn.execute(
+                "UPDATE document_chunks SET content = 'TAMPERED_IN_DB' WHERE doc_id = ?",
+                (rec.doc_id,),
+            )
+
+        with pytest.raises(
+            DenseIndexIntegrityError, match="Repository chunk manifest hash mismatch"
+        ):
+            service.get_faiss_retriever(rec.doc_id)
+
+    def test_save_chunks_and_status_missing_document_fails_closed(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Generation checks on non-existent documents fail closed with KeyError."""
+        with pytest.raises(KeyError, match="document 'nonexistent_doc' not found"):
+            service.repository.save_chunks(
+                "nonexistent_doc",
+                [Chunk(chunk_id="c1", doc_id="nonexistent_doc", content="text")],
+                generation="gen_fake",
+            )
+
+        with pytest.raises(KeyError, match="document 'nonexistent_doc' not found"):
+            service.repository.update_document_status(
+                "nonexistent_doc",
+                status=DocumentStatus.FAILED,
+                generation="gen_fake",
+            )
+
+    def test_remove_embedding_provenance_generation_safety(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Stale worker cannot remove newer worker's embedding provenance."""
+        stream = io.BytesIO(b"Document content for provenance removal safety.")
+        rec = service.save_upload_stream("prov_remove_test.txt", stream)
+        doc = service.process_document(rec.doc_id)
+        active_gen = service.repository.get_active_generation(rec.doc_id)
+        assert active_gen is not None
+        assert doc.metadata is not None
+        orig_prov = doc.metadata["__embedding_provenance__"]
+
+        stale_gen = "gen_stale_99999"
+        with pytest.raises(GenerationMismatchError, match="does not match active generation"):
+            service.repository.remove_embedding_provenance(rec.doc_id, generation=stale_gen)
+
+        current = service.repository.get_document(rec.doc_id)
+        assert current is not None and current.metadata is not None
+        assert current.metadata["__embedding_provenance__"] == orig_prov
+
+    def test_multithreaded_genuinely_overlapping_workers_race_condition(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Truly concurrent overlapping workers: Worker 1 is paused while Worker 2 completes;
+        Worker 1 finishing last cannot overwrite Worker 2's index, state, or provenance."""
+        stream = io.BytesIO(b"Concurrent document content for multi-threaded testing.")
+        rec = service.save_upload_stream("concurrent_workers.txt", stream)
+        doc_id = rec.doc_id
+
+        worker1_started = threading.Event()
+        worker2_finished = threading.Event()
+        worker1_error: list[Exception] = []
+
+        orig_publish = service.repository.publish_embedding_provenance
+
+        def hooked_publish(d_id: str, gen: str, prov: dict[str, Any]) -> None:
+            if threading.current_thread().name == "Worker-1-Thread":
+                worker1_started.set()
+                # Wait until Worker 2 has completely finished
+                worker2_finished.wait(timeout=10.0)
+            orig_publish(d_id, gen, prov)
+
+        service.repository.publish_embedding_provenance = hooked_publish  # type: ignore[method-assign]
+
+        def run_worker1() -> None:
+            try:
+                service.process_document(doc_id)
+            except Exception as e:
+                worker1_error.append(e)
+
+        t1 = threading.Thread(target=run_worker1, name="Worker-1-Thread")
+        t1.start()
+
+        # Wait for Worker 1 to start and reach the publication point
+        assert worker1_started.wait(timeout=10.0)
+
+        # Now Worker 2 runs concurrently and completes processing to READY / INDEXED
+        doc2 = service.process_document(doc_id)
+        assert doc2.status == DocumentStatus.READY
+        assert doc2.indexing_status == IndexingStatus.INDEXED
+        gen2 = service.repository.get_active_generation(doc_id)
+
+        # Now signal Worker 1 to resume and attempt its outdated publish
+        worker2_finished.set()
+        t1.join(timeout=10.0)
+
+        # Worker 1 was superseded: verify final state is still Worker 2's state
+        final_doc = service.repository.get_document(doc_id)
+        assert final_doc is not None and final_doc.metadata is not None
+        assert final_doc.status == DocumentStatus.READY
+        assert final_doc.indexing_status == IndexingStatus.INDEXED
+        assert final_doc.metadata["__active_generation__"] == gen2
+        assert final_doc.metadata["__embedding_provenance__"]["generation"] == gen2
+
+        # Verify FAISS retriever loads Worker 2's index cleanly
+        retriever = service.get_faiss_retriever(doc_id)
+        assert retriever is not None
+        assert retriever.size > 0
+
+    def test_multithreaded_different_documents_independent_concurrency(
+        self, service: DocumentIngestionService
+    ) -> None:
+        """Two different documents can be ingested concurrently without blocking each other."""
+        stream_a = io.BytesIO(b"Document A content for independent concurrency.")
+        stream_b = io.BytesIO(b"Document B content for independent concurrency.")
+        rec_a = service.save_upload_stream("doc_a.txt", stream_a)
+        rec_b = service.save_upload_stream("doc_b.txt", stream_b)
+
+        results: dict[str, DocumentRecord] = {}
+        errors: list[Exception] = []
+
+        def ingest_doc(d_id: str) -> None:
+            try:
+                results[d_id] = service.process_document(d_id)
+            except Exception as e:
+                errors.append(e)
+
+        t_a = threading.Thread(target=ingest_doc, args=(rec_a.doc_id,))
+        t_b = threading.Thread(target=ingest_doc, args=(rec_b.doc_id,))
+
+        t_a.start()
+        t_b.start()
+        t_a.join(timeout=15.0)
+        t_b.join(timeout=15.0)
+
+        assert not errors
+        assert rec_a.doc_id in results and rec_b.doc_id in results
+        assert results[rec_a.doc_id].status == DocumentStatus.READY
+        assert results[rec_b.doc_id].status == DocumentStatus.READY
+        assert results[rec_a.doc_id].indexing_status == IndexingStatus.INDEXED
+        assert results[rec_b.doc_id].indexing_status == IndexingStatus.INDEXED

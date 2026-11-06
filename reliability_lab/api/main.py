@@ -31,6 +31,7 @@ from reliability_lab.api.schemas import (
     CitationAuditQueryItem,
     CitationAuditResponse,
     CompareRequest,
+    CreateSessionRequest,
     DocumentChunkListResponse,
     DocumentDeleteResponse,
     DocumentDetailResponse,
@@ -39,12 +40,19 @@ from reliability_lab.api.schemas import (
     DocumentUploadResponse,
     HealthResponse,
     MalformedCitationSchema,
+    MessageResponse,
     QueryRequest,
     QueryResponse,
     ResolvedCitationSchema,
     RunDetailResponse,
     RunListResponse,
     RunSummarySchema,
+    SessionDeleteResponse,
+    SessionDetailResponse,
+    SessionListResponse,
+    SessionQueryRequest,
+    SessionQueryResponse,
+    SessionSummarySchema,
     UnresolvedCitationSchema,
 )
 from reliability_lab.core.models import Chunk, RetrievalResult
@@ -63,6 +71,11 @@ from reliability_lab.query import (
     DocumentNotFoundError,
     DocumentQueryService,
     UnprocessableDocumentError,
+)
+from reliability_lab.session import (
+    SessionNotFoundError,
+    SessionRepository,
+    SessionService,
 )
 from reliability_lab.storage.regression import (
     IncomparableRunsError,
@@ -110,10 +123,26 @@ def get_query_service(
     return DocumentQueryService(repository=repo, ingestion_service=ingestion)
 
 
+def get_session_repository() -> SessionRepository:
+    """FastAPI dependency providing an active SessionRepository."""
+    db_path = get_db_path()
+    return SessionRepository(db_path)
+
+
+def get_session_service(
+    session_repo: Annotated[SessionRepository, Depends(get_session_repository)],
+    query_service: Annotated[DocumentQueryService, Depends(get_query_service)],
+) -> SessionService:
+    """FastAPI dependency providing an active SessionService."""
+    return SessionService(session_repository=session_repo, query_service=query_service)
+
+
 RepositoryDep = Annotated[ExperimentRepository, Depends(get_repository)]
 DocRepoDep = Annotated[DocumentRepository, Depends(get_document_repository)]
 IngestionServiceDep = Annotated[DocumentIngestionService, Depends(get_ingestion_service)]
 QueryServiceDep = Annotated[DocumentQueryService, Depends(get_query_service)]
+SessionRepoDep = Annotated[SessionRepository, Depends(get_session_repository)]
+SessionServiceDep = Annotated[SessionService, Depends(get_session_service)]
 
 
 def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) -> int:
@@ -729,6 +758,215 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
             ) from exc
 
         return QueryResponse(
+            answer=answer,
+            query_text=trace.query_text,
+            selected_doc_ids=list(trace.selected_doc_ids),
+            strategy=trace.requested_strategy,
+            effective_strategy=trace.effective_strategy,
+            fallback_reason=trace.fallback_reason,
+            abstained=trace.abstained,
+            retrieval_abstained=trace.retrieval_abstained,
+            generation_abstained=trace.generation_abstained,
+            abstention_reason=trace.retrieval_abstention_reason
+            or trace.generation_abstention_reason,
+            resolved_citations=[
+                ResolvedCitationSchema(**c.to_dict()) for c in trace.resolved_citations
+            ],
+            unresolved_citations=[
+                UnresolvedCitationSchema(**c.to_dict()) for c in trace.unresolved_citations
+            ],
+            malformed_citations=[
+                MalformedCitationSchema(**c.to_dict()) for c in trace.malformed_citations
+            ],
+            trace=trace.to_dict(),
+            latency_ms=trace.total_latency_ms,
+        )
+
+    # --------------------------------------------------------------------------
+    # Session Persistence & Conversational Query Endpoints (V2-003 Phase B)
+    # --------------------------------------------------------------------------
+
+    @app.post(
+        "/api/sessions",
+        response_model=SessionDetailResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_session(
+        payload: CreateSessionRequest,
+        service: SessionServiceDep,
+    ) -> SessionDetailResponse:
+        """Create a new conversational session."""
+        try:
+            record = service.create_session(
+                title=payload.title,
+                selected_doc_id=payload.selected_doc_id,
+                metadata=payload.metadata,
+            )
+            return SessionDetailResponse(
+                session_id=record.session_id,
+                title=record.title,
+                created_at=record.created_at,
+                last_activity_at=record.last_activity_at,
+                selected_doc_id=record.selected_doc_id,
+                metadata=record.metadata,
+                message_count=0,
+                messages=[],
+            )
+        except Exception as exc:
+            logger.error("Failed to create session: %s", exc, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An internal server error occurred while creating session.",
+            ) from exc
+
+    @app.get("/api/sessions", response_model=SessionListResponse)
+    def list_sessions(
+        service: SessionServiceDep,
+        limit: int = Query(50, ge=1, le=500, description="Page limit"),
+        offset: int = Query(0, ge=0, description="Page offset"),
+    ) -> SessionListResponse:
+        """List persistent conversation sessions ordered by last activity descending."""
+        sessions, total = service.list_sessions(limit=limit, offset=offset)
+        return SessionListResponse(
+            total=total,
+            limit=limit,
+            offset=offset,
+            sessions=[
+                SessionSummarySchema(
+                    session_id=s.session_id,
+                    title=s.title,
+                    created_at=s.created_at,
+                    last_activity_at=s.last_activity_at,
+                    selected_doc_id=s.selected_doc_id,
+                    message_count=s.message_count,
+                    metadata=s.metadata,
+                )
+                for s in sessions
+            ],
+        )
+
+    @app.get("/api/sessions/{session_id}", response_model=SessionDetailResponse)
+    def get_session(
+        session_id: str,
+        service: SessionServiceDep,
+    ) -> SessionDetailResponse:
+        """Retrieve a single session by ID and its complete message history."""
+        try:
+            record = service.get_session(session_id)
+        except SessionNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+
+        return SessionDetailResponse(
+            session_id=record.session_id,
+            title=record.title,
+            created_at=record.created_at,
+            last_activity_at=record.last_activity_at,
+            selected_doc_id=record.selected_doc_id,
+            metadata=record.metadata,
+            message_count=record.message_count,
+            messages=[
+                MessageResponse(
+                    message_id=m.message_id,
+                    session_id=m.session_id,
+                    role=m.role,
+                    content=m.content,
+                    created_at=m.created_at,
+                    query_config=m.query_config,
+                    resolved_citations=[ResolvedCitationSchema(**c) for c in m.resolved_citations],
+                    unresolved_citations=[
+                        UnresolvedCitationSchema(**c) for c in m.unresolved_citations
+                    ],
+                    malformed_citations=[
+                        MalformedCitationSchema(**c) for c in m.malformed_citations
+                    ],
+                    query_trace=m.query_trace,
+                    provider=m.provider,
+                    model_name=m.model_name,
+                    prompt_tokens=m.prompt_tokens,
+                    completion_tokens=m.completion_tokens,
+                    retrieval_latency_ms=m.retrieval_latency_ms,
+                    generation_latency_ms=m.generation_latency_ms,
+                    total_latency_ms=m.total_latency_ms,
+                )
+                for m in record.messages
+            ],
+        )
+
+    @app.delete("/api/sessions/{session_id}", response_model=SessionDeleteResponse)
+    def delete_session(
+        session_id: str,
+        service: SessionServiceDep,
+    ) -> SessionDeleteResponse:
+        """Delete a conversation session and all its message history."""
+        try:
+            service.delete_session(session_id)
+            return SessionDeleteResponse(deleted=True, session_id=session_id)
+        except SessionNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+
+    @app.post(
+        "/api/sessions/{session_id}/query",
+        response_model=SessionQueryResponse,
+    )
+    def query_session(
+        session_id: str,
+        request: SessionQueryRequest,
+        service: SessionServiceDep,
+    ) -> SessionQueryResponse:
+        """Execute a conversational query turn within a persistent session."""
+        try:
+            answer, trace, user_msg, asst_msg = service.execute_session_query(
+                session_id=session_id,
+                query_text=request.query,
+                document_ids=request.document_ids,
+                strategy=request.strategy,
+                top_k=request.top_k,
+                candidate_depth=request.candidate_depth,
+                min_dense_score=request.min_dense_score,
+                max_history_messages=request.max_history_messages,
+            )
+        except SessionNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except DocumentNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except UnprocessableDocumentError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except DocumentConflictError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except Exception as exc:
+            logger.error("Unexpected error in session query: %s", exc, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An internal server error occurred while executing the session query.",
+            ) from exc
+
+        return SessionQueryResponse(
+            session_id=session_id,
+            user_message_id=user_msg.message_id,
+            assistant_message_id=asst_msg.message_id,
             answer=answer,
             query_text=trace.query_text,
             selected_doc_ids=list(trace.selected_doc_ids),

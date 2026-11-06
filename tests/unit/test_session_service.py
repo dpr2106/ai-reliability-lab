@@ -252,6 +252,39 @@ class TestSessionService:
         assert turn4_messages[2].content == "Answer 2 [CIT-001]."
         assert turn4_messages[3].role == "user"
 
+    def test_bounded_history_zero_messages_suppresses_history(
+        self, service_env: dict[str, Any]
+    ) -> None:
+        """max_history_messages=0 must inject zero prior history turns into prompt."""
+        service: SessionService = service_env["session_service"]
+        llm: MockLLM = service_env["llm"]
+        doc_id = service_env["doc_id"]
+
+        session = service.create_session(title="Zero Bound Test", selected_doc_id=doc_id)
+
+        # Turn 1
+        llm.response_text = "Answer 0 [CIT-001]."
+        service.execute_session_query(
+            session_id=session.session_id,
+            query_text="Question 0 about Alpha?",
+        )
+
+        # Turn 2 with max_history_messages=0
+        llm.response_text = "Answer 1 [CIT-001]."
+        service.execute_session_query(
+            session_id=session.session_id,
+            query_text="Question 1 about Alpha?",
+            max_history_messages=0,
+        )
+
+        turn2_messages = llm.call_history[-1]
+        # Must only have system and current user prompt (no history injected)
+        assert len(turn2_messages) == 2
+        assert turn2_messages[0].role == "system"
+        assert turn2_messages[1].role == "user"
+        assert "Question 1 about Alpha?" in turn2_messages[1].content
+        assert "Question 0" not in turn2_messages[1].content
+
     def test_citation_provenance_strictly_restricted_to_current_query(
         self, service_env: dict[str, Any]
     ) -> None:

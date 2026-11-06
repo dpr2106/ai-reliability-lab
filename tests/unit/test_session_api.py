@@ -315,6 +315,34 @@ class TestSessionApiEndpoints:
         assert turn2_messages[3].role == "user"
         assert "Second question" in turn2_messages[3].content
 
+    def test_session_query_with_max_history_zero_suppresses_context(
+        self, client_env: dict[str, Any]
+    ) -> None:
+        client: TestClient = client_env["client"]
+        llm: ApiTestLLM = client_env["llm"]
+        doc_id = client_env["doc_id"]
+
+        created = client.post(
+            "/api/sessions", json={"title": "Zero History API", "selected_doc_id": doc_id}
+        ).json()
+        sid = created["session_id"]
+
+        # Turn 1
+        client.post(f"/api/sessions/{sid}/query", json={"query": "First question"})
+        # Turn 2 with max_history_messages=0
+        resp = client.post(
+            f"/api/sessions/{sid}/query",
+            json={"query": "Second question", "max_history_messages": 0},
+        )
+        assert resp.status_code == 200
+        assert len(llm.generated_prompts) == 2
+        turn2_messages = llm.generated_prompts[1]
+        assert len(turn2_messages) == 2
+        assert turn2_messages[0].role == "system"
+        assert turn2_messages[1].role == "user"
+        assert "Second question" in turn2_messages[1].content
+        assert "First question" not in turn2_messages[1].content
+
     def test_backward_compatibility_existing_api_query(self, client_env: dict[str, Any]) -> None:
         """The existing synchronous POST /api/query endpoint remains fully functional."""
         client: TestClient = client_env["client"]

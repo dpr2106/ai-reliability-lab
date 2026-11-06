@@ -272,7 +272,7 @@ class SessionRepository:
             sql = """
             SELECT * FROM conversation_messages
             WHERE session_id = ?
-            ORDER BY created_at ASC
+            ORDER BY created_at ASC, rowid ASC
             LIMIT ? OFFSET ?;
             """
             rows = self._db.execute_query(sql, (clean_sid, max(1, limit), max(0, offset)))
@@ -280,7 +280,7 @@ class SessionRepository:
             sql = """
             SELECT * FROM conversation_messages
             WHERE session_id = ?
-            ORDER BY created_at ASC;
+            ORDER BY created_at ASC, rowid ASC;
             """
             rows = self._db.execute_query(sql, (clean_sid,))
 
@@ -292,13 +292,15 @@ class SessionRepository:
         Strictly enforces session isolation: only messages matching exact session_id are retrieved.
         """
         clean_sid = session_id.strip()
-        safe_max = max(1, min(max_messages, 100))
+        if max_messages <= 0:
+            return []
+        safe_max = min(max_messages, 100)
 
         # Fetch latest N messages ordered by created_at DESC, then reverse to chronological order
         sql = """
         SELECT * FROM conversation_messages
         WHERE session_id = ?
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, rowid DESC
         LIMIT ?;
         """
         rows = self._db.execute_query(sql, (clean_sid, safe_max))

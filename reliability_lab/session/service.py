@@ -110,12 +110,14 @@ class SessionService:
 
         # 3. Retrieve bounded conversation context strictly from this session
         history_bound = (
-            max(1, max_history_messages)
+            max(0, max_history_messages)
             if max_history_messages is not None
             else self.default_max_history
         )
-        bounded_history = self.session_repository.get_bounded_history(
-            session_id, max_messages=history_bound
+        bounded_history = (
+            self.session_repository.get_bounded_history(session_id, max_messages=history_bound)
+            if history_bound > 0
+            else []
         )
 
         conversation_context: list[LLMMessage] = []

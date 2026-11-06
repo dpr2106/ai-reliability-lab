@@ -293,3 +293,44 @@ class TestSessionRepository:
 
         # Verify neither message was persisted
         assert repo.get_messages("nonexistent_session") == []
+
+    def test_bounded_history_zero_returns_empty(self, tmp_path: Path) -> None:
+        """Calling get_bounded_history with max_messages <= 0 returns an empty list."""
+        repo = SessionRepository(Database(str(tmp_path / "sessions.db")))
+        session = repo.create_session(title="Zero Messages Test")
+
+        repo.add_message(
+            MessageRecord(
+                message_id="msg_1",
+                session_id=session.session_id,
+                role="user",
+                content="Hello",
+                created_at="2026-11-06T10:00:00Z",
+            )
+        )
+
+        assert repo.get_bounded_history(session.session_id, max_messages=0) == []
+        assert repo.get_bounded_history(session.session_id, max_messages=-1) == []
+
+    def test_identical_timestamps_deterministic_rowid_order(self, tmp_path: Path) -> None:
+        """Messages with identical timestamps must order deterministically by rowid."""
+        repo = SessionRepository(Database(str(tmp_path / "sessions.db")))
+        session = repo.create_session(title="Timestamp Tiebreak Test")
+        same_time = "2026-11-06T10:00:00Z"
+
+        for idx in range(5):
+            repo.add_message(
+                MessageRecord(
+                    message_id=f"msg_{idx}",
+                    session_id=session.session_id,
+                    role="user" if idx % 2 == 0 else "assistant",
+                    content=f"Message {idx}",
+                    created_at=same_time,
+                )
+            )
+
+        messages = repo.get_messages(session.session_id)
+        assert [m.message_id for m in messages] == ["msg_0", "msg_1", "msg_2", "msg_3", "msg_4"]
+
+        bounded = repo.get_bounded_history(session.session_id, max_messages=3)
+        assert [m.message_id for m in bounded] == ["msg_2", "msg_3", "msg_4"]

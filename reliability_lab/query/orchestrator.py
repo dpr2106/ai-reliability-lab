@@ -168,6 +168,7 @@ class DocumentQueryService:
         candidate_depth: int = 60,
         min_dense_score: float | None = None,
         prompt_version: str = "v1",
+        conversation_context: Sequence[LLMMessage] | None = None,
     ) -> tuple[str, QueryTrace]:
         """Execute a document-grounded query, returning the generated answer and immutable trace.
 
@@ -179,6 +180,7 @@ class DocumentQueryService:
             candidate_depth: Number of intermediate candidates to retrieve per retriever.
             min_dense_score: Optional threshold for dense retrieval abstention.
             prompt_version: Template identifier for prompt construction.
+            conversation_context: Optional bounded sequence of previous conversation turns.
 
         Returns:
             Tuple of (answer_text, query_trace).
@@ -505,10 +507,14 @@ class DocumentQueryService:
         )
         sys_prompt_augmented = sys_prompt + STRUCTURED_ABSTENTION_DIRECTIVE
 
-        messages = [
+        messages: list[LLMMessage] = [
             LLMMessage(role="system", content=sys_prompt_augmented),
-            LLMMessage(role="user", content=user_prompt),
         ]
+        if conversation_context:
+            for ctx_msg in conversation_context:
+                if ctx_msg.role in ("user", "assistant"):
+                    messages.append(LLMMessage(role=ctx_msg.role, content=ctx_msg.content))
+        messages.append(LLMMessage(role="user", content=user_prompt))
 
         # LLM Generation
         t_gen_start = time.perf_counter()

@@ -309,3 +309,188 @@ class QueryResponse(BaseModel):
     malformed_citations: list[MalformedCitationSchema]
     trace: dict[str, Any]
     latency_ms: float
+
+
+class CreateSessionRequest(BaseModel):
+    """Payload to create a new conversational session."""
+
+    title: str | None = Field(None, description="Optional title or label for the session")
+    selected_doc_id: str | None = Field(
+        None, description="Optional default document scope ID for queries in this session"
+    )
+    metadata: dict[str, Any] | None = Field(
+        None, description="Optional user-provided session metadata"
+    )
+
+    @field_validator("title", "selected_doc_id")
+    @classmethod
+    def validate_clean_strings(cls, v: str | None) -> str | None:
+        if v is not None:
+            if isinstance(v, bool):
+                raise ValueError("String field cannot be a boolean.")
+            s = v.strip()
+            return s if s else None
+        return None
+
+
+class SessionSummarySchema(BaseModel):
+    """Summary of a conversational session."""
+
+    session_id: str
+    title: str | None = None
+    created_at: str
+    last_activity_at: str
+    selected_doc_id: str | None = None
+    message_count: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SessionListResponse(BaseModel):
+    """Paginated list of conversation sessions."""
+
+    total: int
+    limit: int
+    offset: int
+    sessions: list[SessionSummarySchema]
+
+
+class MessageResponse(BaseModel):
+    """Full detail of a persisted conversational message turn."""
+
+    message_id: str
+    session_id: str
+    role: str
+    content: str
+    created_at: str
+    query_config: dict[str, Any] | None = None
+    resolved_citations: list[ResolvedCitationSchema] = Field(default_factory=list)
+    unresolved_citations: list[UnresolvedCitationSchema] = Field(default_factory=list)
+    malformed_citations: list[MalformedCitationSchema] = Field(default_factory=list)
+    query_trace: dict[str, Any] | None = None
+    provider: str | None = None
+    model_name: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    retrieval_latency_ms: float | None = None
+    generation_latency_ms: float | None = None
+    total_latency_ms: float | None = None
+
+
+class SessionDetailResponse(BaseModel):
+    """Detailed view of a conversation session including full message history."""
+
+    session_id: str
+    title: str | None = None
+    created_at: str
+    last_activity_at: str
+    selected_doc_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    message_count: int = 0
+    messages: list[MessageResponse] = Field(default_factory=list)
+
+
+class SessionDeleteResponse(BaseModel):
+    """Response returned upon successful session deletion."""
+
+    deleted: bool = True
+    session_id: str
+
+
+class SessionQueryRequest(BaseModel):
+    """Request payload for querying within a persistent conversation session."""
+
+    query: str = Field(..., min_length=1, description="User question or follow-up prompt")
+    document_ids: list[str] | None = Field(
+        None, description="Optional document IDs to scope query to (defaults to session doc scope)"
+    )
+    strategy: str = Field("hybrid", description="Retrieval strategy: 'bm25', 'dense', or 'hybrid'")
+    top_k: int = Field(5, ge=1, le=50, description="Final evidence chunk limit for generation")
+    candidate_depth: int = Field(
+        60, ge=1, le=500, description="Intermediate retrieval candidate fetch depth"
+    )
+    min_dense_score: float | None = Field(
+        None, description="Optional dense retrieval abstention threshold"
+    )
+    max_history_messages: int = Field(
+        10,
+        ge=0,
+        le=100,
+        description="Maximum number of previous messages to include as bounded context",
+    )
+
+    @field_validator("top_k", "candidate_depth", "max_history_messages", mode="before")
+    @classmethod
+    def validate_int_not_bool(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            raise ValueError("Integer field cannot be a boolean.")
+        return v
+
+    @field_validator("min_dense_score", mode="before")
+    @classmethod
+    def validate_float_not_bool(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            raise ValueError("min_dense_score cannot be a boolean.")
+        return v
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        if isinstance(v, bool):
+            raise ValueError("query cannot be a boolean.")
+        s = v.strip()
+        if not s:
+            raise ValueError("query must be a non-empty string.")
+        return s
+
+    @field_validator("document_ids")
+    @classmethod
+    def validate_document_ids(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        cleaned: list[str] = []
+        for d in v:
+            if not isinstance(d, str) or isinstance(d, bool) or not d.strip():
+                raise ValueError("document_ids must not contain empty or whitespace-only strings.")
+            cleaned.append(d.strip())
+        return list(dict.fromkeys(cleaned))
+
+    @field_validator("min_dense_score")
+    @classmethod
+    def validate_min_dense_score(cls, v: float | None) -> float | None:
+        if v is not None:
+            if isinstance(v, bool):
+                raise ValueError("min_dense_score cannot be a boolean.")
+            if not math.isfinite(v):
+                raise ValueError("min_dense_score must be a finite float (not NaN or Inf).")
+        return v
+
+    @field_validator("strategy")
+    @classmethod
+    def validate_strategy(cls, v: str) -> str:
+        s = v.strip().lower()
+        if s not in ("bm25", "dense", "hybrid"):
+            raise ValueError(f"Invalid strategy '{v}'. Must be 'bm25', 'dense', or 'hybrid'.")
+        return s
+
+
+class SessionQueryResponse(BaseModel):
+    """Structured response container for a conversational query turn within a session."""
+
+    session_id: str
+    user_message_id: str
+    assistant_message_id: str
+    answer: str
+    query_text: str
+    selected_doc_ids: list[str]
+    strategy: str
+    effective_strategy: str
+    fallback_reason: str | None = None
+    abstained: bool
+    retrieval_abstained: bool
+    generation_abstained: bool
+    abstention_reason: str | None = None
+    resolved_citations: list[ResolvedCitationSchema]
+    unresolved_citations: list[UnresolvedCitationSchema]
+    malformed_citations: list[MalformedCitationSchema]
+    trace: dict[str, Any]
+    latency_ms: float

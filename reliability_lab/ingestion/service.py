@@ -39,6 +39,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 ALLOWED_EXTENSIONS: set[str] = {".pdf", ".txt", ".md", ".markdown"}
 
+# Process-wide shared per-document lock registry across all DocumentIngestionService
+# instances in the same process, keyed by (resolved_index_dir, doc_id).
+_SHARED_DOC_LOCKS: dict[tuple[Path, str], threading.RLock] = {}
+_SHARED_LOCKS_MUTEX = threading.Lock()
+
+
+def clear_shared_doc_locks() -> None:
+    """Clear the shared in-process document lock registry (for test isolation)."""
+    with _SHARED_LOCKS_MUTEX:
+        _SHARED_DOC_LOCKS.clear()
+
 
 class IngestionError(Exception):
     """Base exception for document ingestion and upload errors."""
@@ -103,15 +114,21 @@ class DocumentIngestionService:
 
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.index_dir.mkdir(parents=True, exist_ok=True)
-        self._doc_locks: dict[str, threading.RLock] = {}
-        self._locks_mutex = threading.Lock()
 
     def _get_doc_lock(self, doc_id: str) -> threading.RLock:
-        """Acquire or create a per-document synchronization re-entrant lock."""
-        with self._locks_mutex:
-            if doc_id not in self._doc_locks:
-                self._doc_locks[doc_id] = threading.RLock()
-            return self._doc_locks[doc_id]
+        """Acquire or create a shared per-document synchronization re-entrant lock.
+
+        Locks are keyed by (resolved_index_dir, doc_id) and shared across all
+        DocumentIngestionService instances within the same process. This guarantees
+        that concurrent requests (e.g., separate service instances created per FastAPI
+        request) coordinate atomic generation claiming, filesystem cleanup, and
+        index publication safely without deadlocks or races.
+        """
+        key = (self.index_dir.resolve(), doc_id)
+        with _SHARED_LOCKS_MUTEX:
+            if key not in _SHARED_DOC_LOCKS:
+                _SHARED_DOC_LOCKS[key] = threading.RLock()
+            return _SHARED_DOC_LOCKS[key]
 
     def validate_file_header(self, filename: str, first_bytes: bytes) -> str:
         """Validate file extension and magic byte signatures.
@@ -310,35 +327,35 @@ class DocumentIngestionService:
         if record is None:
             raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
 
-        # Invalidate prior provenance and create new generation in SQLite FIRST
-        generation = self.repository.create_ingestion_generation(doc_id)
-
         storage_path = Path(record.storage_path)
         if not storage_path.is_file():
-            # Invalidate state in SQLite with generation ownership
-            try:
-                self.repository.update_document_status(
-                    doc_id,
-                    status=DocumentStatus.FAILED,
-                    indexing_status=IndexingStatus.FAILED,
-                    error_message=f"Storage file missing: {storage_path.name}",
-                    generation=generation,
-                )
-                self._cleanup_faiss_dir(doc_id, generation=generation)
-            except GenerationMismatchError:
-                logger.warning("Worker superseded during storage file validation for %s", doc_id)
+            # Invalidate state in SQLite with generation ownership under lock
+            with self._get_doc_lock(doc_id):
+                generation = self.repository.create_ingestion_generation(doc_id)
+                try:
+                    self.repository.update_document_status(
+                        doc_id,
+                        status=DocumentStatus.FAILED,
+                        indexing_status=IndexingStatus.FAILED,
+                        error_message=f"Storage file missing: {storage_path.name}",
+                        generation=generation,
+                    )
+                    self._cleanup_faiss_dir(doc_id, generation=generation)
+                except GenerationMismatchError:
+                    logger.warning(
+                        "Worker superseded during storage file validation for %s", doc_id
+                    )
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
         try:
-            # 1. EXTRACTING & Cleanup previous state under generation ownership
-            self._cleanup_faiss_dir(doc_id, generation=generation)
-            doc_index_dir = self.index_dir / doc_id
-            bm25_file = doc_index_dir / "bm25_chunks.json"
-            if bm25_file.exists():
-                with self._get_doc_lock(doc_id):
-                    active_gen = self.repository.get_active_generation(doc_id)
-                    if active_gen == generation:
-                        bm25_file.unlink(missing_ok=True)
+            # 1. EXTRACTING & Cleanup previous state under generation ownership and document lock
+            with self._get_doc_lock(doc_id):
+                generation = self.repository.create_ingestion_generation(doc_id)
+                self._cleanup_faiss_dir(doc_id, generation=generation)
+                doc_index_dir = self.index_dir / doc_id
+                bm25_file = doc_index_dir / "bm25_chunks.json"
+                if bm25_file.exists():
+                    bm25_file.unlink(missing_ok=True)
 
             try:
                 document: Document
@@ -604,6 +621,8 @@ class DocumentIngestionService:
             )
             if "faiss_tmp" in locals() and faiss_tmp.exists():
                 shutil.rmtree(faiss_tmp, ignore_errors=True)
+            if "bm25_tmp_file" in locals() and bm25_tmp_file.exists():
+                bm25_tmp_file.unlink(missing_ok=True)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
         except Exception as unhandled_exc:
             logger.exception("Unexpected error processing document %s: %s", doc_id, unhandled_exc)

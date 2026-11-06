@@ -7,7 +7,6 @@ import json
 import shutil
 import threading
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pymupdf
@@ -27,6 +26,7 @@ from reliability_lab.ingestion.service import (
     IngestionError,
     InvalidDocumentFormatError,
     UploadSizeLimitExceededError,
+    clear_shared_doc_locks,
 )
 from reliability_lab.ingestion.text_parser import InvalidTextDocumentError, TextDocumentParser
 from reliability_lab.storage.database import Database
@@ -61,6 +61,22 @@ class DummyMockEmbedder(BaseEmbedder):
                 vec = vec / norm
             vectors.append(vec)
         return np.vstack(vectors).astype(np.float32)
+
+
+class ControllableEmbedder(DummyMockEmbedder):
+    """Embedder with explicit synchronization barriers for deterministic concurrency tests."""
+
+    def __init__(self, dim: int = 16) -> None:
+        super().__init__(dim=dim)
+        self.started_event = threading.Event()
+        self.resume_event = threading.Event()
+        self.enabled = False
+
+    def embed_texts(self, texts: list[str] | tuple[str, ...], batch_size: int = 32) -> np.ndarray:
+        if self.enabled:
+            self.started_event.set()
+            assert self.resume_event.wait(timeout=10.0), "Worker resume event timed out"
+        return super().embed_texts(texts, batch_size)
 
 
 def create_sample_pdf(content: str = "This is a test PDF document for ingestion.") -> bytes:
@@ -1454,28 +1470,25 @@ class TestDocumentIngestionService:
         assert current.metadata["__embedding_provenance__"] == orig_prov
 
     def test_multithreaded_genuinely_overlapping_workers_race_condition(
-        self, service: DocumentIngestionService
+        self, tmp_path: Path
     ) -> None:
         """Truly concurrent overlapping workers: Worker 1 is paused while Worker 2 completes;
         Worker 1 finishing last cannot overwrite Worker 2's index, state, or provenance."""
+        db = Database(str(tmp_path / "overlap.db"))
+        repo = DocumentRepository(db)
+        embedder = ControllableEmbedder(dim=16)
+        service = DocumentIngestionService(
+            repository=repo,
+            storage_dir=tmp_path / "documents",
+            index_dir=tmp_path / "indexes",
+            embedder=embedder,
+        )
+
         stream = io.BytesIO(b"Concurrent document content for multi-threaded testing.")
         rec = service.save_upload_stream("concurrent_workers.txt", stream)
         doc_id = rec.doc_id
 
-        worker1_started = threading.Event()
-        worker2_finished = threading.Event()
         worker1_error: list[Exception] = []
-
-        orig_publish = service.repository.publish_embedding_provenance
-
-        def hooked_publish(d_id: str, gen: str, prov: dict[str, Any]) -> None:
-            if threading.current_thread().name == "Worker-1-Thread":
-                worker1_started.set()
-                # Wait until Worker 2 has completely finished
-                worker2_finished.wait(timeout=10.0)
-            orig_publish(d_id, gen, prov)
-
-        service.repository.publish_embedding_provenance = hooked_publish  # type: ignore[method-assign]
 
         def run_worker1() -> None:
             try:
@@ -1483,21 +1496,26 @@ class TestDocumentIngestionService:
             except Exception as e:
                 worker1_error.append(e)
 
+        embedder.enabled = True
         t1 = threading.Thread(target=run_worker1, name="Worker-1-Thread")
         t1.start()
 
-        # Wait for Worker 1 to start and reach the publication point
-        assert worker1_started.wait(timeout=10.0)
+        # Assert Worker 1 started and reached embedding step without lock
+        assert embedder.started_event.wait(timeout=5.0) is True
 
         # Now Worker 2 runs concurrently and completes processing to READY / INDEXED
+        # Disable hook so Worker 2 completes without pausing
+        embedder.enabled = False
         doc2 = service.process_document(doc_id)
         assert doc2.status == DocumentStatus.READY
         assert doc2.indexing_status == IndexingStatus.INDEXED
         gen2 = service.repository.get_active_generation(doc_id)
 
         # Now signal Worker 1 to resume and attempt its outdated publish
-        worker2_finished.set()
-        t1.join(timeout=10.0)
+        embedder.resume_event.set()
+        t1.join(timeout=5.0)
+        assert not t1.is_alive()
+        assert not worker1_error
 
         # Worker 1 was superseded: verify final state is still Worker 2's state
         final_doc = service.repository.get_document(doc_id)
@@ -1511,6 +1529,196 @@ class TestDocumentIngestionService:
         retriever = service.get_faiss_retriever(doc_id)
         assert retriever is not None
         assert retriever.size > 0
+
+    def test_cross_instance_concurrency_overlapping_workers(self, tmp_path: Path) -> None:
+        """Cross-instance concurrency: two independent DocumentIngestionService instances
+        with separate DocumentRepository objects sharing the same SQLite DB file and index dir.
+        A stale worker from service1 finishing last cannot overwrite service2's newer generation.
+        """
+        clear_shared_doc_locks()
+        db_path = tmp_path / "cross_instance.db"
+        storage_dir = tmp_path / "cross_storage"
+        index_dir = tmp_path / "cross_indexes"
+
+        repo1 = DocumentRepository(Database(str(db_path)))
+        repo2 = DocumentRepository(Database(str(db_path)))
+
+        embedder1 = ControllableEmbedder(dim=16)
+        embedder2 = DummyMockEmbedder(dim=16)
+
+        service1 = DocumentIngestionService(
+            repository=repo1,
+            storage_dir=storage_dir,
+            index_dir=index_dir,
+            embedder=embedder1,
+        )
+        service2 = DocumentIngestionService(
+            repository=repo2,
+            storage_dir=storage_dir,
+            index_dir=index_dir,
+            embedder=embedder2,
+        )
+
+        assert service1 is not service2
+        assert service1.repository is not service2.repository
+
+        stream = io.BytesIO(b"Shared file content for cross-instance overlapping test.")
+        rec = service1.save_upload_stream("cross_test.txt", stream)
+        doc_id = rec.doc_id
+
+        worker1_error: list[Exception] = []
+
+        def run_worker1() -> None:
+            try:
+                service1.process_document(doc_id)
+            except Exception as e:
+                worker1_error.append(e)
+
+        embedder1.enabled = True
+        t1 = threading.Thread(target=run_worker1, name="Worker-1-Cross-Instance")
+        t1.start()
+
+        # Wait for Worker 1 to reach embedding computation
+        assert embedder1.started_event.wait(timeout=5.0) is True
+
+        # Worker 2 processes the document on a completely separate service instance to completion
+        doc2 = service2.process_document(doc_id)
+        assert doc2.status == DocumentStatus.READY
+        assert doc2.indexing_status == IndexingStatus.INDEXED
+        gen2 = repo2.get_active_generation(doc_id)
+        assert gen2 is not None
+
+        # Signal Worker 1 to resume and attempt to publish its stale generation
+        embedder1.resume_event.set()
+        t1.join(timeout=5.0)
+        assert not t1.is_alive()
+        assert not worker1_error
+
+        # Stale worker 1 was superseded: verify final state is still Worker 2's state
+        final_doc = repo2.get_document(doc_id)
+        assert final_doc is not None and final_doc.metadata is not None
+        assert final_doc.status == DocumentStatus.READY
+        assert final_doc.indexing_status == IndexingStatus.INDEXED
+        assert final_doc.metadata["__active_generation__"] == gen2
+        assert final_doc.metadata["__embedding_provenance__"]["generation"] == gen2
+
+        # Both service instances load Worker 2's FAISS index successfully
+        retriever2 = service2.get_faiss_retriever(doc_id)
+        assert retriever2 is not None and retriever2.size > 0
+
+        retriever1 = service1.get_faiss_retriever(doc_id)
+        assert retriever1 is not None and retriever1.size > 0
+
+    def test_cross_instance_independent_concurrency_different_documents(
+        self, tmp_path: Path
+    ) -> None:
+        """Two separate DocumentIngestionService instances can process different documents
+        concurrently without blocking or cross-talk."""
+        clear_shared_doc_locks()
+        db_path = tmp_path / "cross_diff.db"
+        storage_dir = tmp_path / "cross_storage"
+        index_dir = tmp_path / "cross_indexes"
+
+        repo1 = DocumentRepository(Database(str(db_path)))
+        repo2 = DocumentRepository(Database(str(db_path)))
+
+        service1 = DocumentIngestionService(
+            repository=repo1,
+            storage_dir=storage_dir,
+            index_dir=index_dir,
+            embedder=DummyMockEmbedder(16),
+        )
+        service2 = DocumentIngestionService(
+            repository=repo2,
+            storage_dir=storage_dir,
+            index_dir=index_dir,
+            embedder=DummyMockEmbedder(16),
+        )
+
+        stream_a = io.BytesIO(b"Document A content for independent concurrency.")
+        stream_b = io.BytesIO(b"Document B content for independent concurrency.")
+        rec_a = service1.save_upload_stream("doc_a.txt", stream_a)
+        rec_b = service2.save_upload_stream("doc_b.txt", stream_b)
+
+        results: dict[str, DocumentRecord] = {}
+        errors: list[Exception] = []
+
+        def worker_a() -> None:
+            try:
+                results[rec_a.doc_id] = service1.process_document(rec_a.doc_id)
+            except Exception as e:
+                errors.append(e)
+
+        def worker_b() -> None:
+            try:
+                results[rec_b.doc_id] = service2.process_document(rec_b.doc_id)
+            except Exception as e:
+                errors.append(e)
+
+        t_a = threading.Thread(target=worker_a)
+        t_b = threading.Thread(target=worker_b)
+        t_a.start()
+        t_b.start()
+        t_a.join(timeout=10.0)
+        t_b.join(timeout=10.0)
+
+        assert not errors
+        assert rec_a.doc_id in results and rec_b.doc_id in results
+        assert results[rec_a.doc_id].status == DocumentStatus.READY
+        assert results[rec_b.doc_id].status == DocumentStatus.READY
+        assert results[rec_a.doc_id].indexing_status == IndexingStatus.INDEXED
+        assert results[rec_b.doc_id].indexing_status == IndexingStatus.INDEXED
+
+    def test_cross_instance_lock_identity_and_isolation(self, tmp_path: Path) -> None:
+        """Verify lock sharing across service instances for the same document and index_dir,
+        and isolation across different documents and different index dirs."""
+        clear_shared_doc_locks()
+        idx_dir_1 = tmp_path / "idx1"
+        idx_dir_2 = tmp_path / "idx2"
+        db = Database(str(tmp_path / "lock_test.db"))
+        repo = DocumentRepository(db)
+
+        svc1 = DocumentIngestionService(repository=repo, index_dir=idx_dir_1)
+        svc2 = DocumentIngestionService(repository=repo, index_dir=idx_dir_1)
+        svc3 = DocumentIngestionService(repository=repo, index_dir=idx_dir_2)
+
+        # 1. Same index_dir, same doc_id -> identical lock instance
+        assert svc1._get_doc_lock("doc_alpha") is svc2._get_doc_lock("doc_alpha")
+
+        # 2. Same index_dir, different doc_id -> distinct lock instances
+        assert svc1._get_doc_lock("doc_alpha") is not svc1._get_doc_lock("doc_beta")
+        assert svc1._get_doc_lock("doc_alpha") is not svc2._get_doc_lock("doc_beta")
+
+        # 3. Different index_dir, same doc_id -> distinct lock instances
+        assert svc1._get_doc_lock("doc_alpha") is not svc3._get_doc_lock("doc_alpha")
+
+    def test_fastapi_dependency_lifecycle_shares_per_document_locks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FastAPI get_ingestion_service() dependency creates new service instances per request
+        that safely share the same per-document lock registry."""
+        clear_shared_doc_locks()
+        monkeypatch.setenv("RELIABILITY_LAB_STORAGE", str(tmp_path / "storage"))
+        monkeypatch.setenv("RELIABILITY_LAB_INDEXES", str(tmp_path / "indexes"))
+        monkeypatch.setenv("RELIABILITY_LAB_DB", str(tmp_path / "api_test.db"))
+
+        from reliability_lab.api.main import get_ingestion_service
+
+        svc1 = get_ingestion_service()
+        svc2 = get_ingestion_service()
+
+        # Distinct instances created per request injection
+        assert svc1 is not svc2
+        assert svc1.repository is not svc2.repository
+
+        # But document locks are shared for the same document
+        lock1 = svc1._get_doc_lock("doc_lifecycle")
+        lock2 = svc2._get_doc_lock("doc_lifecycle")
+        assert lock1 is lock2
+
+        # Distinct for different documents
+        lock3 = svc1._get_doc_lock("doc_lifecycle_other")
+        assert lock1 is not lock3
 
     def test_multithreaded_different_documents_independent_concurrency(
         self, service: DocumentIngestionService

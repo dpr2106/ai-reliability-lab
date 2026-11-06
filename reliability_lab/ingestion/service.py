@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -102,6 +103,15 @@ class DocumentIngestionService:
 
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.index_dir.mkdir(parents=True, exist_ok=True)
+        self._doc_locks: dict[str, threading.RLock] = {}
+        self._locks_mutex = threading.Lock()
+
+    def _get_doc_lock(self, doc_id: str) -> threading.RLock:
+        """Acquire or create a per-document synchronization re-entrant lock."""
+        with self._locks_mutex:
+            if doc_id not in self._doc_locks:
+                self._doc_locks[doc_id] = threading.RLock()
+            return self._doc_locks[doc_id]
 
     def validate_file_header(self, filename: str, first_bytes: bytes) -> str:
         """Validate file extension and magic byte signatures.
@@ -253,33 +263,34 @@ class DocumentIngestionService:
               masking underlying extraction/chunking/indexing exceptions.
             - Calling this method is idempotent and retryable.
         """
-        if generation is not None:
-            active_gen = self.repository.get_active_generation(doc_id)
-            if active_gen is not None and active_gen != generation:
-                logger.info(
-                    "Skipping FAISS cleanup for document '%s': worker generation '%s' "
-                    "does not match active generation '%s'.",
+        with self._get_doc_lock(doc_id):
+            if generation is not None:
+                active_gen = self.repository.get_active_generation(doc_id)
+                if active_gen is not None and active_gen != generation:
+                    logger.info(
+                        "Skipping FAISS cleanup for document '%s': worker generation '%s' "
+                        "does not match active generation '%s'.",
+                        doc_id,
+                        generation,
+                        active_gen,
+                    )
+                    return False
+
+            faiss_dir = self.index_dir / doc_id / "faiss"
+            if not faiss_dir.exists():
+                return True
+
+            try:
+                shutil.rmtree(faiss_dir)
+                logger.info("Cleaned up FAISS index directory for document '%s'", doc_id)
+                return True
+            except Exception as exc:
+                logger.error(
+                    "Failed to remove FAISS index directory for document '%s': %s",
                     doc_id,
-                    generation,
-                    active_gen,
+                    exc,
                 )
                 return False
-
-        faiss_dir = self.index_dir / doc_id / "faiss"
-        if not faiss_dir.exists():
-            return True
-
-        try:
-            shutil.rmtree(faiss_dir)
-            logger.info("Cleaned up FAISS index directory for document '%s'", doc_id)
-            return True
-        except Exception as exc:
-            logger.error(
-                "Failed to remove FAISS index directory for document '%s': %s",
-                doc_id,
-                exc,
-            )
-            return False
 
     def _cleanup_faiss_dir(self, doc_id: str, generation: str | None = None) -> bool:
         """Backward-compatible alias for cleanup_faiss_index."""
@@ -299,27 +310,35 @@ class DocumentIngestionService:
         if record is None:
             raise DocumentNotFoundError(f"Document '{doc_id}' not found.")
 
+        # Invalidate prior provenance and create new generation in SQLite FIRST
+        generation = self.repository.create_ingestion_generation(doc_id)
+
         storage_path = Path(record.storage_path)
         if not storage_path.is_file():
-            # Invalidate state in SQLite FIRST before filesystem cleanup
-            self.repository.update_document_status(
-                doc_id,
-                status=DocumentStatus.FAILED,
-                indexing_status=IndexingStatus.FAILED,
-                error_message=f"Storage file missing: {storage_path.name}",
-            )
-            self._cleanup_faiss_dir(doc_id)
+            # Invalidate state in SQLite with generation ownership
+            try:
+                self.repository.update_document_status(
+                    doc_id,
+                    status=DocumentStatus.FAILED,
+                    indexing_status=IndexingStatus.FAILED,
+                    error_message=f"Storage file missing: {storage_path.name}",
+                    generation=generation,
+                )
+                self._cleanup_faiss_dir(doc_id, generation=generation)
+            except GenerationMismatchError:
+                logger.warning("Worker superseded during storage file validation for %s", doc_id)
             return self.repository.get_document(doc_id)  # type: ignore[return-value]
 
         try:
-            # 1. EXTRACTING & Ingestion Generation Initialization
-            # Invalidate prior provenance and create new generation in SQLite FIRST
-            generation = self.repository.create_ingestion_generation(doc_id)
+            # 1. EXTRACTING & Cleanup previous state under generation ownership
             self._cleanup_faiss_dir(doc_id, generation=generation)
             doc_index_dir = self.index_dir / doc_id
             bm25_file = doc_index_dir / "bm25_chunks.json"
             if bm25_file.exists():
-                bm25_file.unlink(missing_ok=True)
+                with self._get_doc_lock(doc_id):
+                    active_gen = self.repository.get_active_generation(doc_id)
+                    if active_gen == generation:
+                        bm25_file.unlink(missing_ok=True)
 
             try:
                 document: Document
@@ -415,7 +434,7 @@ class DocumentIngestionService:
 
             # 3a. Persist BM25 Index Chunks atomically
             bm25_chunks_file = doc_index_dir / "bm25_chunks.json"
-            bm25_tmp_file = doc_index_dir / "bm25_chunks.json.tmp"
+            bm25_tmp_file = doc_index_dir / f"bm25_chunks_{generation}.json.tmp"
             bm25_indexing_ok = False
             try:
                 chunks_json = [c.to_dict() for c in chunks]
@@ -423,8 +442,19 @@ class DocumentIngestionService:
                     json.dumps(chunks_json, indent=2, ensure_ascii=False),
                     encoding="utf-8",
                 )
-                bm25_tmp_file.replace(bm25_chunks_file)
+                with self._get_doc_lock(doc_id):
+                    active_gen = self.repository.get_active_generation(doc_id)
+                    if active_gen != generation:
+                        if bm25_tmp_file.exists():
+                            bm25_tmp_file.unlink(missing_ok=True)
+                        raise GenerationMismatchError(
+                            f"Worker generation '{generation}' does not match active "
+                            f"generation '{active_gen}' before BM25 chunk publish."
+                        )
+                    bm25_tmp_file.replace(bm25_chunks_file)
                 bm25_indexing_ok = True
+            except GenerationMismatchError:
+                raise
             except OSError as exc:
                 logger.error("Failed saving BM25 chunks for %s: %s", doc_id, exc)
                 if bm25_tmp_file.exists():
@@ -470,62 +500,65 @@ class DocumentIngestionService:
                     try:
                         retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
                         retriever.index(chunks)
-                        # Atomic FAISS save via temporary directory
-                        faiss_tmp = doc_index_dir / "faiss_tmp"
+                        # Atomic FAISS save via generation-scoped temporary directory
+                        faiss_tmp = doc_index_dir / f"faiss_tmp_{generation}"
                         if faiss_tmp.exists():
                             shutil.rmtree(faiss_tmp, ignore_errors=True)
                         retriever.save(faiss_tmp)
 
-                        # Check generation BEFORE publishing index directory
-                        active_gen = self.repository.get_active_generation(doc_id)
-                        if active_gen != generation:
-                            if faiss_tmp.exists():
-                                shutil.rmtree(faiss_tmp, ignore_errors=True)
-                            raise GenerationMismatchError(
-                                f"Worker generation '{generation}' does not match active "
-                                f"generation '{active_gen}' before FAISS directory publish."
-                            )
+                        # Synchronized check and atomic replace under per-document lock
+                        with self._get_doc_lock(doc_id):
+                            active_gen = self.repository.get_active_generation(doc_id)
+                            if active_gen != generation:
+                                if faiss_tmp.exists():
+                                    shutil.rmtree(faiss_tmp, ignore_errors=True)
+                                raise GenerationMismatchError(
+                                    f"Worker generation '{generation}' does not match active "
+                                    f"generation '{active_gen}' before FAISS directory publish."
+                                )
 
-                        if faiss_dir.exists():
-                            shutil.rmtree(faiss_dir, ignore_errors=True)
-                        faiss_tmp.rename(faiss_dir)
+                            if faiss_dir.exists():
+                                shutil.rmtree(faiss_dir, ignore_errors=True)
+                            faiss_tmp.rename(faiss_dir)
 
-                        # Record server-controlled provenance only after atomic rename succeeds
-                        try:
-                            index_file = faiss_dir / "index.faiss"
-                            artifact_digest = (
-                                f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
-                            )
-                            chunk_manifest_hash = compute_chunk_manifest_hash(chunks)
-                            provenance = {
-                                "embedding_identity": retriever.embedding_identity.to_dict(),
-                                "artifact_digest": artifact_digest,
-                                "chunk_manifest_hash": chunk_manifest_hash,
-                                "doc_id": doc_id,
-                                "document_content_hash": record.content_hash,
-                                "ingestion_timestamp": datetime.now(timezone.utc).isoformat(),
-                                "generation": generation,
-                            }
-                            self.repository.publish_embedding_provenance(
-                                doc_id, generation, provenance
-                            )
-                            faiss_available = True
-                        except GenerationMismatchError:
-                            raise
-                        except Exception as p_exc:
-                            logger.error(
-                                "Failed recording embedding provenance for %s: %s", doc_id, p_exc
-                            )
-                            self._cleanup_faiss_dir(doc_id, generation=generation)
+                            # Record server-controlled provenance under document lock
                             try:
-                                self.repository.remove_embedding_provenance(doc_id)
-                            except Exception:
-                                pass
-                            index_err_msg = (
-                                f"FAISS dense indexing failed: failed to record provenance"
-                                f" ({p_exc})"
-                            )
-                            faiss_available = False
+                                index_file = faiss_dir / "index.faiss"
+                                artifact_digest = (
+                                    f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+                                )
+                                chunk_manifest_hash = compute_chunk_manifest_hash(chunks)
+                                provenance = {
+                                    "embedding_identity": retriever.embedding_identity.to_dict(),
+                                    "artifact_digest": artifact_digest,
+                                    "chunk_manifest_hash": chunk_manifest_hash,
+                                    "doc_id": doc_id,
+                                    "document_content_hash": record.content_hash,
+                                    "ingestion_timestamp": datetime.now(timezone.utc).isoformat(),
+                                    "generation": generation,
+                                }
+                                self.repository.publish_embedding_provenance(
+                                    doc_id, generation, provenance
+                                )
+                                faiss_available = True
+                            except GenerationMismatchError:
+                                raise
+                            except Exception as p_exc:
+                                logger.error(
+                                    "Failed recording embedding provenance for %s: %s",
+                                    doc_id,
+                                    p_exc,
+                                )
+                                self._cleanup_faiss_dir(doc_id, generation=generation)
+                                try:
+                                    self.repository.remove_embedding_provenance(doc_id)
+                                except Exception:
+                                    pass
+                                index_err_msg = (
+                                    f"FAISS dense indexing failed: failed to record provenance"
+                                    f" ({p_exc})"
+                                )
+                                faiss_available = False
                     except GenerationMismatchError:
                         raise
                     except Exception as exc:
@@ -815,6 +848,28 @@ class DocumentIngestionService:
                     f"Embedding provenance generation mismatch for document '{doc_id}': "
                     f"provenance has '{prov_gen}', active generation is '{active_gen}'."
                 )
+
+        if trusted_provenance is not None:
+            expected_binary_digest = trusted_provenance.get("artifact_digest")
+            if expected_binary_digest is not None:
+                actual_binary_digest = (
+                    f"sha256:{hashlib.sha256(index_file.read_bytes()).hexdigest()}"
+                )
+                if actual_binary_digest != expected_binary_digest:
+                    raise DenseIndexIntegrityError(
+                        f"FAISS index binary artifact digest mismatch for document '{doc_id}': "
+                        f"database provenance has '{expected_binary_digest}', "
+                        f"on-disk file has '{actual_binary_digest}'."
+                    )
+            expected_manifest_hash = trusted_provenance.get("chunk_manifest_hash")
+            if expected_manifest_hash is not None:
+                meta_manifest = meta_content.get("chunk_manifest_hash")
+                if meta_manifest is not None and meta_manifest != expected_manifest_hash:
+                    raise DenseIndexIntegrityError(
+                        f"Chunk manifest hash mismatch in FAISS metadata for document '{doc_id}': "
+                        f"database provenance has '{expected_manifest_hash}', "
+                        f"metadata has '{meta_manifest}'."
+                    )
 
         effective_embedder = embedder or self._embedder
         if effective_embedder is None:

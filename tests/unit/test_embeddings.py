@@ -565,3 +565,66 @@ class TestEmbeddingIdentity:
         assert id_false.faiss_normalize is False
         assert id_true.pipeline_fingerprint != id_false.pipeline_fingerprint
         assert emb.embedding_identity.faiss_normalize is True
+
+    def test_caller_supplied_invalid_artifact_fingerprint_format_rejected(self) -> None:
+        """Malformed caller-supplied artifact_fingerprint is rejected with ValueError."""
+        fake = FakeSentenceTransformer(384)
+        with pytest.raises(ValueError, match="Invalid artifact_fingerprint format"):
+            SentenceTransformerEmbedder(
+                model=fake,
+                artifact_fingerprint="not_a_valid_sha256_format",
+            )
+
+    def test_caller_supplied_mismatched_artifact_fingerprint_rejected(self, tmp_path: Path) -> None:
+        """Caller cannot spoof or override fingerprint for existing valid model assets."""
+        model_dir = tmp_path / "valid_model"
+        model_dir.mkdir()
+        (model_dir / "config.json").write_text('{"dim": 384}', encoding="utf-8")
+        (model_dir / "model.safetensors").write_bytes(b"WEIGHTS_REAL")
+        (model_dir / "vocab.txt").write_text("token", encoding="utf-8")
+
+        fake = FakeSentenceTransformer(384)
+        spoofed_fp = "sha256:" + "f" * 64
+        with pytest.raises(ValueError, match="does not match computed fingerprint"):
+            SentenceTransformerEmbedder(
+                model_name_or_path=str(model_dir),
+                model=fake,
+                artifact_fingerprint=spoofed_fp,
+            )
+
+    def test_caller_supplied_artifact_fingerprint_with_ambiguous_snapshot_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        """Ambiguous snapshot fails closed even if caller attempts to supply a fingerprint."""
+        weights_dir = tmp_path / "weights_only"
+        weights_dir.mkdir()
+        (weights_dir / "config.json").write_text('{"dim": 384}', encoding="utf-8")
+        (weights_dir / "model.safetensors").write_bytes(b"WEIGHTS")
+
+        tokenizer_dir = tmp_path / "tokenizer_only"
+        tokenizer_dir.mkdir()
+        (tokenizer_dir / "vocab.txt").write_text("token", encoding="utf-8")
+
+        class SplitModule:
+            def __init__(self) -> None:
+                class SubModel:
+                    name_or_path = str(weights_dir)
+
+                class SubTokenizer:
+                    name_or_path = str(tokenizer_dir)
+                    vocab_file = str(tokenizer_dir / "vocab.txt")
+
+                self.auto_model = SubModel()
+                self.tokenizer = SubTokenizer()
+
+        class SplitModel(FakeSentenceTransformer):
+            def _first_module(self) -> Any:
+                return SplitModule()
+
+        split_model = SplitModel(384)
+        emb = SentenceTransformerEmbedder(
+            model_name_or_path="custom-split-model",
+            model=split_model,
+            artifact_fingerprint="sha256:" + "0" * 64,
+        )
+        assert emb.artifact_fingerprint == "unavailable:incomplete_or_ambiguous_assets"

@@ -867,3 +867,50 @@ class TestFormat2AndLegacyLoader:
         meta_file.write_text(json.dumps(tampered3), encoding="utf-8")
         with pytest.raises(ValueError, match="missing required 'normalize' key"):
             FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+    def test_format_2_tampered_binary_digest_fails_closed(self, tmp_path: Path) -> None:
+        """Tampering with index.faiss binary file when artifact_digest is recorded fails closed."""
+        from reliability_lab.indexing.faiss_index import IncompatibleEmbeddingIdentityError
+
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "tamper_binary_idx"
+        retriever.save(save_dir)
+
+        # Verify artifact_digest is present in saved metadata
+        meta = json.loads((save_dir / "metadata.json").read_text(encoding="utf-8"))
+        assert "artifact_digest" in meta
+
+        # Corrupt the index.faiss binary
+        index_file = save_dir / "index.faiss"
+        index_file.write_bytes(index_file.read_bytes() + b"\x00\x00\x00\x00")
+
+        with pytest.raises(IncompatibleEmbeddingIdentityError, match="artifact digest mismatch"):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)
+
+    def test_format_2_tampered_chunk_manifest_fails_closed(self, tmp_path: Path) -> None:
+        """Tampering with chunk contents when chunk_manifest_hash is recorded fails closed."""
+        from reliability_lab.indexing.faiss_index import IncompatibleEmbeddingIdentityError
+
+        embedder = DeterministicFakeEmbedder(dim=4)
+        chunks = _make_sample_chunks()
+        retriever = FaissVectorRetriever(embedder=embedder, index_type="flat")
+        retriever.index(chunks)
+        save_dir = tmp_path / "tamper_chunks_idx"
+        retriever.save(save_dir)
+
+        meta_file = save_dir / "metadata.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        assert "chunk_manifest_hash" in meta
+
+        # Tamper with chunk content in metadata
+        first_chunk_key = next(iter(meta["chunks"]))
+        meta["chunks"][first_chunk_key]["content"] = "TAMPERED CONTENT"
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        with pytest.raises(
+            IncompatibleEmbeddingIdentityError, match="Chunk manifest hash mismatch"
+        ):
+            FaissVectorRetriever.load(save_dir, embedder=embedder)

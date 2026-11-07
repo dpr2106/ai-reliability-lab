@@ -310,6 +310,7 @@ class QueryResponse(BaseModel):
     trace: dict[str, Any]
     latency_ms: float
 
+
 class CreateSessionRequest(BaseModel):
     """Payload to create a new conversational session."""
 
@@ -504,11 +505,14 @@ class CreateInvestigationRequest(BaseModel):
     """Payload to initiate a cross-document evidence investigation."""
 
     query: str = Field(..., min_length=1, description="Investigation topic or research question")
-    document_ids: list[str] = Field(..., min_length=1, description="List of document IDs to investigate")
+    document_ids: list[str] = Field(
+        ..., min_length=1, description="List of document IDs to investigate"
+    )
     title: str | None = Field(None, description="Optional custom title for the investigation")
     comparison_aspects: list[str] | None = Field(
         None, description="Optional comparison dimensions/aspects to evaluate across sources"
     )
+    aspects: list[str] | None = Field(None, description="Convenience alias for comparison_aspects")
     run_immediately: bool = Field(
         True, description="Whether to execute the investigation immediately before returning"
     )
@@ -641,4 +645,3 @@ class InvestigationDeleteResponse(BaseModel):
 
     deleted: bool = True
     investigation_id: str
-

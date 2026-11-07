@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 from uuid import uuid4
 
 from reliability_lab.investigation.models import (
-    ComparisonTopic,
     EvidenceFinding,
     InvestigationRecord,
     InvestigationReport,
@@ -105,11 +105,14 @@ class InvestigationRepository:
         document_ids: Sequence[str],
         title: str | None = None,
         comparison_aspects: Sequence[str] | None = None,
+        *,
+        aspects: Sequence[str] | None = None,
     ) -> InvestigationRecord:
         """Create and persist a new investigation entity."""
+        effective_aspects = comparison_aspects if comparison_aspects is not None else aspects
         inv_id = f"inv_{uuid4().hex[:16]}"
         effective_title = (title or query.strip()[:80]).strip()
-        aspects_list = list(comparison_aspects) if comparison_aspects else []
+        aspects_list = list(effective_aspects) if effective_aspects else []
         docs_list = list(document_ids)
         now = datetime.now(timezone.utc).isoformat()
 
@@ -167,11 +170,7 @@ class InvestigationRepository:
             if row.get("comparison_aspects_json")
             else []
         )
-        docs = (
-            json.loads(str(row["document_ids_json"]))
-            if row.get("document_ids_json")
-            else []
-        )
+        docs = json.loads(str(row["document_ids_json"])) if row.get("document_ids_json") else []
 
         return InvestigationRecord(
             investigation_id=str(row["investigation_id"]),
@@ -211,11 +210,7 @@ class InvestigationRepository:
                 if r.get("comparison_aspects_json")
                 else []
             )
-            docs = (
-                json.loads(str(r["document_ids_json"]))
-                if r.get("document_ids_json")
-                else []
-            )
+            docs = json.loads(str(r["document_ids_json"])) if r.get("document_ids_json") else []
             report: InvestigationReport | None = None
             if r.get("report_json"):
                 try:
@@ -247,9 +242,7 @@ class InvestigationRepository:
     ) -> None:
         """Update execution status of an investigation."""
         completed_at = (
-            datetime.now(timezone.utc).isoformat()
-            if status in ("completed", "failed")
-            else None
+            datetime.now(timezone.utc).isoformat() if status in ("completed", "failed") else None
         )
         sql = """
         UPDATE investigations
@@ -262,15 +255,13 @@ class InvestigationRepository:
                 (status, error_message, completed_at, investigation_id.strip()),
             )
             if cursor.rowcount == 0:
-                raise InvestigationNotFoundError(
-                    f"Investigation '{investigation_id}' not found."
-                )
+                raise InvestigationNotFoundError(f"Investigation '{investigation_id}' not found.")
 
     def save_report(
         self,
         investigation_id: str,
         report: InvestigationReport,
-    ) -> None:
+    ) -> InvestigationRecord:
         """Atomically persist complete report and normalized findings."""
         completed_at = report.completed_at or datetime.now(timezone.utc).isoformat()
         report_json = json.dumps(report.to_dict(), ensure_ascii=False)
@@ -295,9 +286,7 @@ class InvestigationRepository:
                 sql_update_inv, (completed_at, report_json, investigation_id.strip())
             )
             if cursor.rowcount == 0:
-                raise InvestigationNotFoundError(
-                    f"Investigation '{investigation_id}' not found."
-                )
+                raise InvestigationNotFoundError(f"Investigation '{investigation_id}' not found.")
 
             # 2. Clear old findings if re-run
             conn.execute(
@@ -328,9 +317,12 @@ class InvestigationRepository:
                         ),
                     )
 
-    def get_findings_for_investigation(
-        self, investigation_id: str
-    ) -> list[EvidenceFinding]:
+        updated = self.get_investigation(investigation_id)
+        if updated is None:
+            raise InvestigationNotFoundError(f"Investigation '{investigation_id}' not found.")
+        return updated
+
+    def get_findings_for_investigation(self, investigation_id: str) -> list[EvidenceFinding]:
         """Fetch all individual findings for an investigation."""
         sql = """
         SELECT * FROM investigation_findings

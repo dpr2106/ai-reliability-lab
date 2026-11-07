@@ -19,7 +19,8 @@ Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. All 11 roadmap mil
 
 - **Product direction**: STING — evidence-first, local-first RAG reliability workbench built on AI Reliability Lab.
 - **V2-001**: Complete — Ollama local inference provider.
-- **V2-002**: Core ingestion implementation is present; follow-up hardening remains under review in [PR #59](https://github.com/dpr2106/ai-reliability-lab/pull/59). Do not mark the follow-up complete until GitHub confirms merge and required checks remain green.
-- **Next milestone**: V2-003 — Evidence-First Query and Trace Orchestrator, to begin after V2-002 hardening is merged.
-- **Product differentiator**: Retrieval traceability, citation provenance, claim-level evidence inspection, safe abstention, and reproducible RAG evaluation—not generic local chat.
+- **V2-002**: Complete — Local document upload and indexing pipeline (PR #58, #59 merged).
+- **V2-003**: Complete — Evidence-First Query and Trace Orchestrator, Persistent Sessions & Turn History, and True LLM Streaming via SSE (PR #61, #62, #63 merged).
+- **V2-004**: Active Feature Branch — Cross-Document Evidence Intelligence Workbench (`feat/v2-004-evidence-investigation`). Multi-document evidence extraction, thematic comparison matrix, source passage inspector, and markdown report export.
+- **Product differentiator**: Cross-document evidence investigation, retrieval traceability, citation provenance, claim-level evidence inspection, safe abstention, and reproducible RAG evaluation—not generic local chat.
 - **Portfolio rule**: Describe only capabilities that are merged, tested, and demonstrated. Keep benchmark dataset sizes and metric methodology visible.

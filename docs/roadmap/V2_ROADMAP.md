@@ -67,22 +67,21 @@ The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, sour
 
 **Out of scope:** full chat UI, embedded PDF viewer, multi-model benchmark dashboards, LoRA/fine-tuning, cloud document processing, and unrelated refactors.
 
-## V2-004 — STING Workbench UI and Source Evidence Inspector
+## V2-004 — STING Evidence Intelligence Workbench and Source Evidence Inspector
 
-**Status:** `BACKLOG`
+**Status:** `IN_PROGRESS` (Branch `feat/v2-004-evidence-investigation`)
 
-**Objective:** Build the polished user interface that makes STING's differentiating engineering visible.
+**Objective:** Build the polished, local-first Evidence Intelligence Workbench that establishes STING's signature cross-document investigation capability.
 
 **Key deliverables:**
 
-- Local workspace and document collection management with ingestion progress and failure states.
-- Query/chat workspace with model and retrieval configuration visible.
-- Retrieval inspector comparing BM25 candidates, dense candidates, and RRF results. Clearly distinguish ranks from raw scores.
-- Evidence panel showing exactly what reached the model.
-- Inline citations that open the correct document and source page; highlight text spans where reliable provenance exists.
-- Claim/evidence inspection that shows supporting passages and separate diagnostic signals (lexical, NLI, judge) without reducing them to a fake universal score.
-- Visible abstention and insufficient-evidence states.
-- Responsive, accessible design with polished loading, empty, error, and partial-index states.
+- Cross-document evidence investigation engine with structured multi-document extraction and fail-closed chunk provenance.
+- Thematic comparison matrix comparing aspects (rows) across document collections (columns).
+- Relationship classification (`supports`, `contradicts`, `qualifies`, `not_addressed`, `insufficient_evidence`).
+- Consensus, disagreement, and evidence gap synthesis.
+- Slide-over / modal Evidence Inspector showing verified chunk ID, page number, coordinates, verbatim supporting passages, and methodology notes.
+- Publication-grade Markdown report generator (`/api/investigations/{id}/export`).
+- SvelteKit + Svelte 5 + TypeScript interface with responsive drawer, modals, and collection picker.
 
 **Acceptance criteria:** A demo user can upload a PDF, ask a question, inspect the retrieval trace, click a citation, and verify the cited passage without reading backend logs.
 

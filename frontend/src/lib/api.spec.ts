@@ -137,5 +137,74 @@ describe('ApiClient', () => {
     );
     expect(result.mean_citation_precision).toBe(1.0);
   });
+
+  it('lists investigations with pagination', async () => {
+    const mockList = {
+      total: 1,
+      limit: 10,
+      offset: 0,
+      investigations: [
+        {
+          investigation_id: 'inv_1',
+          title: 'Speed Audit',
+          query: 'throughput',
+          document_count: 2,
+          aspect_count: 3,
+          status: 'completed',
+          total_findings: 4,
+          created_at: '2026-11-08T00:00:00Z',
+          completed_at: '2026-11-08T00:01:00Z'
+        }
+      ]
+    };
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockList
+    });
+
+    const client = new ApiClient('http://test-api', mockFetch as unknown as typeof fetch);
+    const result = await client.listInvestigations({ limit: 10, offset: 0 });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://test-api/api/investigations?limit=10&offset=0',
+      expect.anything()
+    );
+    expect(result.total).toBe(1);
+    expect(result.investigations[0].title).toBe('Speed Audit');
+  });
+
+  it('creates an investigation and exports markdown', async () => {
+    const mockDetail = {
+      investigation_id: 'inv_10',
+      title: 'Memory Audit',
+      query: 'memory scaling',
+      comparison_aspects: ['Memory'],
+      document_ids: ['d1', 'd2'],
+      status: 'completed',
+      created_at: '2026-11-08T00:00:00Z',
+      completed_at: '2026-11-08T00:01:00Z'
+    };
+
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockDetail
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => '# STING Investigation Report: Memory Audit'
+      });
+
+    const client = new ApiClient('http://test-api', mockFetch as unknown as typeof fetch);
+    const created = await client.createInvestigation({
+      query: 'memory scaling',
+      document_ids: ['d1', 'd2']
+    });
+    expect(created.investigation_id).toBe('inv_10');
+
+    const md = await client.exportInvestigationMarkdown('inv_10');
+    expect(md).toContain('# STING Investigation Report: Memory Audit');
+  });
 });
 

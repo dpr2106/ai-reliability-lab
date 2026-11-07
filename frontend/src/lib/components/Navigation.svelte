@@ -37,6 +37,10 @@
       </a>
 
       <nav class="nav-links">
+        <a href="/investigations" class="nav-link highlight-link">
+          <span class="workbench-dot"></span>
+          Investigations
+        </a>
         <a href="/" class="nav-link">Run Explorer</a>
         <a href="/compare" class="nav-link">Run Comparison</a>
         <a href="/citation-audit" class="nav-link">Citation Audit</a>
@@ -144,6 +148,20 @@
   .nav-link:hover {
     color: var(--text-primary);
     background: var(--bg-hover);
+  }
+
+  .nav-link.highlight-link {
+    color: #38bdf8;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .workbench-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: #38bdf8;
   }
 
   .health-pill {

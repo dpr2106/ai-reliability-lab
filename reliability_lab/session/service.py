@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
 from reliability_lab.llm.models import LLMMessage
 from reliability_lab.query.models import QueryTrace
-from reliability_lab.query.orchestrator import DocumentQueryService
+from reliability_lab.query.orchestrator import DocumentQueryService, QueryStreamEvent
 from reliability_lab.session.models import MessageRecord, SessionRecord
 from reliability_lab.session.repository import SessionNotFoundError, SessionRepository
 
@@ -190,3 +190,141 @@ class SessionService:
         )
 
         return answer, trace, user_message, assistant_message
+
+    def execute_session_query_stream(
+        self,
+        session_id: str,
+        query_text: str,
+        document_ids: Sequence[str] | None = None,
+        strategy: Literal["bm25", "dense", "hybrid"] | str = "hybrid",
+        top_k: int = 5,
+        candidate_depth: int = 60,
+        min_dense_score: float | None = None,
+        max_history_messages: int | None = None,
+        prompt_version: str = "v1",
+    ) -> Iterator[QueryStreamEvent]:
+        """Execute a conversational query turn in streaming mode within a persistent session.
+
+        Guarantees:
+        1. Validates session existence upfront.
+        2. Resolves effective target document IDs.
+        3. Retrieves bounded conversation context strictly scoped to session.
+        4. Yields incremental start, token, and citation events.
+        5. Atomically persists user and assistant message records ONLY on clean completion.
+        6. Enriches final complete event with session_id, user_message_id, and assistant_message_id.
+        """
+        # 1. Validate session existence
+        session = self.session_repository.get_session(session_id, include_messages=False)
+        if session is None:
+            raise SessionNotFoundError(f"Session '{session_id}' not found.")
+
+        # 2. Resolve document IDs
+        effective_doc_ids: list[str] = []
+        if document_ids:
+            effective_doc_ids = [
+                d.strip() for d in document_ids if isinstance(d, str) and d.strip()
+            ]
+        elif session.selected_doc_id:
+            effective_doc_ids = [session.selected_doc_id]
+
+        if not effective_doc_ids:
+            raise ValueError(
+                f"No document selected for query and session '{session_id}' "
+                "has no default document scope."
+            )
+
+        # 3. Retrieve bounded conversation context strictly from this session
+        history_bound = (
+            max(0, max_history_messages)
+            if max_history_messages is not None
+            else self.default_max_history
+        )
+        bounded_history = (
+            self.session_repository.get_bounded_history(session_id, max_messages=history_bound)
+            if history_bound > 0
+            else []
+        )
+
+        conversation_context: list[LLMMessage] = []
+        for m in bounded_history:
+            if m.role == "user":
+                conversation_context.append(LLMMessage(role="user", content=m.content))
+            elif m.role == "assistant":
+                conversation_context.append(LLMMessage(role="assistant", content=m.content))
+
+        # 4. Stream query execution
+        query_config = {
+            "strategy": strategy,
+            "top_k": top_k,
+            "candidate_depth": candidate_depth,
+            "min_dense_score": min_dense_score,
+            "prompt_version": prompt_version,
+            "document_ids": effective_doc_ids,
+            "max_history_messages": history_bound,
+        }
+
+        for event in self.query_service.query_stream(
+            query_text=query_text,
+            selected_doc_ids=effective_doc_ids,
+            strategy=strategy,
+            top_k=top_k,
+            candidate_depth=candidate_depth,
+            min_dense_score=min_dense_score,
+            prompt_version=prompt_version,
+            conversation_context=conversation_context,
+        ):
+            if event.event != "complete":
+                yield event
+                continue
+
+            # Stream finished cleanly -> atomically persist turn
+            answer = str(event.data.get("answer", ""))
+            trace: QueryTrace = event.data["trace"]
+
+            now_user = datetime.now(timezone.utc).isoformat()
+            now_asst = datetime.now(timezone.utc).isoformat()
+
+            user_message = MessageRecord(
+                message_id=f"msg_{uuid4().hex[:16]}",
+                session_id=session_id,
+                role="user",
+                content=query_text.strip(),
+                created_at=now_user,
+                query_config=query_config,
+            )
+
+            assistant_message = MessageRecord(
+                message_id=f"msg_{uuid4().hex[:16]}",
+                session_id=session_id,
+                role="assistant",
+                content=answer,
+                created_at=now_asst,
+                query_config=query_config,
+                resolved_citations=tuple(c.to_dict() for c in trace.resolved_citations),
+                unresolved_citations=tuple(c.to_dict() for c in trace.unresolved_citations),
+                malformed_citations=tuple(c.to_dict() for c in trace.malformed_citations),
+                query_trace=trace.to_dict(),
+                provider=trace.provider,
+                model_name=trace.model_name,
+                prompt_tokens=trace.prompt_tokens,
+                completion_tokens=trace.completion_tokens,
+                retrieval_latency_ms=trace.retrieval_latency_ms,
+                generation_latency_ms=trace.generation_latency_ms,
+                total_latency_ms=trace.total_latency_ms,
+            )
+
+            self.session_repository.add_turn(
+                session_id=session_id,
+                user_message=user_message,
+                assistant_message=assistant_message,
+            )
+
+            enriched_data = dict(event.data)
+            enriched_data.update(
+                {
+                    "session_id": session_id,
+                    "user_message_id": user_message.message_id,
+                    "assistant_message_id": assistant_message.message_id,
+                }
+            )
+            yield QueryStreamEvent(event="complete", data=enriched_data)

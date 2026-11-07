@@ -61,3 +61,14 @@ class LLMResponse:
     finish_reason: str | None = None
     latency_ms: float = 0.0
     raw_response: dict[str, Any] | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class LLMStreamChunk:
+    """An incremental token or chunk emitted during streaming generation."""
+
+    delta: str = ""
+    model: str = ""
+    done: bool = False
+    usage: TokenUsage | None = None
+    finish_reason: str | None = None

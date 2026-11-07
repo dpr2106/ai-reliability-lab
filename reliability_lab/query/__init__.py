@@ -25,6 +25,7 @@ from reliability_lab.query.orchestrator import (
     DocumentConflictError,
     DocumentNotFoundError,
     DocumentQueryService,
+    QueryStreamEvent,
     UnprocessableDocumentError,
 )
 
@@ -38,6 +39,7 @@ __all__ = [
     "EvidenceChunkTrace",
     "FusedCandidateTrace",
     "MalformedCitation",
+    "QueryStreamEvent",
     "QueryTrace",
     "ResolvedCitation",
     "SparseCandidateTrace",

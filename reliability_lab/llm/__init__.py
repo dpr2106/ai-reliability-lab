@@ -30,6 +30,7 @@ from reliability_lab.llm.models import (
     LLMGenerationConfig,
     LLMMessage,
     LLMResponse,
+    LLMStreamChunk,
     TokenUsage,
 )
 from reliability_lab.llm.rate_limiter import RateLimiter
@@ -52,6 +53,7 @@ __all__ = [
     "LLMProviderUnavailableError",
     "LLMRateLimitError",
     "LLMResponse",
+    "LLMStreamChunk",
     "MockLLMClient",
     "OllamaLLMClient",
     "RateLimiter",

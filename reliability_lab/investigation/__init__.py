@@ -17,6 +17,7 @@ from reliability_lab.investigation.repository import (
 from reliability_lab.investigation.service import (
     DEFAULT_COMPARISON_ASPECTS,
     InvestigationService,
+    InvestigationValidationError,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "InvestigationRepository",
     "InvestigationService",
     "InvestigationStorageError",
+    "InvestigationValidationError",
 ]

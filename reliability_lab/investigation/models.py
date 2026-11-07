@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -29,7 +30,6 @@ class EvidenceFinding:
     """A claim or empirical finding extracted from a specific document chunk."""
 
     finding_id: str
-    topic_id: str
     doc_id: str
     doc_title: str
     chunk_id: str
@@ -38,6 +38,9 @@ class EvidenceFinding:
     supporting_passage: str
     relationship: EvidenceRelationship
     confidence: float
+    topic_id: str = ""
+    topic_name: str | None = None
+    investigation_id: str | None = None
     methodology_notes: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -62,6 +65,8 @@ class EvidenceFinding:
             supporting_passage=str(data.get("supporting_passage", "")),
             relationship=rel,
             confidence=float(data.get("confidence", 0.0)),
+            topic_name=data.get("topic_name"),
+            investigation_id=data.get("investigation_id"),
             methodology_notes=data.get("methodology_notes"),
             created_at=str(data.get("created_at") or datetime.now(timezone.utc).isoformat()),
         )
@@ -71,13 +76,31 @@ class EvidenceFinding:
 class ComparisonTopic:
     """A thematic aspect or research dimension compared across documents."""
 
-    topic_id: str
     topic_name: str
     description: str
+    topic_id: str = field(default_factory=lambda: f"top_{uuid4().hex[:8]}")
     findings: list[EvidenceFinding] = field(default_factory=list)
     agreements_summary: str = ""
     disagreements_summary: str = ""
     evidence_gaps: list[str] = field(default_factory=list)
+
+    def __init__(
+        self,
+        topic_name: str = "",
+        description: str = "",
+        topic_id: str | None = None,
+        findings: list[EvidenceFinding] | None = None,
+        agreements_summary: str = "",
+        disagreements_summary: str = "",
+        evidence_gaps: list[str] | None = None,
+    ) -> None:
+        self.topic_name = topic_name
+        self.description = description
+        self.topic_id = topic_id or f"top_{uuid4().hex[:8]}"
+        self.findings = list(findings) if findings else []
+        self.agreements_summary = agreements_summary
+        self.disagreements_summary = disagreements_summary
+        self.evidence_gaps = list(evidence_gaps) if evidence_gaps else []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert topic to dictionary."""
@@ -112,18 +135,74 @@ class InvestigationReport:
     investigation_id: str
     title: str
     query: str
-    comparison_aspects: list[str]
-    document_ids: list[str]
-    document_summaries: list[dict[str, Any]]
     topics: list[ComparisonTopic]
     total_findings: int
     relationship_counts: dict[str, int]
     executive_summary: str
-    methodology_synthesis: str
-    created_at: str
+    comparison_aspects: list[str] = field(default_factory=list)
+    document_ids: list[str] = field(default_factory=list)
+    document_summaries: list[dict[str, Any]] = field(default_factory=list)
+    methodology_synthesis: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     completed_at: str | None = None
     status: str = "completed"
     error_message: str | None = None
+
+    def __init__(
+        self,
+        investigation_id: str,
+        title: str,
+        query: str,
+        topics: list[ComparisonTopic],
+        total_findings: int,
+        relationship_counts: dict[str, int],
+        executive_summary: str,
+        comparison_aspects: list[str] | None = None,
+        document_ids: list[str] | None = None,
+        document_summaries: list[dict[str, Any]] | None = None,
+        methodology_synthesis: str | None = None,
+        created_at: str | None = None,
+        completed_at: str | None = None,
+        status: str = "completed",
+        error_message: str | None = None,
+        *,
+        documents: list[dict[str, Any]] | None = None,
+        generated_at: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.investigation_id = investigation_id
+        self.title = title
+        self.query = query
+        self.topics = list(topics)
+        self.total_findings = total_findings
+        self.relationship_counts = dict(relationship_counts)
+        self.executive_summary = executive_summary
+        self.document_summaries = document_summaries or documents or []
+        self.document_ids = (
+            document_ids
+            if document_ids is not None
+            else [d.get("doc_id", "") for d in self.document_summaries if "doc_id" in d]
+        )
+        self.comparison_aspects = (
+            comparison_aspects
+            if comparison_aspects is not None
+            else [t.topic_name for t in self.topics]
+        )
+        self.methodology_synthesis = methodology_synthesis or ""
+        self.created_at = created_at or generated_at or datetime.now(timezone.utc).isoformat()
+        self.completed_at = completed_at or self.created_at
+        self.status = status
+        self.error_message = error_message
+
+    @property
+    def documents(self) -> list[dict[str, Any]]:
+        """Convenience alias for document_summaries."""
+        return self.document_summaries
+
+    @property
+    def generated_at(self) -> str:
+        """Convenience alias for created_at."""
+        return self.created_at
 
     def to_dict(self) -> dict[str, Any]:
         """Convert report to dictionary."""
@@ -169,7 +248,7 @@ class InvestigationReport:
     def to_markdown(self) -> str:
         """Generate a structured, publication-grade Markdown comparison report."""
         lines: list[str] = [
-            f"# Cross-Document Evidence Investigation: {self.title or self.query}",
+            f"# STING Investigation Report: {self.title or self.query}",
             "",
             f"**Investigation ID:** `{self.investigation_id}`  ",
             f"**Created:** {self.created_at}  ",
@@ -180,18 +259,24 @@ class InvestigationReport:
             "",
             self.executive_summary or "No executive summary available.",
             "",
-            "## 2. Documents Examined",
+            "## 2. Investigated Document Collection",
             "",
-            "| Document ID | Filename | Chunks | Findings Count |",
+            "| Document ID | Document Title | Chunks | Findings Count |",
             "|---|---|---|---|",
         ]
 
         for doc in self.document_summaries:
             did = doc.get("doc_id", "unknown")
-            fname = doc.get("filename", did)
+            fname = doc.get("title") or doc.get("filename") or did
             chunks = doc.get("chunk_count", 0)
             findings = doc.get("findings_count", 0)
             lines.append(f"| `{did}` | {fname} | {chunks} | {findings} |")
+
+        contra_count = self.relationship_counts.get("contradicts", 0)
+        qual_count = self.relationship_counts.get("qualifies", 0)
+        not_addr_count = self.relationship_counts.get("not_addressed", 0)
+        insuff_count = self.relationship_counts.get("insufficient_evidence", 0)
+        supports_count = self.relationship_counts.get("supports", 0)
 
         lines.extend(
             [
@@ -199,11 +284,11 @@ class InvestigationReport:
                 "## 3. Evidence Breakdown",
                 "",
                 f"- **Total Extracted Findings:** {self.total_findings}",
-                f"- **Supporting Evidence:** {self.relationship_counts.get('supports', 0)}",
-                f"- **Contradicting / Inconsistent Evidence:** {self.relationship_counts.get('contradicts', 0)}",
-                f"- **Qualified / Conditioned Findings:** {self.relationship_counts.get('qualifies', 0)}",
-                f"- **Topics Not Addressed:** {self.relationship_counts.get('not_addressed', 0)}",
-                f"- **Insufficient Evidence:** {self.relationship_counts.get('insufficient_evidence', 0)}",
+                f"- **Supporting Evidence:** {supports_count}",
+                f"- **Contradicting / Inconsistent Evidence:** {contra_count}",
+                f"- **Qualified / Conditioned Findings:** {qual_count}",
+                f"- **Topics Not Addressed:** {not_addr_count}",
+                f"- **Insufficient Evidence:** {insuff_count}",
                 "",
                 "## 4. Cross-Document Thematic Analysis",
                 "",
@@ -260,14 +345,15 @@ class InvestigationReport:
                     page_str = str(f.page_number) if f.page_number is not None else "N/A"
                     rel_upper = f.relationship.upper().replace("_", " ")
                     passage_preview = (
-                        f"**Claim:** {f.claim}<br/>"
-                        f"**Passage:** *\"{f.supporting_passage}\"*"
+                        f'**Claim:** {f.claim}<br/>**Passage:** *"{f.supporting_passage}"*'
                     )
                     if f.methodology_notes:
                         passage_preview += f"<br/>**Methodology:** {f.methodology_notes}"
-                    lines.append(
-                        f"| `{rel_upper}` | {f.doc_title} | {page_str} | `{f.chunk_id}` | {passage_preview} |"
+                    row = (
+                        f"| `{rel_upper}` | {f.doc_title} | {page_str} | "
+                        f"`{f.chunk_id}` | {passage_preview} |"
                     )
+                    lines.append(row)
 
             lines.append("")
 
@@ -285,7 +371,11 @@ class InvestigationReport:
             [
                 "---",
                 "*Report generated by STING Evidence Intelligence Workbench.*  ",
-                "*Grounded in deterministic passage retrieval. Verification status indicates claim-passage alignment, not unverified truth.*",
+                (
+                    "*Grounded in deterministic passage retrieval. "
+                    "Verification status indicates claim-passage alignment, "
+                    "not unverified truth.*"
+                ),
             ]
         )
 
@@ -306,6 +396,16 @@ class InvestigationRecord:
     completed_at: str | None = None
     report: InvestigationReport | None = None
     error_message: str | None = None
+
+    @property
+    def aspects(self) -> list[str]:
+        """Convenience alias for comparison_aspects."""
+        return self.comparison_aspects
+
+    @property
+    def report_json(self) -> str | None:
+        """Serialized report JSON string if report is present."""
+        return json.dumps(self.report.to_dict()) if self.report else None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert record to dictionary."""

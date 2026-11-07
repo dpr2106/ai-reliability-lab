@@ -78,10 +78,8 @@ from reliability_lab.ingestion.service import (
     UploadSizeLimitExceededError,
 )
 from reliability_lab.investigation import (
-    InvestigationNotFoundError,
     InvestigationRepository,
     InvestigationService,
-    InvestigationStorageError,
 )
 from reliability_lab.query import (
     DocumentConflictError,
@@ -1257,9 +1255,19 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 query=payload.query,
                 document_ids=payload.document_ids,
                 title=payload.title,
-                comparison_aspects=payload.comparison_aspects,
+                comparison_aspects=payload.comparison_aspects or payload.aspects,
             )
+        except DocumentNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
         except ValueError as exc:
+            if "not found" in str(exc).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=sanitize_path_message(str(exc)),
+                ) from exc
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=sanitize_path_message(str(exc)),
@@ -1278,7 +1286,9 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 record.completed_at = report.completed_at
             except Exception as exc:
                 logger.error("Immediate execution of investigation failed: %s", exc)
-                updated = service.investigation_repository.get_investigation(record.investigation_id)
+                updated = service.investigation_repository.get_investigation(
+                    record.investigation_id
+                )
                 if updated:
                     record = updated
         else:

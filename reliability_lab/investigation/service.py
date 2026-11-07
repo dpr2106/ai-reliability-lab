@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any, Sequence
+from typing import Any
 from uuid import uuid4
 
 from reliability_lab.core.models import Chunk
@@ -14,7 +15,6 @@ from reliability_lab.investigation.models import (
     VALID_RELATIONSHIPS,
     ComparisonTopic,
     EvidenceFinding,
-    EvidenceRelationship,
     InvestigationRecord,
     InvestigationReport,
 )
@@ -38,6 +38,10 @@ DEFAULT_COMPARISON_ASPECTS: list[str] = [
 ]
 
 
+class InvestigationValidationError(ValueError):
+    """Raised when investigation parameters or document states fail validation."""
+
+
 class InvestigationService:
     """Orchestrates multi-document retrieval, evidence extraction, and cross-source synthesis."""
 
@@ -45,7 +49,7 @@ class InvestigationService:
         self,
         investigation_repository: InvestigationRepository,
         document_repository: DocumentRepository,
-        query_service: DocumentQueryService,
+        query_service: DocumentQueryService | None = None,
         llm_client: BaseLLMClient | None = None,
     ) -> None:
         self.investigation_repository = investigation_repository
@@ -68,40 +72,49 @@ class InvestigationService:
         document_ids: Sequence[str],
         title: str | None = None,
         comparison_aspects: Sequence[str] | None = None,
+        *,
+        aspects: Sequence[str] | None = None,
     ) -> InvestigationRecord:
         """Validate documents and create a persistent investigation record.
 
         Raises:
-            ValueError: If query is empty, document_ids is empty, or any document is invalid.
+            InvestigationValidationError: If query or document_ids is invalid.
         """
+        effective_aspects = comparison_aspects if comparison_aspects is not None else aspects
         if not isinstance(query, str) or not query.strip():
-            raise ValueError("Investigation query must be a non-empty string.")
+            raise InvestigationValidationError("Investigation query must be a non-empty string.")
 
         clean_doc_ids = [d.strip() for d in document_ids if isinstance(d, str) and d.strip()]
         if not clean_doc_ids:
-            raise ValueError("At least one valid document ID must be selected for investigation.")
+            raise InvestigationValidationError(
+                "At least one valid document ID must be selected for investigation."
+            )
 
         # Validate document existence and readiness
         for doc_id in clean_doc_ids:
             doc = self.document_repository.get_document(doc_id)
             if doc is None:
-                raise ValueError(f"Document '{doc_id}' not found in repository.")
+                raise InvestigationValidationError(f"Document '{doc_id}' not found in repository.")
             if doc.status == DocumentStatus.FAILED:
-                raise ValueError(
+                raise InvestigationValidationError(
                     f"Document '{doc_id}' is in FAILED state and cannot be investigated."
                 )
             if doc.chunk_count == 0:
-                raise ValueError(f"Document '{doc_id}' has 0 chunks and cannot be investigated.")
+                raise InvestigationValidationError(
+                    f"Document '{doc_id}' has 0 chunks and cannot be investigated."
+                )
 
         aspects = (
-            [a.strip() for a in comparison_aspects if isinstance(a, str) and a.strip()]
-            if comparison_aspects
+            [a.strip() for a in effective_aspects if isinstance(a, str) and a.strip()]
+            if effective_aspects
             else list(DEFAULT_COMPARISON_ASPECTS)
         )
         if not aspects:
             aspects = list(DEFAULT_COMPARISON_ASPECTS)
 
-        effective_title = (title.strip() if title and title.strip() else query.strip()[:80])
+        effective_title = (
+            title.strip() if title and title.strip() else f"Investigation: {query.strip()[:65]}"
+        )
 
         return self.investigation_repository.create_investigation(
             query=query.strip(),
@@ -134,10 +147,21 @@ class InvestigationService:
             )
             raise
 
-    def _run_investigation_pipeline(
-        self, inv: InvestigationRecord
-    ) -> InvestigationReport:
-        """Run retrieval, structured extraction, cross-document comparison, and report compilation."""
+    run_investigation = execute_investigation
+
+    def export_investigation_markdown(self, investigation_id: str) -> str:
+        """Export completed investigation report as Markdown."""
+        inv = self.investigation_repository.get_investigation(investigation_id)
+        if inv is None:
+            raise InvestigationNotFoundError(f"Investigation '{investigation_id}' not found.")
+        if inv.report is None:
+            raise InvestigationValidationError(
+                f"Investigation '{investigation_id}' has not produced a report."
+            )
+        return inv.report.to_markdown()
+
+    def _run_investigation_pipeline(self, inv: InvestigationRecord) -> InvestigationReport:
+        """Run retrieval, structured extraction, comparison, and report compilation."""
         doc_summaries: list[dict[str, Any]] = []
         doc_chunks_map: dict[str, list[Chunk]] = {}
         doc_records: dict[str, DocumentRecord] = {}
@@ -162,7 +186,7 @@ class InvestigationService:
             aspect: [] for aspect in inv.comparison_aspects
         }
 
-        doc_findings_count: dict[str, int] = {doc_id: 0 for doc_id in inv.document_ids}
+        doc_findings_count: dict[str, int] = dict.fromkeys(inv.document_ids, 0)
 
         for doc_id in inv.document_ids:
             chunks = doc_chunks_map.get(doc_id, [])
@@ -289,8 +313,8 @@ class InvestigationService:
         if not all_chunks:
             return []
 
-        if len(all_chunks) <= 15:
-            # Small document: include all chunks to ensure exhaustive evidence coverage
+        if not self.query_service or len(all_chunks) <= 15:
+            # Small document or query service absent: include all chunks for exhaustive coverage
             return all_chunks
 
         # For larger documents, query BM25 and dense indices to surface top relevant chunks
@@ -362,26 +386,26 @@ class InvestigationService:
             LLMMessage(
                 role="system",
                 content=(
-                    "You are an expert evidence analyst for the STING Evidence Intelligence Workbench. "
-                    "Your mission is to extract structured, verifiable findings from the supplied source text. "
+                    "You are an expert evidence analyst for the STING Workbench. "
+                    "Extract structured, verifiable findings from the supplied source text. "
                     "CRITICAL PROVENANCE RULES:\n"
                     "1. Extract ONLY statements directly supported by the text.\n"
                     "2. You MUST provide the exact CHUNK_ID where the evidence appears.\n"
                     "3. You MUST provide the EXACT verbatim supporting passage from that chunk.\n"
                     "4. Classify each finding's relationship:\n"
-                    "   - 'supports': Affirms, provides positive evidence or corroborates the aspect.\n"
-                    "   - 'contradicts': Opposes, refutes, presents conflicting data or challenges the aspect.\n"
-                    "   - 'qualifies': Provides conditional, situational or bounded evidence (e.g. only works under X).\n"
-                    "   - 'insufficient_evidence': Passage touches the topic but does not provide adequate proof.\n"
+                    "   - 'supports': Affirms, provides positive evidence or corroborates.\n"
+                    "   - 'contradicts': Opposes, refutes, or challenges the aspect.\n"
+                    "   - 'qualifies': Provides conditional or bounded evidence.\n"
+                    "   - 'insufficient_evidence': Touches the topic without adequate proof.\n"
                     "   - 'not_addressed': The source does not mention or cover this aspect.\n"
-                    "5. Output valid JSON matching the required schema. Never hallucinate fake quotes or IDs."
+                    "5. Output valid JSON matching the schema. Never hallucinate quotes or IDs."
                 ),
             ),
             LLMMessage(
                 role="user",
                 content=(
-                    f"Investigation Topic / Query: \"{query}\"\n\n"
-                    f"Source Document: \"{doc_title}\" (ID: {doc_id})\n\n"
+                    f'Investigation Topic / Query: "{query}"\n\n'
+                    f'Source Document: "{doc_title}" (ID: {doc_id})\n\n'
                     f"Comparison Aspects to evaluate:\n{aspects_prompt}\n\n"
                     f"Available Document Passages:\n{context_text}\n\n"
                     "Produce a JSON object with this exact structure:\n"
@@ -393,9 +417,10 @@ class InvestigationService:
                     '      "chunk_id": "<exact CHUNK_ID from passage>",\n'
                     '      "page_number": <integer or null>,\n'
                     '      "supporting_passage": "<verbatim excerpt from the chunk>",\n'
-                    '      "relationship": "supports" | "contradicts" | "qualifies" | "insufficient_evidence" | "not_addressed",\n'
+                    '      "relationship": "supports" | "contradicts" | "qualifies" '
+                    '| "insufficient_evidence" | "not_addressed",\n'
                     '      "confidence": <float between 0.0 and 1.0>,\n'
-                    '      "methodology_notes": "<optional notes on dataset, setup or conditions>"\n'
+                    '      "methodology_notes": "<optional notes on dataset or setup>"\n'
                     "    }\n"
                     "  ]\n"
                     "}"
@@ -582,7 +607,7 @@ class InvestigationService:
         elif qualifies_docs:
             disagreements = (
                 f"Conditional variance identified: {', '.join(qualifies_docs)} "
-                "qualifies findings based on specific methodological parameters, setups, or constraints."
+                "qualifies findings based on specific parameters or setups."
             )
         else:
             disagreements = "No direct contradictions detected among the retrieved evidence."
@@ -595,7 +620,7 @@ class InvestigationService:
             )
         if not supports_docs and not contradicts_docs:
             evidence_gaps.append(
-                f"Overall evidence is weak or unstated across all examined documents for '{topic_name}'."
+                f"Overall evidence is weak or unstated across documents for '{topic_name}'."
             )
 
         return agreements, disagreements, evidence_gaps
@@ -616,7 +641,8 @@ class InvestigationService:
         overview = (
             f"This investigation evaluated '{query}' across {total_docs} document sources, "
             f"examining {len(topics)} comparative dimensions. "
-            f"Analysis surfaced {supports} supporting findings, {contradicts} contradictory or opposing findings, "
+            f"Analysis surfaced {supports} supporting findings, "
+            f"{contradicts} contradictory or opposing findings, "
             f"and {qualifies} qualified or condition-dependent statements. "
         )
 
@@ -642,7 +668,8 @@ class InvestigationService:
 
         if not notes:
             return (
-                "Methodological details were not explicitly extracted or differ primarily by experimental dataset."
+                "Methodological details were not explicitly extracted "
+                "or differ primarily by experimental dataset."
             )
 
         return "Notable methodological contexts:\n- " + "\n- ".join(notes[:8])

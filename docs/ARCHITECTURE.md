@@ -270,6 +270,77 @@ Per ADR-011, the pipeline subsystem unifies retrieval, answer generation, multi-
    - The SQLite experiment database is persisted in a named Docker volume (`reliability-lab-data`) mounted at `/data`.
    - Standard container lifecycle events (`docker compose stop`, `docker compose down`, `docker compose up --build -d`) preserve the named volume and all historic benchmark runs.
 
+---
+
+## 11. STING Conversational RAG & Streaming Architecture (V2-003)
+
+### A. Architectural Overview
+STING (Safe Traceable Inference & Grounding) extends the AI Reliability Lab from offline benchmark evaluation to interactive, evidence-grounded conversational RAG.
+
+```
+[Client / UI]
+     │
+     ├─► POST /api/query/stream  (Standalone SSE)
+     ├─► POST /api/sessions/{id}/query/stream  (Session SSE)
+     │
+     ▼
+[FastAPI SSE Adapter] (main.py)
+     │  - Upfront Document & Lifecycle Validation (404/409/422)
+     │  - Client Disconnect Detection (raw_request.is_disconnected())
+     │  - W3C SSE Framing (event: ... \ndata: ...\n\n)
+     │  - Path & Exception Sanitization
+     │
+     ▼
+[SessionService] (reliability_lab.session)
+     │  - Session existence validation
+     │  - Bounded conversational context (default max 10 turns)
+     │  - Transactional turn persistence (SessionRepository.add_turn)
+     │  - INVARIANT: Persists user + assistant turn ONLY on clean stream completion
+     │
+     ▼
+[DocumentQueryService] (reliability_lab.query)
+     │  - Scoped Lexical (BM25) & Dense (FAISS) retrieval across selected docs
+     │  - Reciprocal Rank Fusion (RRF)
+     │  - Tier-1 Retrieval Abstention (no candidates -> skip LLM)
+     │  - Citation Aliasing & Evidence-First Prompt Construction
+     │
+     ▼
+[BaseLLMClient.generate_stream] (reliability_lab.llm)
+     │  - OllamaLLMClient: Real-time chunk streaming via httpx response.iter_lines()
+     │  - MockLLMClient: Deterministic progressive token yielding for offline tests
+     │  - Yields LLMStreamChunk(delta, model, done, usage, finish_reason)
+     │
+     ▼
+[Post-Generation Resolution]
+     - Tier-2 Generation Abstention check
+     - CitationResolver: Maps [CIT-xxx] markers to retrieved chunk spans
+     - Emits `citation` events and final `complete` event with QueryTrace
+```
+
+### B. Server-Sent Events (SSE) Protocol
+Endpoints:
+- `POST /api/query/stream`: Document-grounded streaming query.
+- `POST /api/sessions/{session_id}/query/stream`: Session-aware conversational streaming query.
+
+Headers:
+- `Content-Type: text/event-stream; charset=utf-8`
+- `Cache-Control: no-cache, no-transform`
+- `Connection: keep-alive`
+- `X-Accel-Buffering: no` (disables reverse-proxy buffering)
+
+Event Types:
+1. `event: start`: Emitted before LLM generation with query metadata (`trace_id`, `query_text`, `selected_doc_ids`, `strategy`, `effective_strategy`).
+2. `event: token`: Emitted progressively for each generated token or chunk (`{"token": "<delta>"}`).
+3. `event: citation`: Emitted upon generation completion for each verified citation (`{"marker": "[CIT-xxx]", "alias": "CIT-xxx", "chunk_id": "...", "filename": "...", ...}`).
+4. `event: complete`: Terminal success event containing full answer, complete `QueryTrace`, and session message IDs if in session mode (`{"answer": "...", "trace": {...}, ...}`).
+5. `event: error`: Terminal error event emitted if an unhandled failure occurs mid-stream with sanitized error message (`{"error": "..."}`).
+
+### C. Resilience & Persistence Guarantees
+1. **Zero Orphaned Turns**: In session streaming mode, user and assistant messages are committed atomically via `SessionRepository.add_turn` only after the LLM stream completes cleanly and citations resolve. If the client disconnects or the LLM raises an error mid-stream, nothing is persisted to SQLite.
+2. **Retrieval Abstention Short-Circuit**: When retrieval yields zero eligible evidence chunks, the LLM is never invoked; an abstention message is emitted immediately, avoiding unnecessary token consumption.
+3. **Session Context Boundary**: Previous conversation turns are injected into LLM prompt messages as conversational dialogue history only; citation markers `[CIT-xxx]` strictly resolve against currently retrieved document evidence chunks.
+
+
 
 
 

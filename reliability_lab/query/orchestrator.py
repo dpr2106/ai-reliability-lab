@@ -6,7 +6,8 @@ import logging
 import math
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -53,6 +54,14 @@ STRUCTURED_ABSTENTION_DIRECTIVE: str = (
     "output: [ABSTAIN: INSUFFICIENT_EVIDENCE] followed by a brief statement "
     "explaining what information is missing."
 )
+
+
+@dataclass(frozen=True)
+class QueryStreamEvent:
+    """Typed event emitted during streaming query orchestration."""
+
+    event: Literal["start", "token", "citation", "complete", "error"]
+    data: dict[str, Any]
 
 
 class DocumentNotFoundError(KeyError):
@@ -159,7 +168,7 @@ class DocumentQueryService:
 
         return doc_map, has_partial
 
-    def query(
+    def _prepare_query_context(
         self,
         query_text: str,
         selected_doc_ids: Sequence[str],
@@ -169,22 +178,8 @@ class DocumentQueryService:
         min_dense_score: float | None = None,
         prompt_version: str = "v1",
         conversation_context: Sequence[LLMMessage] | None = None,
-    ) -> tuple[str, QueryTrace]:
-        """Execute a document-grounded query, returning the generated answer and immutable trace.
-
-        Args:
-            query_text: User question.
-            selected_doc_ids: Non-empty sequence of document IDs to query.
-            strategy: Requested retrieval strategy ('bm25', 'dense', or 'hybrid').
-            top_k: Number of final evidence chunks to supply to generation.
-            candidate_depth: Number of intermediate candidates to retrieve per retriever.
-            min_dense_score: Optional threshold for dense retrieval abstention.
-            prompt_version: Template identifier for prompt construction.
-            conversation_context: Optional bounded sequence of previous conversation turns.
-
-        Returns:
-            Tuple of (answer_text, query_trace).
-        """
+    ) -> dict[str, Any]:
+        """Validate parameters, execute retrieval, evaluate abstention, and build prompt."""
         if not isinstance(query_text, str) or not query_text.strip():
             raise ValueError("query_text must be a non-empty string.")
         if not selected_doc_ids:
@@ -208,8 +203,6 @@ class DocumentQueryService:
                 f"Invalid retrieval strategy '{strategy}'. Must be 'bm25', 'dense', or 'hybrid'."
             )
 
-        if not selected_doc_ids:
-            raise ValueError("selected_doc_ids must contain at least one document ID.")
         cleaned_doc_ids: list[str] = []
         for d in selected_doc_ids:
             if not isinstance(d, str) or isinstance(d, bool) or not d.strip():
@@ -309,9 +302,7 @@ class DocumentQueryService:
                     pooled_dense.extend(results)
 
                 if pooled_dense:
-                    # Global sort by score DESC, tie-break chunk_id ASC
                     pooled_dense.sort(key=lambda r: (-r.score, r.chunk.chunk_id))
-                    # Deduplicate by chunk_id
                     seen_chunk_ids: set[str] = set()
                     deduped_dense: list[RetrievalResult] = []
                     for res in pooled_dense:
@@ -319,7 +310,6 @@ class DocumentQueryService:
                             seen_chunk_ids.add(res.chunk.chunk_id)
                             deduped_dense.append(res)
 
-                    # Re-assign global contiguous ranks 1..N
                     ranked_dense: list[RetrievalResult] = []
                     for global_rank, res in enumerate(deduped_dense[:candidate_depth], start=1):
                         ranked_dense.append(
@@ -352,7 +342,6 @@ class DocumentQueryService:
 
         retrieval_latency_ms = (time.perf_counter() - t_retrieval_start) * 1000.0
 
-        # Dynamically record executed retriever configuration
         executed_sparse_name: str | None = None
         executed_dense_name: str | None = None
         executed_hybrid_name: str | None = None
@@ -370,7 +359,6 @@ class DocumentQueryService:
             executed_hybrid_name = "hybrid-rrf"
             executed_rrf_k = 60
 
-        # Build candidate traces
         sparse_traces = tuple(
             SparseCandidateTrace(
                 chunk_id=r.chunk.chunk_id,
@@ -441,13 +429,20 @@ class DocumentQueryService:
                 retrieval_abstained = True
                 retrieval_abstention_reason = "no_fused_candidates_found"
 
+        start_payload = {
+            "trace_id": trace_id,
+            "query_text": clean_query,
+            "selected_doc_ids": list(normalized_doc_ids),
+            "strategy": requested_strategy,
+            "effective_strategy": effective_strategy,
+            "fallback_reason": fallback_reason,
+        }
+
         if retrieval_abstained:
-            # Skip LLM generation completely
-            answer = (
+            abstention_answer = (
                 "I am unable to answer because no relevant evidence was retrieved from "
                 "the selected documents."
             )
-            total_latency_ms = retrieval_latency_ms
             trace = QueryTrace(
                 trace_id=trace_id,
                 query_text=clean_query,
@@ -474,7 +469,7 @@ class DocumentQueryService:
                 completion_tokens=0,
                 retrieval_latency_ms=retrieval_latency_ms,
                 generation_latency_ms=0.0,
-                total_latency_ms=total_latency_ms,
+                total_latency_ms=retrieval_latency_ms,
                 dense_search_mode=executed_search_mode,
                 rrf_k=executed_rrf_k,
                 candidate_depth=candidate_depth,
@@ -482,7 +477,12 @@ class DocumentQueryService:
                 dense_retriever_name=executed_dense_name,
                 hybrid_retriever_name=executed_hybrid_name,
             )
-            return answer, trace
+            return {
+                "retrieval_abstained": True,
+                "abstention_answer": abstention_answer,
+                "trace": trace,
+                "start_payload": start_payload,
+            }
 
         # Select evidence chunks based on effective strategy
         if effective_strategy == "hybrid":
@@ -498,7 +498,6 @@ class DocumentQueryService:
         )
         evidence_traces = tuple(evidence_traces_list)
 
-        # Prompt construction
         prompt_evidence = alias_map.to_prompt_evidence()
         sys_prompt, user_prompt = build_rag_prompt(
             query_text=clean_query,
@@ -516,15 +515,66 @@ class DocumentQueryService:
                     messages.append(LLMMessage(role=ctx_msg.role, content=ctx_msg.content))
         messages.append(LLMMessage(role="user", content=user_prompt))
 
+        return {
+            "retrieval_abstained": False,
+            "trace_id": trace_id,
+            "clean_query": clean_query,
+            "normalized_query": normalized_query,
+            "normalized_doc_ids": normalized_doc_ids,
+            "requested_strategy": requested_strategy,
+            "effective_strategy": effective_strategy,
+            "fallback_reason": fallback_reason,
+            "sparse_traces": sparse_traces,
+            "dense_traces": dense_traces,
+            "fused_traces": fused_traces,
+            "evidence_traces": evidence_traces,
+            "retrieval_latency_ms": retrieval_latency_ms,
+            "executed_search_mode": executed_search_mode,
+            "executed_rrf_k": executed_rrf_k,
+            "candidate_depth": candidate_depth,
+            "executed_sparse_name": executed_sparse_name,
+            "executed_dense_name": executed_dense_name,
+            "executed_hybrid_name": executed_hybrid_name,
+            "alias_map": alias_map,
+            "messages": messages,
+            "start_payload": start_payload,
+        }
+
+    def query(
+        self,
+        query_text: str,
+        selected_doc_ids: Sequence[str],
+        strategy: Literal["bm25", "dense", "hybrid"] | str = "hybrid",
+        top_k: int = 5,
+        candidate_depth: int = 60,
+        min_dense_score: float | None = None,
+        prompt_version: str = "v1",
+        conversation_context: Sequence[LLMMessage] | None = None,
+    ) -> tuple[str, QueryTrace]:
+        """Execute a document-grounded query, returning the generated answer and immutable trace."""
+        ctx = self._prepare_query_context(
+            query_text=query_text,
+            selected_doc_ids=selected_doc_ids,
+            strategy=strategy,
+            top_k=top_k,
+            candidate_depth=candidate_depth,
+            min_dense_score=min_dense_score,
+            prompt_version=prompt_version,
+            conversation_context=conversation_context,
+        )
+
+        if ctx["retrieval_abstained"]:
+            return ctx["abstention_answer"], ctx["trace"]
+
         # LLM Generation
         t_gen_start = time.perf_counter()
-        llm_response = self.llm_client.generate(messages)
+        llm_response = self.llm_client.generate(ctx["messages"])
         generation_latency_ms = (time.perf_counter() - t_gen_start) * 1000.0
-        total_latency_ms = retrieval_latency_ms + generation_latency_ms
+        total_latency_ms = ctx["retrieval_latency_ms"] + generation_latency_ms
 
         answer_text = llm_response.text
 
-        # Tier-2 Generation Abstention Evaluation (Anchored at start of response)
+        # Tier-2 Generation Abstention Evaluation
         gen_abstain_match = re.match(r"^\s*\[ABSTAIN:\s*([^\]]+)\]", answer_text, re.IGNORECASE)
         if gen_abstain_match:
             generation_abstained = True
@@ -536,24 +586,24 @@ class DocumentQueryService:
             abstained = False
 
         # Citation Resolution
-        resolver = CitationResolver(alias_map)
+        resolver = CitationResolver(ctx["alias_map"])
         resolved_cits, unresolved_cits, malformed_cits = resolver.resolve(answer_text)
 
         prompt_tokens = llm_response.usage.prompt_tokens if llm_response.usage else None
         completion_tokens = llm_response.usage.completion_tokens if llm_response.usage else None
 
         trace = QueryTrace(
-            trace_id=trace_id,
-            query_text=clean_query,
-            normalized_query=normalized_query,
-            selected_doc_ids=normalized_doc_ids,
-            requested_strategy=requested_strategy,
-            effective_strategy=effective_strategy,
-            fallback_reason=fallback_reason,
-            sparse_candidates=sparse_traces,
-            dense_candidates=dense_traces,
-            fused_candidates=fused_traces,
-            evidence_chunks=evidence_traces,
+            trace_id=ctx["trace_id"],
+            query_text=ctx["clean_query"],
+            normalized_query=ctx["normalized_query"],
+            selected_doc_ids=ctx["normalized_doc_ids"],
+            requested_strategy=ctx["requested_strategy"],
+            effective_strategy=ctx["effective_strategy"],
+            fallback_reason=ctx["fallback_reason"],
+            sparse_candidates=ctx["sparse_traces"],
+            dense_candidates=ctx["dense_traces"],
+            fused_candidates=ctx["fused_traces"],
+            evidence_chunks=ctx["evidence_traces"],
             resolved_citations=resolved_cits,
             unresolved_citations=unresolved_cits,
             malformed_citations=malformed_cits,
@@ -566,15 +616,135 @@ class DocumentQueryService:
             model_name=self.llm_client.model_name,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            retrieval_latency_ms=retrieval_latency_ms,
+            retrieval_latency_ms=ctx["retrieval_latency_ms"],
             generation_latency_ms=generation_latency_ms,
             total_latency_ms=total_latency_ms,
-            dense_search_mode=executed_search_mode,
-            rrf_k=executed_rrf_k,
-            candidate_depth=candidate_depth,
-            sparse_retriever_name=executed_sparse_name,
-            dense_retriever_name=executed_dense_name,
-            hybrid_retriever_name=executed_hybrid_name,
+            dense_search_mode=ctx["executed_search_mode"],
+            rrf_k=ctx["executed_rrf_k"],
+            candidate_depth=ctx["candidate_depth"],
+            sparse_retriever_name=ctx["executed_sparse_name"],
+            dense_retriever_name=ctx["executed_dense_name"],
+            hybrid_retriever_name=ctx["executed_hybrid_name"],
         )
 
         return answer_text, trace
+
+    def query_stream(
+        self,
+        query_text: str,
+        selected_doc_ids: Sequence[str],
+        strategy: Literal["bm25", "dense", "hybrid"] | str = "hybrid",
+        top_k: int = 5,
+        candidate_depth: int = 60,
+        min_dense_score: float | None = None,
+        prompt_version: str = "v1",
+        conversation_context: Sequence[LLMMessage] | None = None,
+    ) -> Iterator[QueryStreamEvent]:
+        """Execute a document-grounded query in streaming mode, emitting typed events."""
+        ctx = self._prepare_query_context(
+            query_text=query_text,
+            selected_doc_ids=selected_doc_ids,
+            strategy=strategy,
+            top_k=top_k,
+            candidate_depth=candidate_depth,
+            min_dense_score=min_dense_score,
+            prompt_version=prompt_version,
+            conversation_context=conversation_context,
+        )
+
+        if ctx["retrieval_abstained"]:
+            yield QueryStreamEvent(event="start", data=ctx["start_payload"])
+            yield QueryStreamEvent(event="token", data={"token": ctx["abstention_answer"]})
+            yield QueryStreamEvent(
+                event="complete",
+                data={
+                    "answer": ctx["abstention_answer"],
+                    "trace": ctx["trace"],
+                },
+            )
+            return
+
+        yield QueryStreamEvent(event="start", data=ctx["start_payload"])
+
+        t_gen_start = time.perf_counter()
+        accumulated_tokens: list[str] = []
+        final_model = self.llm_client.model_name
+        final_usage = None
+
+        for chunk in self.llm_client.generate_stream(ctx["messages"]):
+            if chunk.delta:
+                accumulated_tokens.append(chunk.delta)
+                yield QueryStreamEvent(event="token", data={"token": chunk.delta})
+            if chunk.model:
+                final_model = chunk.model
+            if chunk.usage is not None:
+                final_usage = chunk.usage
+
+        generation_latency_ms = (time.perf_counter() - t_gen_start) * 1000.0
+        total_latency_ms = ctx["retrieval_latency_ms"] + generation_latency_ms
+        answer_text = "".join(accumulated_tokens)
+
+        # Tier-2 Generation Abstention Evaluation
+        gen_abstain_match = re.match(r"^\s*\[ABSTAIN:\s*([^\]]+)\]", answer_text, re.IGNORECASE)
+        if gen_abstain_match:
+            generation_abstained = True
+            generation_abstention_reason = gen_abstain_match.group(1).strip().lower()
+            abstained = True
+        else:
+            generation_abstained = False
+            generation_abstention_reason = None
+            abstained = False
+
+        # Citation Resolution
+        resolver = CitationResolver(ctx["alias_map"])
+        resolved_cits, unresolved_cits, malformed_cits = resolver.resolve(answer_text)
+
+        # Emit citation events for resolved citations
+        for cit in resolved_cits:
+            yield QueryStreamEvent(event="citation", data=cit.to_dict())
+
+        prompt_tokens = final_usage.prompt_tokens if final_usage else None
+        completion_tokens = final_usage.completion_tokens if final_usage else None
+
+        trace = QueryTrace(
+            trace_id=ctx["trace_id"],
+            query_text=ctx["clean_query"],
+            normalized_query=ctx["normalized_query"],
+            selected_doc_ids=ctx["normalized_doc_ids"],
+            requested_strategy=ctx["requested_strategy"],
+            effective_strategy=ctx["effective_strategy"],
+            fallback_reason=ctx["fallback_reason"],
+            sparse_candidates=ctx["sparse_traces"],
+            dense_candidates=ctx["dense_traces"],
+            fused_candidates=ctx["fused_traces"],
+            evidence_chunks=ctx["evidence_traces"],
+            resolved_citations=resolved_cits,
+            unresolved_citations=unresolved_cits,
+            malformed_citations=malformed_cits,
+            abstained=abstained,
+            retrieval_abstained=False,
+            retrieval_abstention_reason=None,
+            generation_abstained=generation_abstained,
+            generation_abstention_reason=generation_abstention_reason,
+            provider=self.llm_client.provider,
+            model_name=final_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            retrieval_latency_ms=ctx["retrieval_latency_ms"],
+            generation_latency_ms=generation_latency_ms,
+            total_latency_ms=total_latency_ms,
+            dense_search_mode=ctx["executed_search_mode"],
+            rrf_k=ctx["executed_rrf_k"],
+            candidate_depth=ctx["candidate_depth"],
+            sparse_retriever_name=ctx["executed_sparse_name"],
+            dense_retriever_name=ctx["executed_dense_name"],
+            hybrid_retriever_name=ctx["executed_hybrid_name"],
+        )
+
+        yield QueryStreamEvent(
+            event="complete",
+            data={
+                "answer": answer_text,
+                "trace": trace,
+            },
+        )

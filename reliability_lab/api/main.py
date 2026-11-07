@@ -6,11 +6,14 @@ duplicating SQLite persistence or metric calculations.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Annotated, Any
 
+import anyio
 from fastapi import (
     BackgroundTasks,
     Depends,
@@ -23,6 +26,7 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from reliability_lab.api.middleware import RequestBodyLimitMiddleware
 from reliability_lab.api.privacy import sanitize_path_message
@@ -70,6 +74,7 @@ from reliability_lab.query import (
     DocumentConflictError,
     DocumentNotFoundError,
     DocumentQueryService,
+    QueryStreamEvent,
     UnprocessableDocumentError,
 )
 from reliability_lab.session import (
@@ -156,6 +161,86 @@ def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) 
         else:
             row = conn.execute("SELECT COUNT(*) as cnt FROM experiment_runs").fetchone()
         return int(row["cnt"]) if row else 0
+
+
+def format_sse_event(event: str, data: dict[str, Any] | str) -> str:
+    """Format a typed Server-Sent Event frame conforming to W3C SSE standard."""
+    if isinstance(data, dict):
+        payload = json.dumps(data, ensure_ascii=False)
+    else:
+        payload = str(data)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+def serialize_stream_complete_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Serialize the completed query/trace payload matching the REST schema."""
+    trace = data["trace"]
+    trace_dict = trace.to_dict() if hasattr(trace, "to_dict") else trace
+    payload: dict[str, Any] = {
+        "answer": data["answer"],
+        "query_text": trace.query_text,
+        "selected_doc_ids": list(trace.selected_doc_ids),
+        "strategy": trace.requested_strategy,
+        "effective_strategy": trace.effective_strategy,
+        "fallback_reason": trace.fallback_reason,
+        "abstained": trace.abstained,
+        "retrieval_abstained": trace.retrieval_abstained,
+        "generation_abstained": trace.generation_abstained,
+        "abstention_reason": (
+            trace.retrieval_abstention_reason or trace.generation_abstention_reason
+        ),
+        "resolved_citations": [c.to_dict() for c in trace.resolved_citations],
+        "unresolved_citations": [c.to_dict() for c in trace.unresolved_citations],
+        "malformed_citations": [c.to_dict() for c in trace.malformed_citations],
+        "trace": trace_dict,
+        "latency_ms": trace.total_latency_ms,
+    }
+    if "session_id" in data:
+        payload["session_id"] = data["session_id"]
+    if "user_message_id" in data:
+        payload["user_message_id"] = data["user_message_id"]
+    if "assistant_message_id" in data:
+        payload["assistant_message_id"] = data["assistant_message_id"]
+    return payload
+
+
+_STREAM_DONE = object()
+
+
+async def sse_stream_generator(
+    stream_iter: Iterator[QueryStreamEvent], raw_request: Request
+) -> AsyncIterator[str]:
+    """Asynchronously yield Server-Sent Events with disconnect checks and sanitized errors."""
+    try:
+        while True:
+            if await raw_request.is_disconnected():
+                logger.info("Client disconnected; aborting SSE stream")
+                break
+
+            event = await anyio.to_thread.run_sync(next, stream_iter, _STREAM_DONE)
+            if event is _STREAM_DONE or not isinstance(event, QueryStreamEvent):
+                break
+
+            if await raw_request.is_disconnected():
+                logger.info("Client disconnected; aborting SSE stream")
+                break
+
+            if event.event == "complete":
+                complete_payload = serialize_stream_complete_payload(event.data)
+                yield format_sse_event("complete", complete_payload)
+            else:
+                yield format_sse_event(event.event, event.data)
+    except Exception as exc:
+        logger.error("Error during streaming SSE response: %s", exc, exc_info=True)
+        if not await raw_request.is_disconnected():
+            err_msg = sanitize_path_message(str(exc))
+            yield format_sse_event("error", {"error": err_msg})
+    finally:
+        if hasattr(stream_iter, "close"):
+            try:
+                await anyio.to_thread.run_sync(stream_iter.close)
+            except Exception:
+                pass
 
 
 def create_app(max_request_body_size: int | None = None) -> FastAPI:
@@ -782,6 +867,57 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
             latency_ms=trace.total_latency_ms,
         )
 
+    @app.post("/api/query/stream")
+    def stream_query(
+        request: QueryRequest,
+        query_service: QueryServiceDep,
+        raw_request: Request,
+    ) -> StreamingResponse:
+        """Stream an evidence-grounded query response via Server-Sent Events (SSE)."""
+        try:
+            query_service._validate_lifecycle_and_get_documents(
+                request.document_ids, request.strategy
+            )
+        except DocumentNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except UnprocessableDocumentError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except DocumentConflictError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+
+        stream_iter = query_service.query_stream(
+            query_text=request.query,
+            selected_doc_ids=request.document_ids,
+            strategy=request.strategy,
+            top_k=request.top_k,
+            candidate_depth=request.candidate_depth,
+            min_dense_score=request.min_dense_score,
+        )
+
+        return StreamingResponse(
+            sse_stream_generator(stream_iter, raw_request),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     # --------------------------------------------------------------------------
     # Session Persistence & Conversational Query Endpoints (V2-003 Phase B)
     # --------------------------------------------------------------------------
@@ -989,6 +1125,80 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
             ],
             trace=trace.to_dict(),
             latency_ms=trace.total_latency_ms,
+        )
+
+    @app.post("/api/sessions/{session_id}/query/stream")
+    def stream_session_query(
+        session_id: str,
+        request: SessionQueryRequest,
+        service: SessionServiceDep,
+        raw_request: Request,
+    ) -> StreamingResponse:
+        """Stream a conversational query turn within a persistent session via SSE."""
+        try:
+            session = service.get_session(session_id)
+        except SessionNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+
+        effective_doc_ids = request.document_ids or (
+            [session.selected_doc_id] if session.selected_doc_id else []
+        )
+        if not effective_doc_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"No document selected for query and session '{session_id}' "
+                    "has no default document scope."
+                ),
+            )
+
+        try:
+            service.query_service._validate_lifecycle_and_get_documents(
+                effective_doc_ids, request.strategy
+            )
+        except DocumentNotFoundError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except UnprocessableDocumentError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except DocumentConflictError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+
+        stream_iter = service.execute_session_query_stream(
+            session_id=session_id,
+            query_text=request.query,
+            document_ids=request.document_ids,
+            strategy=request.strategy,
+            top_k=request.top_k,
+            candidate_depth=request.candidate_depth,
+            min_dense_score=request.min_dense_score,
+            max_history_messages=request.max_history_messages,
+        )
+
+        return StreamingResponse(
+            sse_stream_generator(stream_iter, raw_request),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     return app

@@ -9,7 +9,7 @@ import random
 import re
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import httpx
@@ -26,6 +26,7 @@ from reliability_lab.llm.models import (
     LLMGenerationConfig,
     LLMMessage,
     LLMResponse,
+    LLMStreamChunk,
     TokenUsage,
 )
 from reliability_lab.llm.rate_limiter import RateLimiter
@@ -99,6 +100,25 @@ class BaseLLMClient(ABC):
         """Generate a response text for the provided prompt."""
         ...
 
+    def generate_stream(
+        self,
+        prompt: str | Sequence[LLMMessage | dict[str, str]],
+        config: LLMGenerationConfig | None = None,
+    ) -> Iterator[LLMStreamChunk]:
+        """Generate a streaming response yielding incremental text chunks and final metadata.
+
+        Default implementation falls back to synchronous generate(), yielding a terminal chunk.
+        Streaming-capable providers (e.g. Ollama, MockLLMClient) override for progressive tokens.
+        """
+        resp = self.generate(prompt=prompt, config=config)
+        yield LLMStreamChunk(
+            delta=resp.text,
+            model=resp.model,
+            done=True,
+            usage=resp.usage,
+            finish_reason=resp.finish_reason,
+        )
+
     def generate_json(
         self,
         prompt: str | Sequence[LLMMessage | dict[str, str]],
@@ -142,9 +162,10 @@ class MockLLMClient(BaseLLMClient):
         model_name: str = "mock-model",
         default_response: str = "Mock generation response",
         canned_responses: dict[str, str] | None = None,
-        response_queue: list[str | LLMResponse | Exception] | None = None,
+        response_queue: list[Any] | None = None,
         error_to_raise: Exception | None = None,
         latency_ms: float = 1.0,
+        stream_chunks: list[Any] | None = None,
     ):
         self._model_name = model_name
         self.default_response = default_response
@@ -152,6 +173,7 @@ class MockLLMClient(BaseLLMClient):
         self.response_queue = list(response_queue) if response_queue else []
         self.error_to_raise = error_to_raise
         self.latency_ms = latency_ms
+        self.stream_chunks = list(stream_chunks) if stream_chunks is not None else None
         self.history: list[dict[str, Any]] = []
 
     @property
@@ -243,6 +265,127 @@ class MockLLMClient(BaseLLMClient):
         )
         self.history.append({**call_record, "response": resp})
         return resp
+
+    def generate_stream(
+        self,
+        prompt: str | Sequence[LLMMessage | dict[str, str]],
+        config: LLMGenerationConfig | None = None,
+    ) -> Iterator[LLMStreamChunk]:
+        cfg = config or LLMGenerationConfig()
+        sys_prompt, messages = _normalize_prompt(prompt)
+
+        combined_text = "\n".join(
+            ([f"system: {sys_prompt}"] if sys_prompt else [])
+            + [f"{m.role}: {m.content}" for m in messages]
+        )
+
+        call_record: dict[str, Any] = {
+            "prompt": prompt,
+            "system_prompt": sys_prompt,
+            "messages": messages,
+            "combined_text": combined_text,
+            "config": cfg,
+            "timestamp": time.time(),
+            "streaming": True,
+        }
+
+        if self.error_to_raise is not None:
+            self.history.append({**call_record, "error": str(self.error_to_raise)})
+            raise self.error_to_raise
+
+        if self.stream_chunks is not None:
+            for item in self.stream_chunks:
+                if isinstance(item, Exception):
+                    self.history.append({**call_record, "error": str(item)})
+                    raise item
+                if isinstance(item, LLMStreamChunk):
+                    yield item
+                else:
+                    yield LLMStreamChunk(delta=str(item), model=self._model_name, done=False)
+            self.history.append({**call_record, "response": "stream_chunks_completed"})
+            yield LLMStreamChunk(
+                delta="",
+                model=self._model_name,
+                done=True,
+                usage=TokenUsage(prompt_tokens=5, completion_tokens=5, total_tokens=10),
+                finish_reason="STOP",
+            )
+            return
+
+        if self.response_queue:
+            item = self.response_queue.pop(0)
+            if isinstance(item, Exception):
+                self.history.append({**call_record, "error": str(item)})
+                raise item
+            if isinstance(item, list):
+                for chunk_item in item:
+                    if isinstance(chunk_item, Exception):
+                        self.history.append({**call_record, "error": str(chunk_item)})
+                        raise chunk_item
+                    if isinstance(chunk_item, LLMStreamChunk):
+                        yield chunk_item
+                    else:
+                        yield LLMStreamChunk(
+                            delta=str(chunk_item), model=self._model_name, done=False
+                        )
+                self.history.append({**call_record, "response": "queued_chunks_completed"})
+                yield LLMStreamChunk(
+                    delta="",
+                    model=self._model_name,
+                    done=True,
+                    usage=TokenUsage(prompt_tokens=5, completion_tokens=5, total_tokens=10),
+                    finish_reason="STOP",
+                )
+                return
+            if isinstance(item, LLMResponse):
+                response_text = item.text
+            else:
+                response_text = str(item)
+        else:
+            response_text = self.default_response
+            for pattern, canned in self.canned_responses.items():
+                if pattern in combined_text or (sys_prompt and pattern in sys_prompt):
+                    response_text = canned
+                    break
+
+        if cfg.response_mime_type == "application/json":
+            try:
+                json.loads(_clean_json_text(response_text))
+            except (json.JSONDecodeError, TypeError):
+                response_text = json.dumps({"response": response_text})
+
+        tokens = re.findall(r"\S+|\s+", response_text)
+        if not tokens and response_text:
+            tokens = [response_text]
+
+        prompt_tokens = max(1, len(combined_text.split()))
+        completion_tokens = max(1, len(response_text.split()))
+        usage = TokenUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        )
+
+        for i, token in enumerate(tokens):
+            is_last = i == len(tokens) - 1
+            yield LLMStreamChunk(
+                delta=token,
+                model=self._model_name,
+                done=is_last,
+                usage=usage if is_last else None,
+                finish_reason="STOP" if is_last else None,
+            )
+
+        if not tokens:
+            yield LLMStreamChunk(
+                delta="",
+                model=self._model_name,
+                done=True,
+                usage=usage,
+                finish_reason="STOP",
+            )
+
+        self.history.append({**call_record, "response_text": response_text})
 
 
 class GeminiLLMClient(BaseLLMClient):
@@ -498,6 +641,17 @@ class GeminiLLMClient(BaseLLMClient):
             raw_response=data,
         )
 
+    def generate_stream(
+        self,
+        prompt: str | Sequence[LLMMessage | dict[str, str]],
+        config: LLMGenerationConfig | None = None,
+    ) -> Iterator[LLMStreamChunk]:
+        """Generate a response text stream for the provided prompt."""
+        if self._mock_delegate is not None:
+            yield from self._mock_delegate.generate_stream(prompt=prompt, config=config)
+            return
+        raise NotImplementedError("Streaming is not yet implemented for GeminiLLMClient.")
+
 
 class OllamaLLMClient(BaseLLMClient):
     """Local LLM client for Ollama runtime via the /api/chat HTTP REST API.
@@ -727,6 +881,141 @@ class OllamaLLMClient(BaseLLMClient):
             latency_ms=latency_ms,
             raw_response=data,
         )
+
+    def generate_stream(
+        self,
+        prompt: str | Sequence[LLMMessage | dict[str, str]],
+        config: LLMGenerationConfig | None = None,
+    ) -> Iterator[LLMStreamChunk]:
+        """Generate a streaming response from Ollama via newline-delimited JSON chunks."""
+        cfg = config or LLMGenerationConfig()
+        messages = self._format_messages(prompt)
+        options = self._build_options(cfg)
+
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "messages": messages,
+            "stream": True,
+            "options": options,
+        }
+
+        if cfg.response_mime_type == "application/json":
+            payload["format"] = "json"
+
+        endpoint = f"{self._base_url}/api/chat"
+
+        try:
+            with self._client.stream("POST", endpoint, json=payload) as response:
+                if response.status_code == 404:
+                    response.read()
+                    err_text = response.text
+                    try:
+                        err_json = response.json()
+                        err_msg = str(err_json.get("error", err_text))
+                    except Exception:
+                        err_msg = err_text
+
+                    if "model" in err_msg.lower() and (
+                        "not found" in err_msg.lower() or "pull" in err_msg.lower()
+                    ):
+                        raise LLMInvalidRequestError(
+                            f"Ollama model '{self._model}' not found on local host (HTTP 404). "
+                            f"Download the model by running 'ollama pull {self._model}'. "
+                            f"Raw message: {err_msg}",
+                            status_code=404,
+                            provider="ollama",
+                        )
+                    raise LLMProviderUnavailableError(
+                        f"Ollama endpoint '{endpoint}' not found (HTTP 404). "
+                        f"Verify OLLAMA_BASE_URL. Raw message: {err_msg}",
+                        status_code=404,
+                        provider="ollama",
+                    )
+
+                if response.status_code >= 500:
+                    response.read()
+                    raise LLMProviderUnavailableError(
+                        f"Ollama server error (HTTP {response.status_code}): {response.text[:300]}",
+                        status_code=response.status_code,
+                        provider="ollama",
+                    )
+
+                if response.status_code >= 400:
+                    response.read()
+                    err_snippet = response.text[:300]
+                    raise LLMInvalidRequestError(
+                        f"Ollama invalid request (HTTP {response.status_code}): {err_snippet}",
+                        status_code=response.status_code,
+                        provider="ollama",
+                    )
+
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except Exception as exc:
+                        line_snippet = line[:200]
+                        raise LLMInvalidRequestError(
+                            f"Ollama returned malformed non-JSON payload: {exc}. "
+                            f"Line: {line_snippet}",
+                            provider="ollama",
+                        ) from exc
+
+                    if "error" in data:
+                        raise LLMProviderUnavailableError(
+                            f"Ollama stream error: {data['error']}",
+                            provider="ollama",
+                        )
+
+                    msg = data.get("message")
+                    delta = str(msg.get("content", "")) if isinstance(msg, dict) else ""
+                    done = bool(data.get("done", False))
+
+                    if done:
+                        prompt_tokens = int(data.get("prompt_eval_count") or 0)
+                        completion_tokens = int(data.get("eval_count") or 0)
+                        total_tokens = prompt_tokens + completion_tokens
+                        usage = (
+                            TokenUsage(
+                                prompt_tokens=prompt_tokens,
+                                completion_tokens=completion_tokens,
+                                total_tokens=total_tokens,
+                            )
+                            if (prompt_tokens > 0 or completion_tokens > 0)
+                            else None
+                        )
+                        finish_reason = data.get("done_reason") or "stop"
+                        yield LLMStreamChunk(
+                            delta=delta,
+                            model=str(data.get("model", self._model)),
+                            done=True,
+                            usage=usage,
+                            finish_reason=finish_reason,
+                        )
+                    else:
+                        yield LLMStreamChunk(
+                            delta=delta,
+                            model=str(data.get("model", self._model)),
+                            done=False,
+                        )
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.NetworkError) as exc:
+            raise LLMProviderUnavailableError(
+                f"Cannot connect to Ollama at '{self._base_url}'. "
+                f"Ensure Ollama is installed and running locally ('ollama serve'). Error: {exc}",
+                provider="ollama",
+            ) from exc
+        except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as exc:
+            raise LLMProviderUnavailableError(
+                f"Ollama request to '{endpoint}' timed out after {self._timeout}s. "
+                "Consider increasing request timeout or checking local host resource contention.",
+                provider="ollama",
+            ) from exc
+        except httpx.RequestError as exc:
+            raise LLMProviderUnavailableError(
+                f"Ollama HTTP request failed: {exc}",
+                provider="ollama",
+            ) from exc
 
 
 def get_llm_client(

@@ -62,7 +62,7 @@ class TestSessionRepository:
             session_id=s1.session_id,
             role="user",
             content="Hello",
-            created_at="2026-11-06T23:59:59Z",
+            created_at="2099-01-01T00:00:00Z",
         )
         repo.add_message(msg)
 

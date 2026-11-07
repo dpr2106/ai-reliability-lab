@@ -5,7 +5,11 @@
 import type {
   CitationAuditResponse,
   CompareRequest,
+  CreateInvestigationRequest,
+  DocumentListResponse,
   HealthResponse,
+  InvestigationDetail,
+  InvestigationListResponse,
   RegressionResult,
   RunDetail,
   RunListResponse
@@ -109,6 +113,100 @@ export class ApiClient {
 
   async auditCitations(runId: string): Promise<CitationAuditResponse> {
     return this.request<CitationAuditResponse>(`/api/runs/${encodeURIComponent(runId)}/citation-audit`);
+  }
+
+  private async requestText(endpoint: string, options: RequestInit = {}): Promise<string> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers = {
+      ...options.headers
+    };
+
+    try {
+      const response = await this.fetchFn(url, { ...options, headers });
+      if (!response.ok) {
+        let detail = response.statusText;
+        try {
+          const errBody = await response.json();
+          if (errBody && typeof errBody.detail === 'string') {
+            detail = errBody.detail;
+          }
+        } catch {
+          // Response body was not JSON
+        }
+        throw new ApiError(response.status, detail);
+      }
+      return await response.text();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      throw new ApiError(0, (err as Error).message || 'Network request failed', err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Documents API
+  // ---------------------------------------------------------------------------
+
+  async listDocuments(params?: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+  }): Promise<DocumentListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+    if (params?.status) searchParams.set('status', params.status);
+
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    return this.request<DocumentListResponse>(`/api/documents${query}`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cross-Document Evidence Investigations API (STING V2-004)
+  // ---------------------------------------------------------------------------
+
+  async listInvestigations(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<InvestigationListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    return this.request<InvestigationListResponse>(`/api/investigations${query}`);
+  }
+
+  async getInvestigation(investigationId: string): Promise<InvestigationDetail> {
+    return this.request<InvestigationDetail>(`/api/investigations/${encodeURIComponent(investigationId)}`);
+  }
+
+  async createInvestigation(req: CreateInvestigationRequest): Promise<InvestigationDetail> {
+    return this.request<InvestigationDetail>('/api/investigations', {
+      method: 'POST',
+      body: JSON.stringify(req)
+    });
+  }
+
+  async runInvestigation(investigationId: string): Promise<InvestigationDetail> {
+    return this.request<InvestigationDetail>(
+      `/api/investigations/${encodeURIComponent(investigationId)}/run`,
+      { method: 'POST' }
+    );
+  }
+
+  async deleteInvestigation(investigationId: string): Promise<{ investigation_id: string; deleted: boolean }> {
+    return this.request<{ investigation_id: string; deleted: boolean }>(
+      `/api/investigations/${encodeURIComponent(investigationId)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async exportInvestigationMarkdown(investigationId: string): Promise<string> {
+    return this.requestText(`/api/investigations/${encodeURIComponent(investigationId)}/export`, {
+      headers: { Accept: 'text/markdown' }
+    });
   }
 }
 

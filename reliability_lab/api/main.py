@@ -22,6 +22,7 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    Response,
     UploadFile,
     status,
 )
@@ -35,6 +36,7 @@ from reliability_lab.api.schemas import (
     CitationAuditQueryItem,
     CitationAuditResponse,
     CompareRequest,
+    CreateInvestigationRequest,
     CreateSessionRequest,
     DocumentChunkListResponse,
     DocumentDeleteResponse,
@@ -43,6 +45,11 @@ from reliability_lab.api.schemas import (
     DocumentSummarySchema,
     DocumentUploadResponse,
     HealthResponse,
+    InvestigationDeleteResponse,
+    InvestigationDetailResponse,
+    InvestigationListResponse,
+    InvestigationReportSchema,
+    InvestigationSummarySchema,
     MalformedCitationSchema,
     MessageResponse,
     QueryRequest,
@@ -69,6 +76,12 @@ from reliability_lab.ingestion.service import (
     IngestionError,
     InvalidDocumentFormatError,
     UploadSizeLimitExceededError,
+)
+from reliability_lab.investigation import (
+    InvestigationNotFoundError,
+    InvestigationRepository,
+    InvestigationService,
+    InvestigationStorageError,
 )
 from reliability_lab.query import (
     DocumentConflictError,
@@ -148,6 +161,29 @@ IngestionServiceDep = Annotated[DocumentIngestionService, Depends(get_ingestion_
 QueryServiceDep = Annotated[DocumentQueryService, Depends(get_query_service)]
 SessionRepoDep = Annotated[SessionRepository, Depends(get_session_repository)]
 SessionServiceDep = Annotated[SessionService, Depends(get_session_service)]
+
+
+def get_investigation_repository() -> InvestigationRepository:
+    """FastAPI dependency providing an active InvestigationRepository."""
+    db_path = get_db_path()
+    return InvestigationRepository(db_path)
+
+
+def get_investigation_service(
+    investigation_repo: Annotated[InvestigationRepository, Depends(get_investigation_repository)],
+    doc_repo: Annotated[DocumentRepository, Depends(get_document_repository)],
+    query_service: Annotated[DocumentQueryService, Depends(get_query_service)],
+) -> InvestigationService:
+    """FastAPI dependency providing an active InvestigationService."""
+    return InvestigationService(
+        investigation_repository=investigation_repo,
+        document_repository=doc_repo,
+        query_service=query_service,
+    )
+
+
+InvestigationRepoDep = Annotated[InvestigationRepository, Depends(get_investigation_repository)]
+InvestigationServiceDep = Annotated[InvestigationService, Depends(get_investigation_service)]
 
 
 def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) -> int:
@@ -1198,6 +1234,221 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 "Cache-Control": "no-cache, no-transform",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
+            },
+        )
+
+    # --------------------------------------------------------------------------
+    # Evidence Intelligence Investigation Endpoints (STING V2-004)
+    # --------------------------------------------------------------------------
+
+    @app.post(
+        "/api/investigations",
+        response_model=InvestigationDetailResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_investigation(
+        payload: CreateInvestigationRequest,
+        service: InvestigationServiceDep,
+        background_tasks: BackgroundTasks,
+    ) -> InvestigationDetailResponse:
+        """Create and optionally execute a cross-document evidence investigation."""
+        try:
+            record = service.create_investigation(
+                query=payload.query,
+                document_ids=payload.document_ids,
+                title=payload.title,
+                comparison_aspects=payload.comparison_aspects,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=sanitize_path_message(str(exc)),
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create investigation: {sanitize_path_message(str(exc))}",
+            ) from exc
+
+        if payload.run_immediately:
+            try:
+                report = service.execute_investigation(record.investigation_id)
+                record.report = report
+                record.status = "completed"
+                record.completed_at = report.completed_at
+            except Exception as exc:
+                logger.error("Immediate execution of investigation failed: %s", exc)
+                updated = service.investigation_repository.get_investigation(record.investigation_id)
+                if updated:
+                    record = updated
+        else:
+            background_tasks.add_task(service.execute_investigation, record.investigation_id)
+
+        rep_dict = record.report.to_dict() if record.report else None
+
+        return InvestigationDetailResponse(
+            investigation_id=record.investigation_id,
+            title=record.title,
+            query=record.query,
+            comparison_aspects=record.comparison_aspects,
+            document_ids=record.document_ids,
+            status=record.status,
+            created_at=record.created_at,
+            completed_at=record.completed_at,
+            error_message=record.error_message,
+            report=InvestigationReportSchema(**rep_dict) if rep_dict else None,
+        )
+
+    @app.get(
+        "/api/investigations",
+        response_model=InvestigationListResponse,
+    )
+    def list_investigations(
+        service: InvestigationServiceDep,
+        limit: int = Query(20, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> InvestigationListResponse:
+        """List past cross-document investigations ordered by creation date."""
+        records, total = service.investigation_repository.list_investigations(
+            limit=limit, offset=offset
+        )
+        summaries: list[InvestigationSummarySchema] = []
+        for r in records:
+            total_findings = r.report.total_findings if r.report else 0
+            summaries.append(
+                InvestigationSummarySchema(
+                    investigation_id=r.investigation_id,
+                    title=r.title,
+                    query=r.query,
+                    comparison_aspects=r.comparison_aspects,
+                    document_ids=r.document_ids,
+                    status=r.status,
+                    created_at=r.created_at,
+                    completed_at=r.completed_at,
+                    total_findings=total_findings,
+                    error_message=r.error_message,
+                )
+            )
+        return InvestigationListResponse(
+            investigations=summaries,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    @app.get(
+        "/api/investigations/{investigation_id}",
+        response_model=InvestigationDetailResponse,
+    )
+    def get_investigation(
+        investigation_id: str,
+        service: InvestigationServiceDep,
+    ) -> InvestigationDetailResponse:
+        """Retrieve full details, matrix, and findings for an investigation."""
+        record = service.investigation_repository.get_investigation(investigation_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Investigation '{investigation_id}' not found.",
+            )
+        rep_dict = record.report.to_dict() if record.report else None
+        return InvestigationDetailResponse(
+            investigation_id=record.investigation_id,
+            title=record.title,
+            query=record.query,
+            comparison_aspects=record.comparison_aspects,
+            document_ids=record.document_ids,
+            status=record.status,
+            created_at=record.created_at,
+            completed_at=record.completed_at,
+            error_message=record.error_message,
+            report=InvestigationReportSchema(**rep_dict) if rep_dict else None,
+        )
+
+    @app.post(
+        "/api/investigations/{investigation_id}/run",
+        response_model=InvestigationDetailResponse,
+    )
+    def run_investigation(
+        investigation_id: str,
+        service: InvestigationServiceDep,
+        background_tasks: BackgroundTasks,
+        wait: bool = Query(True, description="Wait for execution to finish before returning"),
+    ) -> InvestigationDetailResponse:
+        """Execute or re-run an investigation pipeline."""
+        record = service.investigation_repository.get_investigation(investigation_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Investigation '{investigation_id}' not found.",
+            )
+
+        if wait:
+            service.execute_investigation(investigation_id)
+            record = service.investigation_repository.get_investigation(investigation_id) or record
+        else:
+            background_tasks.add_task(service.execute_investigation, investigation_id)
+            record.status = "running"
+
+        rep_dict = record.report.to_dict() if record.report else None
+        return InvestigationDetailResponse(
+            investigation_id=record.investigation_id,
+            title=record.title,
+            query=record.query,
+            comparison_aspects=record.comparison_aspects,
+            document_ids=record.document_ids,
+            status=record.status,
+            created_at=record.created_at,
+            completed_at=record.completed_at,
+            error_message=record.error_message,
+            report=InvestigationReportSchema(**rep_dict) if rep_dict else None,
+        )
+
+    @app.delete(
+        "/api/investigations/{investigation_id}",
+        response_model=InvestigationDeleteResponse,
+    )
+    def delete_investigation(
+        investigation_id: str,
+        service: InvestigationServiceDep,
+    ) -> InvestigationDeleteResponse:
+        """Delete an investigation record and its associated findings."""
+        record = service.investigation_repository.get_investigation(investigation_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Investigation '{investigation_id}' not found.",
+            )
+        service.investigation_repository.delete_investigation(investigation_id)
+        return InvestigationDeleteResponse(deleted=True, investigation_id=investigation_id)
+
+    @app.get(
+        "/api/investigations/{investigation_id}/export",
+        response_class=Response,
+    )
+    def export_investigation_markdown(
+        investigation_id: str,
+        service: InvestigationServiceDep,
+    ) -> Response:
+        """Export an investigation's findings and comparison matrix as a Markdown document."""
+        record = service.investigation_repository.get_investigation(investigation_id)
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Investigation '{investigation_id}' not found.",
+            )
+        if not record.report:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Investigation has not completed yet or has no report to export.",
+            )
+        markdown_text = record.report.to_markdown()
+        filename = f"investigation_{investigation_id}.md"
+        return Response(
+            content=markdown_text,
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
             },
         )
 

@@ -310,7 +310,6 @@ class QueryResponse(BaseModel):
     trace: dict[str, Any]
     latency_ms: float
 
-
 class CreateSessionRequest(BaseModel):
     """Payload to create a new conversational session."""
 
@@ -494,3 +493,152 @@ class SessionQueryResponse(BaseModel):
     malformed_citations: list[MalformedCitationSchema]
     trace: dict[str, Any]
     latency_ms: float
+
+
+# --------------------------------------------------------------------------
+# Evidence Intelligence Investigation Schemas (STING V2-004)
+# --------------------------------------------------------------------------
+
+
+class CreateInvestigationRequest(BaseModel):
+    """Payload to initiate a cross-document evidence investigation."""
+
+    query: str = Field(..., min_length=1, description="Investigation topic or research question")
+    document_ids: list[str] = Field(..., min_length=1, description="List of document IDs to investigate")
+    title: str | None = Field(None, description="Optional custom title for the investigation")
+    comparison_aspects: list[str] | None = Field(
+        None, description="Optional comparison dimensions/aspects to evaluate across sources"
+    )
+    run_immediately: bool = Field(
+        True, description="Whether to execute the investigation immediately before returning"
+    )
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("query must be a non-empty string.")
+        return s
+
+    @field_validator("document_ids")
+    @classmethod
+    def validate_document_ids(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError("document_ids must contain at least one document ID.")
+        cleaned: list[str] = []
+        for d in v:
+            if not isinstance(d, str) or isinstance(d, bool) or not d.strip():
+                raise ValueError("document_ids must not contain empty or whitespace-only strings.")
+            cleaned.append(d.strip())
+        unique = list(dict.fromkeys(cleaned))
+        if not unique:
+            raise ValueError("document_ids must contain at least one valid document ID.")
+        return unique
+
+    @field_validator("comparison_aspects")
+    @classmethod
+    def validate_comparison_aspects(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        cleaned: list[str] = []
+        for a in v:
+            if isinstance(a, str) and a.strip():
+                cleaned.append(a.strip())
+        return list(dict.fromkeys(cleaned)) if cleaned else None
+
+
+class EvidenceFindingSchema(BaseModel):
+    """A claim or empirical finding extracted from a specific document chunk."""
+
+    finding_id: str
+    topic_id: str
+    doc_id: str
+    doc_title: str
+    chunk_id: str
+    page_number: int | None = None
+    claim: str
+    supporting_passage: str
+    relationship: str
+    confidence: float
+    methodology_notes: str | None = None
+    created_at: str
+
+
+class ComparisonTopicSchema(BaseModel):
+    """A thematic aspect or research dimension compared across documents."""
+
+    topic_id: str
+    topic_name: str
+    description: str
+    findings: list[EvidenceFindingSchema]
+    agreements_summary: str
+    disagreements_summary: str
+    evidence_gaps: list[str]
+
+
+class InvestigationReportSchema(BaseModel):
+    """Full cross-document comparison report with findings matrix and synthesis."""
+
+    investigation_id: str
+    title: str
+    query: str
+    comparison_aspects: list[str]
+    document_ids: list[str]
+    document_summaries: list[dict[str, Any]]
+    topics: list[ComparisonTopicSchema]
+    total_findings: int
+    relationship_counts: dict[str, int]
+    executive_summary: str
+    methodology_synthesis: str
+    created_at: str
+    completed_at: str | None = None
+    status: str
+    error_message: str | None = None
+
+
+class InvestigationSummarySchema(BaseModel):
+    """High-level summary of an investigation entity."""
+
+    investigation_id: str
+    title: str
+    query: str
+    comparison_aspects: list[str]
+    document_ids: list[str]
+    status: str
+    created_at: str
+    completed_at: str | None = None
+    total_findings: int = 0
+    error_message: str | None = None
+
+
+class InvestigationListResponse(BaseModel):
+    """Paginated collection of investigations."""
+
+    investigations: list[InvestigationSummarySchema]
+    total: int
+    limit: int
+    offset: int
+
+
+class InvestigationDetailResponse(BaseModel):
+    """Complete detail response of an investigation and its associated report."""
+
+    investigation_id: str
+    title: str
+    query: str
+    comparison_aspects: list[str]
+    document_ids: list[str]
+    status: str
+    created_at: str
+    completed_at: str | None = None
+    error_message: str | None = None
+    report: InvestigationReportSchema | None = None
+
+
+class InvestigationDeleteResponse(BaseModel):
+    """Response returned upon successful investigation deletion."""
+
+    deleted: bool = True
+    investigation_id: str
+

@@ -163,3 +163,135 @@ export interface CitationAuditResponse {
   limitations_note: string;
 }
 
+// -----------------------------------------------------------------------------
+// Document Types
+// -----------------------------------------------------------------------------
+
+export interface DocumentSummary {
+  doc_id: string;
+  filename: string;
+  file_type: string;
+  file_size_bytes: number;
+  status: string;
+  chunk_count: number;
+  page_count: number | null;
+  created_at: string;
+  processed_at: string | null;
+  error_message: string | null;
+}
+
+export interface DocumentListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: DocumentSummary[];
+}
+
+// -----------------------------------------------------------------------------
+// Cross-Document Evidence Intelligence Types (STING V2-004)
+// -----------------------------------------------------------------------------
+
+export type EvidenceRelationship =
+  | 'supports'
+  | 'contradicts'
+  | 'qualifies'
+  | 'not_addressed'
+  | 'insufficient_evidence';
+
+export interface EvidenceFinding {
+  finding_id: string;
+  doc_id: string;
+  doc_title: string;
+  chunk_id: string;
+  page_number: number | null;
+  claim: string;
+  supporting_passage: string;
+  relationship: EvidenceRelationship;
+  confidence: number;
+  topic_id?: string;
+  topic_name?: string | null;
+  investigation_id?: string | null;
+  methodology_notes?: string | null;
+  created_at?: string;
+}
+
+export interface ComparisonTopic {
+  topic_id: string;
+  topic_name: string;
+  description: string;
+  findings: EvidenceFinding[];
+  agreements_summary?: string;
+  disagreements_summary?: string;
+  evidence_gaps?: string[];
+}
+
+export interface DocumentSummaryInReport {
+  doc_id: string;
+  title?: string;
+  filename?: string;
+  chunk_count?: number;
+  findings_count?: number;
+  status?: string;
+}
+
+export interface InvestigationReport {
+  investigation_id: string;
+  title: string;
+  query: string;
+  comparison_aspects: string[];
+  document_ids: string[];
+  document_summaries: DocumentSummaryInReport[];
+  topics: ComparisonTopic[];
+  total_findings: number;
+  relationship_counts: Record<string, number>;
+  executive_summary: string;
+  methodology_synthesis?: string;
+  created_at: string;
+  completed_at?: string | null;
+  status: string;
+  error_message?: string | null;
+}
+
+export interface InvestigationSummary {
+  investigation_id: string;
+  title: string;
+  query: string;
+  document_count: number;
+  aspect_count: number;
+  status: 'created' | 'running' | 'completed' | 'failed';
+  total_findings: number;
+  created_at: string;
+  completed_at: string | null;
+  relationship_counts?: Record<string, number>;
+  error_message?: string | null;
+}
+
+export interface InvestigationDetail {
+  investigation_id: string;
+  title: string;
+  query: string;
+  comparison_aspects: string[];
+  document_ids: string[];
+  status: 'created' | 'running' | 'completed' | 'failed';
+  created_at: string;
+  completed_at: string | null;
+  error_message?: string | null;
+  report?: InvestigationReport | null;
+}
+
+export interface CreateInvestigationRequest {
+  query: string;
+  document_ids: string[];
+  title?: string | null;
+  comparison_aspects?: string[] | null;
+  aspects?: string[] | null;
+  run_immediately?: boolean;
+}
+
+export interface InvestigationListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  investigations: InvestigationSummary[];
+}
+

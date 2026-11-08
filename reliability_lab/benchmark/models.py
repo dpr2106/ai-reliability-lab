@@ -99,13 +99,22 @@ class BenchmarkDataset:
             citation_records = q.metadata.get("citation_records")
             if isinstance(citation_records, list):
                 required_citations = citation_records
+            elif q.metadata.get("citation_to_chunk_id"):
+                c_map = q.metadata["citation_to_chunk_id"]
+                required_citations = [
+                    {"citation_id": cit_id, "chunk_id": c_map.get(cit_id, cit_id)}
+                    for cit_id in q.required_citations
+                ]
             else:
                 required_citations = list(q.required_citations)
 
             q_dict = {
                 "query_id": q.query_id,
                 "query": q.text,
+                "text": q.text,
                 "ground_truth_answer": q.ground_truth_answer,
+                "relevant_chunk_ids": list(q.relevant_chunk_ids),
+                "relevance_grades": dict(q.relevance_grades),
                 "relevance_judgments": judgments,
                 "required_citations": required_citations,
                 "metadata": {

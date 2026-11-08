@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -371,6 +371,7 @@ class RAGEvaluationRunner:
         repository: ExperimentRepository | None = None,
         dataset_reference: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> RAGPipelineExecutionResult:
         """Execute the end-to-end RAG pipeline returning full execution details."""
         # 1. Resolve corpus
@@ -418,9 +419,16 @@ class RAGEvaluationRunner:
         judge_results_list: list[JudgeResult] = []
         nli_results_list: list[NLIResult] = []
 
-        for query in benchmark_queries:
+        total_queries = len(benchmark_queries)
+        for idx, query in enumerate(benchmark_queries, start=1):
             q_res = self.evaluate_query(query)
             per_query_results.append(q_res)
+
+            if progress_callback is not None:
+                try:
+                    progress_callback(idx, total_queries)
+                except Exception as cb_exc:
+                    logger.warning("Error in progress callback: %s", cb_exc)
 
             total_latencies.append(q_res.latency_ms)
             gen_latencies.append(q_res.generation_provenance.latency_ms)
@@ -637,6 +645,7 @@ class RAGEvaluationRunner:
         repository: ExperimentRepository | None = None,
         dataset_reference: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> EvaluationReport:
         """Execute the end-to-end RAG benchmark evaluation run.
 
@@ -649,5 +658,6 @@ class RAGEvaluationRunner:
             repository=repository,
             dataset_reference=dataset_reference,
             metadata=metadata,
+            progress_callback=progress_callback,
         )
         return result.report

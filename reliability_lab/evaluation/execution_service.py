@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
+import json
 import logging
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -37,6 +39,80 @@ logger = logging.getLogger(__name__)
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _dedup_list(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    res: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            res.append(item)
+    return res
+
+
+def compute_dataset_content_hash(dataset: Any) -> str:
+    """Compute deterministic SHA-256 digest over dataset queries and ground truth annotations."""
+    records = []
+    for q in sorted(dataset.queries, key=lambda x: str(x.query_id)):
+        sorted_grades = sorted(
+            [(str(k), int(v)) for k, v in q.relevance_grades.items()],
+            key=lambda x: x[0],
+        )
+        sorted_chunks = sorted([str(cid) for cid in q.relevant_chunk_ids])
+        sorted_cits = sorted([str(c) for c in q.required_citations])
+        clean_meta = {
+            k: v
+            for k, v in sorted(q.metadata.items())
+            if not k.startswith("_") and k not in ("created_at", "updated_at")
+        }
+        records.append(
+            {
+                "query_id": str(q.query_id),
+                "text": str(q.text),
+                "relevant_chunk_ids": sorted_chunks,
+                "relevance_grades": sorted_grades,
+                "ground_truth_answer": str(q.ground_truth_answer or ""),
+                "required_citations": sorted_cits,
+                "metadata": clean_meta,
+            }
+        )
+    canonical_json = json.dumps(records, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+
+
+def compute_corpus_fingerprints(
+    corpus_chunks: list[Chunk],
+    doc_repository: DocumentRepository,
+    target_doc_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Compute deterministic fingerprints for corpus documents and their constituent chunks."""
+    fingerprints: dict[str, dict[str, Any]] = {}
+    for doc_id in sorted(target_doc_ids):
+        doc = doc_repository.get_document(doc_id)
+        doc_chunks = [
+            c
+            for c in corpus_chunks
+            if getattr(c, "doc_id", None) == doc_id
+            or getattr(c, "document_id", None) == doc_id
+            or c.chunk_id.startswith(f"{doc_id}_")
+        ]
+        if not doc_chunks:
+            doc_chunks = doc_repository.get_chunks(doc_id)
+
+        chunk_digests: list[str] = []
+        for c in sorted(doc_chunks, key=lambda x: str(x.chunk_id)):
+            c_text = getattr(c, "content", None) or getattr(c, "text", "")
+            c_str = f"{c.chunk_id}:{c_text}:{getattr(c, 'page_number', None)}"
+            chunk_digests.append(c_str)
+        chunks_hash = hashlib.sha256("\n".join(chunk_digests).encode("utf-8")).hexdigest()
+
+        fingerprints[doc_id] = {
+            "content_hash": getattr(doc, "content_hash", "") if doc else "",
+            "chunk_count": len(doc_chunks),
+            "chunks_hash": chunks_hash,
+        }
+    return fingerprints
 
 
 @dataclass
@@ -79,9 +155,12 @@ class EvaluationJob:
 
     @property
     def progress_percent(self) -> float:
+        if self.status == "completed":
+            return 100.0
         if self.total_queries <= 0:
-            return 0.0 if self.status != "completed" else 100.0
-        return round((self.queries_completed / self.total_queries) * 100.0, 1)
+            return 0.0
+        pct = (self.queries_completed / self.total_queries) * 100.0
+        return round(max(0.0, min(100.0, pct)), 1)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -121,16 +200,28 @@ class EvaluationExecutionService:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def _resolve_corpus(self, document_ids: list[str]) -> list[Chunk]:
-        """Fetch all chunks for target document IDs or entire document repository."""
+        """Fetch and strictly validate all chunks for target document IDs."""
+        if not document_ids:
+            raise ValueError("Document ID list cannot be empty for corpus resolution.")
+
+        target_ids = _dedup_list(document_ids)
+
         chunks: list[Chunk] = []
-
-        target_ids = list(document_ids)
-        if not target_ids:
-            # Query all documents in repository
-            all_docs = self.document_repository.list_documents(limit=500)
-            target_ids = [d.doc_id for d in all_docs]
-
         for doc_id in target_ids:
+            doc = self.document_repository.get_document(doc_id)
+            if doc is None:
+                raise ValueError(f"Requested document '{doc_id}' not found in repository.")
+            status_val = getattr(doc, "status", None)
+            status_str = (
+                status_val.value
+                if (status_val is not None and hasattr(status_val, "value"))
+                else str(status_val or "")
+            )
+            if status_str.upper() != "READY":
+                raise ValueError(
+                    f"Requested document '{doc_id}' is not in ready state "
+                    f"(current status: '{status_str}')."
+                )
             doc_chunks = self.document_repository.get_chunks(doc_id)
             chunks.extend(doc_chunks)
 
@@ -141,7 +232,7 @@ class EvaluationExecutionService:
         return chunks
 
     def _resolve_embedder(self) -> BaseEmbedder:
-        """Resolve sentence transformer or deterministic embedder."""
+        """Resolve sentence transformer embedder or fail closed with actionable error."""
         if self._custom_embedder is not None:
             return self._custom_embedder
         if self.ingestion_service and hasattr(self.ingestion_service, "_embedder"):
@@ -151,10 +242,11 @@ class EvaluationExecutionService:
         try:
             return SentenceTransformerEmbedder()
         except Exception as exc:
-            logger.warning("Falling back to mock embedder due to: %s", exc)
-            from tests.unit.test_investigation_hardening import DeterministicEmbedder
-
-            return DeterministicEmbedder()
+            raise RuntimeError(
+                f"Dense vector embedding engine is unavailable: {exc}. "
+                "Install sentence-transformers and PyTorch, or inject an explicit "
+                "BaseEmbedder instance via dependency injection."
+            ) from exc
 
     def _build_retriever(self, config: ExperimentExecutionConfig) -> Any:
         """Construct the requested retriever implementation."""
@@ -225,14 +317,58 @@ class EvaluationExecutionService:
         if not dataset.queries:
             raise ValueError(f"Benchmark dataset '{config.dataset_id}' contains no queries.")
 
-        # 2. Resolve document corpus
-        target_doc_ids = config.document_ids or dataset.record.document_scope
+        # 2. Resolve document corpus & enforce scope divergence
+        dataset_scope = list(dataset.record.document_scope or [])
+        deduped_dataset_scope = _dedup_list(dataset_scope)
+
+        if config.document_ids:
+            requested_doc_ids = _dedup_list(config.document_ids)
+            if deduped_dataset_scope:
+                out_of_scope = [d for d in requested_doc_ids if d not in set(deduped_dataset_scope)]
+                if out_of_scope:
+                    raise ValueError(
+                        "Experiment document selection contains documents outside dataset scope: "
+                        f"{out_of_scope}."
+                    )
+            target_doc_ids = requested_doc_ids
+        else:
+            if not deduped_dataset_scope:
+                raise ValueError(
+                    "Evaluation requires an explicit document scope. Neither experiment "
+                    "configuration nor benchmark dataset specifies document IDs."
+                )
+            target_doc_ids = deduped_dataset_scope
+
         corpus_chunks = self._resolve_corpus(target_doc_ids)
 
-        # 3. Construct retriever
+        # 3. Validate benchmark chunk references exist in selected corpus
+        corpus_chunk_ids = {c.chunk_id for c in corpus_chunks}
+        for q in dataset.queries:
+            for cid in q.relevant_chunk_ids:
+                if cid not in corpus_chunk_ids:
+                    raise ValueError(
+                        f"Benchmark query '{q.query_id}' references chunk '{cid}' "
+                        f"which is missing from selected corpus."
+                    )
+            for cid in q.relevance_grades:
+                if cid not in corpus_chunk_ids:
+                    raise ValueError(
+                        f"Benchmark query '{q.query_id}' has relevance grade for chunk '{cid}' "
+                        f"which is missing from selected corpus."
+                    )
+            for cit in q.required_citations:
+                mapped_cid = q.metadata.get("citation_to_chunk_id", {}).get(cit, cit)
+                if mapped_cid not in corpus_chunk_ids and cit not in corpus_chunk_ids:
+                    if cit in q.metadata.get("citation_to_chunk_id", {}):
+                        raise ValueError(
+                            f"Benchmark query '{q.query_id}' requires citation '{cit}' targeting "
+                            f"chunk '{mapped_cid}' which is missing from selected corpus."
+                        )
+
+        # 4. Construct retriever
         retriever = self._build_retriever(config)
 
-        # 4. Construct generator and judge
+        # 5. Construct generator and judge
         generator = self._build_generator(config)
 
         judge: LLMJudge | None = None
@@ -246,7 +382,7 @@ class EvaluationExecutionService:
                 logger.warning("Could not initialize LLM judge: %s. Continuing without judge.", exc)
                 judge = None
 
-        # 5. Diagnostic evaluators
+        # 6. Diagnostic evaluators
         groundedness = GroundednessEvaluator() if config.enable_groundedness else None
         citations = CitationEvaluator() if config.enable_citations else None
 
@@ -260,7 +396,7 @@ class EvaluationExecutionService:
                 )
                 nli = None
 
-        # 6. Pipeline configuration
+        # 7. Pipeline configuration
         pipe_cfg = RAGPipelineConfig(
             top_k=config.top_k,
             retriever_name=config.retriever_type,
@@ -291,10 +427,17 @@ class EvaluationExecutionService:
             else ("local" if isinstance(generator, OllamaLLMClient) else "cloud")
         )
 
+        ds_hash = compute_dataset_content_hash(dataset)
+        corpus_fps = compute_corpus_fingerprints(
+            corpus_chunks, self.document_repository, target_doc_ids
+        )
+
         metadata = {
             "dataset_id": dataset.dataset_id,
             "dataset_name": dataset.name,
             "dataset_is_synthetic": dataset.record.is_synthetic,
+            "dataset_content_hash": ds_hash,
+            "corpus_fingerprints": corpus_fps,
             "document_ids": target_doc_ids,
             "corpus_chunk_count": len(corpus_chunks),
             "retriever_type": config.retriever_type,
@@ -308,7 +451,7 @@ class EvaluationExecutionService:
             "execution_timestamp": _utc_now_iso(),
         }
 
-        # 7. Execute runner
+        # 8. Execute runner
         report = runner.run(
             corpus=corpus_chunks,
             benchmark=dataset.queries,
@@ -316,6 +459,7 @@ class EvaluationExecutionService:
             repository=self.experiment_repository,
             dataset_reference=dataset.dataset_id,
             metadata=metadata,
+            progress_callback=progress_callback,
         )
 
         logger.info(
@@ -342,11 +486,17 @@ class EvaluationExecutionService:
         with self._jobs_lock:
             self._jobs[job_id] = job
 
+        def _on_progress(completed: int, total: int) -> None:
+            with self._jobs_lock:
+                job.queries_completed = completed
+                if total > 0:
+                    job.total_queries = total
+
         def _worker() -> None:
             with self._jobs_lock:
                 job.status = "running"
             try:
-                report = self.execute_evaluation(config)
+                report = self.execute_evaluation(config, progress_callback=_on_progress)
                 with self._jobs_lock:
                     job.status = "completed"
                     job.run_id = report.report_id
@@ -364,8 +514,11 @@ class EvaluationExecutionService:
 
     def get_job(self, job_id: str) -> EvaluationJob | None:
         with self._jobs_lock:
-            return self._jobs.get(job_id)
+            job = self._jobs.get(job_id)
+            if job is None:
+                return None
+            return replace(job)
 
     def list_jobs(self) -> list[EvaluationJob]:
         with self._jobs_lock:
-            return list(reversed(list(self._jobs.values())))
+            return [replace(j) for j in reversed(list(self._jobs.values()))]

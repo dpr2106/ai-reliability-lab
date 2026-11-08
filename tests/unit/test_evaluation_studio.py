@@ -370,3 +370,271 @@ class TestApiIntegrationEvaluationStudio:
         assert "metrics" in data
         assert "Recall@K" in data["metrics"]
         assert data["metrics"]["Recall@K"]["direction"] == "higher"
+
+
+class TestHardenedEvaluationStudioBehaviors:
+    """Targeted regression tests for Priorities 1, 2, 3, and 4."""
+
+    def test_resolve_embedder_actionable_error_when_st_fails(
+        self, eval_env: dict[str, Any]
+    ) -> None:
+        """Priority 1: Ensure missing sentence-transformers fails with actionable error."""
+        service = EvaluationExecutionService(
+            experiment_repository=eval_env["exp_repo"],
+            document_repository=eval_env["doc_repo"],
+            dataset_repository=eval_env["ds_repo"],
+            embedder=None,
+        )
+
+        with patch(
+            "reliability_lab.evaluation.execution_service.SentenceTransformerEmbedder",
+            side_effect=ImportError("sentence-transformers not installed"),
+        ):
+            with pytest.raises(RuntimeError, match="Dense vector embedding engine is unavailable"):
+                service._resolve_embedder()
+
+    def test_multi_query_incremental_progress(self, eval_env: dict[str, Any]) -> None:
+        """Priority 2: Progress updates incrementally after each evaluated query."""
+        eval_service: EvaluationExecutionService = eval_env["eval_service"]
+        ingestion: DocumentIngestionService = eval_env["ingestion"]
+        ds_repo: BenchmarkDatasetRepository = eval_env["ds_repo"]
+
+        doc_id = _ingest(
+            ingestion, "doc_multi_prog.txt", "Content for multi-query progress tracking."
+        )
+        q1 = Query(query_id="Q-P1", text="First progress query")
+        q2 = Query(query_id="Q-P2", text="Second progress query")
+        q3 = Query(query_id="Q-P3", text="Third progress query")
+
+        ds = ds_repo.create_dataset(
+            name="Multi Prog Dataset", document_scope=[doc_id], queries=[q1, q2, q3]
+        )
+
+        progress_observations: list[tuple[int, int]] = []
+
+        cfg = ExperimentExecutionConfig(
+            experiment_name="Multi Progress Run",
+            dataset_id=ds.dataset_id,
+            document_ids=[doc_id],
+            retriever_type="bm25",
+            provider="mock",
+            enable_judge=False,
+            enable_nli=False,
+        )
+
+        def _cb(completed: int, total: int) -> None:
+            progress_observations.append((completed, total))
+
+        eval_service.execute_evaluation(cfg, progress_callback=_cb)
+
+        assert len(progress_observations) == 3
+        assert progress_observations[0] == (1, 3)
+        assert progress_observations[1] == (2, 3)
+        assert progress_observations[2] == (3, 3)
+
+    def test_job_early_failure_preserves_last_completed_count(
+        self, eval_env: dict[str, Any]
+    ) -> None:
+        """Priority 2: Early job failure preserves queries_completed and records failure message."""
+        eval_service: EvaluationExecutionService = eval_env["eval_service"]
+        ds_repo: BenchmarkDatasetRepository = eval_env["ds_repo"]
+
+        q = Query(query_id="Q-FAIL-EARLY", text="Failing query")
+        ds = ds_repo.create_dataset(name="Fail Early DS", document_scope=[], queries=[q])
+
+        # An experiment with missing document scope will raise ValueError during execute_evaluation
+        cfg = ExperimentExecutionConfig(
+            experiment_name="Fail Early Run",
+            dataset_id=ds.dataset_id,
+            document_ids=[],
+            retriever_type="bm25",
+            provider="mock",
+        )
+
+        job = eval_service.start_evaluation_job(cfg)
+        import time
+
+        for _ in range(50):
+            if job.status in ("completed", "failed"):
+                break
+            time.sleep(0.05)
+
+        assert job.status == "failed"
+        assert job.error_message is not None
+        assert "explicit document scope" in job.error_message
+        assert job.queries_completed == 0
+        assert job.progress_percent == 0.0
+
+    def test_scope_divergence_rejected(self, eval_env: dict[str, Any]) -> None:
+        """Priority 3: Experiment document selection cannot silently diverge from dataset scope."""
+        eval_service: EvaluationExecutionService = eval_env["eval_service"]
+        ingestion: DocumentIngestionService = eval_env["ingestion"]
+        ds_repo: BenchmarkDatasetRepository = eval_env["ds_repo"]
+
+        doc1 = _ingest(ingestion, "doc1_scoped.txt", "Content of doc1.")
+        doc2 = _ingest(ingestion, "doc2_out.txt", "Content of doc2.")
+
+        q = Query(query_id="Q-DIV", text="Question about doc1")
+        ds = ds_repo.create_dataset(name="Scoped DS", document_scope=[doc1], queries=[q])
+
+        cfg = ExperimentExecutionConfig(
+            experiment_name="Divergence Test",
+            dataset_id=ds.dataset_id,
+            document_ids=[doc1, doc2],  # doc2 is outside dataset scope
+            retriever_type="bm25",
+            provider="mock",
+        )
+
+        with pytest.raises(ValueError, match="outside dataset scope"):
+            eval_service.execute_evaluation(cfg)
+
+    def test_empty_experiment_scope_defaults_to_dataset_scope(
+        self, eval_env: dict[str, Any]
+    ) -> None:
+        """Priority 3: Empty experiment scope defaults to dataset scope without leakage."""
+        eval_service: EvaluationExecutionService = eval_env["eval_service"]
+        ingestion: DocumentIngestionService = eval_env["ingestion"]
+        ds_repo: BenchmarkDatasetRepository = eval_env["ds_repo"]
+
+        doc_scoped = _ingest(ingestion, "scoped_only.txt", "Content for scoped query.")
+        _ingest(ingestion, "leak_check.txt", "Unscoped content that must not be queried.")
+
+        q = Query(query_id="Q-DFLT", text="Default scope question")
+        ds = ds_repo.create_dataset(
+            name="Default Scope DS", document_scope=[doc_scoped], queries=[q]
+        )
+
+        cfg = ExperimentExecutionConfig(
+            experiment_name="Default Scope Run",
+            dataset_id=ds.dataset_id,
+            document_ids=[],  # empty should default to ds.record.document_scope
+            retriever_type="bm25",
+            provider="mock",
+            enable_judge=False,
+            enable_nli=False,
+        )
+
+        report = eval_service.execute_evaluation(cfg)
+        saved_run = eval_env["exp_repo"].get_run(report.report_id)
+        assert saved_run is not None
+        assert saved_run.metadata.get("document_ids") == [doc_scoped]
+
+    def test_missing_or_failed_corpus_document_fails_closed(self, eval_env: dict[str, Any]) -> None:
+        """Priority 3: Missing or non-ready documents fail closed."""
+        eval_service: EvaluationExecutionService = eval_env["eval_service"]
+        ds_repo: BenchmarkDatasetRepository = eval_env["ds_repo"]
+        doc_repo: DocumentRepository = eval_env["doc_repo"]
+
+        q = Query(query_id="Q-MISS-DOC", text="Query with missing doc")
+        ds = ds_repo.create_dataset(
+            name="Missing Doc DS", document_scope=["non_existent_doc_id"], queries=[q]
+        )
+
+        cfg = ExperimentExecutionConfig(
+            experiment_name="Missing Doc Run",
+            dataset_id=ds.dataset_id,
+            document_ids=["non_existent_doc_id"],
+            retriever_type="bm25",
+            provider="mock",
+        )
+
+        with pytest.raises(ValueError, match="not found in repository"):
+            eval_service.execute_evaluation(cfg)
+
+        # Non-ready status failure
+        from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus
+
+        doc_rec = DocumentRecord(
+            doc_id="failing_doc_test",
+            filename="failed.pdf",
+            storage_path="mock/path",
+            file_type="pdf",
+            file_size=1024,
+            content_hash="h1",
+            status=DocumentStatus.FAILED,
+        )
+        doc_repo.insert_document(doc_rec)
+
+        ds_failed = ds_repo.create_dataset(
+            name="Failed Doc DS", document_scope=["failing_doc_test"], queries=[q]
+        )
+
+        cfg_failed = ExperimentExecutionConfig(
+            experiment_name="Failed Doc Run",
+            dataset_id=ds_failed.dataset_id,
+            document_ids=["failing_doc_test"],
+            retriever_type="bm25",
+            provider="mock",
+        )
+
+        with pytest.raises(ValueError, match="not in ready state"):
+            eval_service.execute_evaluation(cfg_failed)
+
+    def test_reproducibility_distinguishes_tiers(self, eval_env: dict[str, Any]) -> None:
+        """Priority 4: Reproducibility accurately distinguishes exact vs partial vs impossible."""
+        eval_service: EvaluationExecutionService = eval_env["eval_service"]
+        ingestion: DocumentIngestionService = eval_env["ingestion"]
+        ds_repo: BenchmarkDatasetRepository = eval_env["ds_repo"]
+
+        doc_id = _ingest(ingestion, "repro_doc.txt", "Content for reproducibility evaluation.")
+        q = Query(query_id="Q-REPRO", text="Reproducibility question")
+        ds = ds_repo.create_dataset(name="Repro DS", document_scope=[doc_id], queries=[q])
+
+        cfg = ExperimentExecutionConfig(
+            experiment_name="Repro Baseline Run",
+            dataset_id=ds.dataset_id,
+            document_ids=[doc_id],
+            retriever_type="bm25",
+            provider="mock",
+            enable_judge=False,
+            enable_nli=False,
+        )
+
+        report = eval_service.execute_evaluation(cfg)
+        run_id = report.report_id
+
+        app = create_app()
+        from reliability_lab.api.main import (
+            get_dataset_repository,
+            get_document_repository,
+            get_repository,
+        )
+
+        db_file = str(eval_env["db"].path)
+        app.dependency_overrides[get_repository] = lambda: ExperimentRepository(Database(db_file))
+        app.dependency_overrides[get_dataset_repository] = lambda: BenchmarkDatasetRepository(
+            Database(db_file)
+        )
+        app.dependency_overrides[get_document_repository] = lambda: DocumentRepository(
+            Path(db_file)
+        )
+
+        client = TestClient(app)
+
+        # 1. Exact reproduction possible immediately after run
+        res_exact = client.get(f"/api/runs/{run_id}/reproducibility")
+        assert res_exact.status_code == 200
+        data_exact = res_exact.json()
+        assert data_exact["reproducibility_tier"] == "exact"
+        assert data_exact["can_reproduce"] is True
+        assert data_exact["dataset_unchanged"] is True
+        assert data_exact["corpus_unchanged"] is True
+
+        # 2. Modify dataset -> tier becomes 'partial', can_reproduce is False
+        q_mod = Query(query_id="Q-REPRO", text="Modified query text that changes hash")
+        ds_repo.update_query(ds.dataset_id, q_mod)
+
+        res_partial = client.get(f"/api/runs/{run_id}/reproducibility")
+        assert res_partial.status_code == 200
+        data_partial = res_partial.json()
+        assert data_partial["reproducibility_tier"] == "partial"
+        assert data_partial["can_reproduce"] is False
+        assert data_partial["dataset_unchanged"] is False
+
+        # 3. Delete dataset -> tier becomes 'impossible'
+        ds_repo.delete_dataset(ds.dataset_id)
+        res_imp = client.get(f"/api/runs/{run_id}/reproducibility")
+        assert res_imp.status_code == 200
+        data_imp = res_imp.json()
+        assert data_imp["reproducibility_tier"] == "impossible"
+        assert data_imp["can_reproduce"] is False

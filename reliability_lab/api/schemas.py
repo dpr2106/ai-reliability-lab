@@ -836,8 +836,14 @@ class RunReproducibilityResponse(BaseModel):
     config_hash: str
     dataset_id: str | None = None
     dataset_exists: bool
+    dataset_unchanged: bool | None = None
     corpus_document_ids: list[str] = Field(default_factory=list)
     corpus_documents_exist: bool
+    corpus_unchanged: bool | None = None
+    configuration_available: bool = True
+    model_available: bool | None = None
+    reproducibility_tier: str = "exact"  # "exact", "partial", "impossible"
     can_reproduce: bool
+    reproducibility_notes: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     raw_config: dict[str, Any] = Field(default_factory=dict)

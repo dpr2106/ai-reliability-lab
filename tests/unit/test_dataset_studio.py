@@ -219,3 +219,101 @@ class TestDatasetManagementAndValidation:
         sample_ds = datasets[0]
         assert sample_ds.is_synthetic is True
         assert "Synthetic" in sample_ds.name
+
+    def test_reject_unready_document_in_scope(self, dataset_env: dict[str, Any]) -> None:
+        service: BenchmarkDatasetService = dataset_env["service"]
+        doc_repo: DocumentRepository = dataset_env["doc_repo"]
+
+        # Insert a document in FAILED state
+        from reliability_lab.ingestion.models import DocumentRecord, DocumentStatus
+
+        doc_rec = DocumentRecord(
+            doc_id="failed_doc_1",
+            filename="broken.pdf",
+            storage_path="mock/path",
+            file_type="pdf",
+            file_size=1024,
+            content_hash="hash123",
+            status=DocumentStatus.FAILED,
+        )
+        doc_repo.insert_document(doc_rec)
+
+        q = Query(query_id="Q-FAIL-1", text="Question about failed doc")
+        with pytest.raises(DatasetValidationError, match="not in ready state"):
+            service.create_dataset(
+                name="Failed Doc Test",
+                document_scope=["failed_doc_1"],
+                queries=[q],
+                validate_chunk_existence=False,
+            )
+
+    def test_import_jsonl_duplicate_citations_rejected(self, dataset_env: dict[str, Any]) -> None:
+        service: BenchmarkDatasetService = dataset_env["service"]
+
+        jsonl_line = (
+            '{"query_id": "Q-DUP-CIT", "text": "What is precision?", '
+            '"required_citations": ["c1", "c1"]}\n'
+        )
+        with pytest.raises(DatasetValidationError, match="Duplicate citation identifier 'c1'"):
+            service.import_jsonl(
+                name="Duplicate Citations Dataset",
+                jsonl_content=jsonl_line,
+                validate_chunk_existence=False,
+            )
+
+    def test_import_jsonl_invalid_metadata_rejected(self, dataset_env: dict[str, Any]) -> None:
+        service: BenchmarkDatasetService = dataset_env["service"]
+
+        jsonl_line = (
+            '{"query_id": "Q-BAD-META", "text": "What is recall?", '
+            '"metadata": "not_a_json_object"}\n'
+        )
+        with pytest.raises(DatasetValidationError, match="Invalid metadata type"):
+            service.import_jsonl(
+                name="Invalid Meta Dataset",
+                jsonl_content=jsonl_line,
+                validate_chunk_existence=False,
+            )
+
+    def test_import_jsonl_citation_to_chunk_mapping_roundtrip(
+        self, dataset_env: dict[str, Any]
+    ) -> None:
+        service: BenchmarkDatasetService = dataset_env["service"]
+        ingestion: DocumentIngestionService = dataset_env["ingestion"]
+
+        doc_id = _ingest(ingestion, "doc_cit.txt", "Text for citation roundtrip testing.")
+        chunks = dataset_env["doc_repo"].get_chunks(doc_id)
+        assert len(chunks) > 0
+        target_chunk_id = chunks[0].chunk_id
+
+        jsonl_line = (
+            f'{{"query_id": "Q-CIT-MAP", "text": "What is citation mapping?", '
+            f'"relevant_chunk_ids": ["{target_chunk_id}"], '
+            f'"relevance_grades": {{"{target_chunk_id}": 2}}, '
+            f'"required_citations": ['
+            f'{{"citation_id": "cit_alpha", "chunk_id": "{target_chunk_id}"}}]}}\n'
+        )
+
+        ds = service.import_jsonl(
+            name="Citation Mapping Dataset",
+            jsonl_content=jsonl_line,
+            document_scope=[doc_id],
+            validate_chunk_existence=True,
+        )
+        assert ds.query_count == 1
+        q = ds.queries[0]
+        assert "cit_alpha" in q.required_citations
+        assert q.metadata.get("citation_to_chunk_id", {}).get("cit_alpha") == target_chunk_id
+
+        # Roundtrip export and reimport
+        exported = service.export_jsonl(ds.dataset_id)
+        reimported = service.import_jsonl(
+            name="Reimported Mapping Dataset",
+            jsonl_content=exported,
+            document_scope=[doc_id],
+            validate_chunk_existence=True,
+        )
+        assert reimported.query_count == 1
+        rq = reimported.queries[0]
+        assert "cit_alpha" in rq.required_citations
+        assert rq.metadata.get("citation_to_chunk_id", {}).get("cit_alpha") == target_chunk_id

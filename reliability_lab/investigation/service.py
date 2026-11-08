@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from reliability_lab.core.models import Chunk
@@ -15,6 +16,7 @@ from reliability_lab.investigation.models import (
     VALID_RELATIONSHIPS,
     ComparisonTopic,
     EvidenceFinding,
+    EvidenceRelationship,
     InvestigationRecord,
     InvestigationReport,
 )
@@ -36,6 +38,17 @@ DEFAULT_COMPARISON_ASPECTS: list[str] = [
     "Contradictions & Opposing Results",
     "Limitations & Open Questions",
 ]
+
+
+def _normalize_passage(text: str) -> str:
+    """Normalize whitespace and quotes for robust grounded substring comparison."""
+    norm = re.sub(r"\s+", " ", text).strip().lower()
+    return (
+        norm.replace("\u201c", '"')
+        .replace("\u201d", '"')
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+    )
 
 
 class InvestigationValidationError(ValueError):
@@ -165,6 +178,7 @@ class InvestigationService:
         doc_summaries: list[dict[str, Any]] = []
         doc_chunks_map: dict[str, list[Chunk]] = {}
         doc_records: dict[str, DocumentRecord] = {}
+        doc_coverage: dict[str, dict[str, Any]] = {}
 
         # 1. Gather document records and evidence chunks per document
         for doc_id in inv.document_ids:
@@ -174,12 +188,31 @@ class InvestigationService:
             doc_records[doc_id] = doc
 
             # Retrieve top relevant chunks for this document
-            chunks = self._retrieve_document_evidence(
+            chunks, retrieval_error, is_exhaustive = self._retrieve_document_evidence(
                 doc_id=doc_id,
                 query=inv.query,
                 aspects=inv.comparison_aspects,
             )
             doc_chunks_map[doc_id] = chunks
+            all_chunks = self.document_repository.get_chunks(doc_id)
+            total_count = len(all_chunks)
+            retrieved_count = len(chunks)
+
+            if retrieval_error is not None:
+                cov_mode = "retrieval_error"
+            elif is_exhaustive or retrieved_count >= total_count:
+                cov_mode = "exhaustive"
+            else:
+                cov_mode = "sampled_retrieval"
+
+            doc_coverage[doc_id] = {
+                "total_chunks": total_count,
+                "retrieved_chunks": retrieved_count,
+                "coverage_mode": cov_mode,
+                "is_exhaustive": cov_mode == "exhaustive",
+                "retrieval_error": retrieval_error,
+                "coverage_ratio": round(retrieved_count / max(1, total_count), 3),
+            }
 
         # 2. Extract structured findings from each document
         extracted_findings_by_topic: dict[str, list[EvidenceFinding]] = {
@@ -192,6 +225,7 @@ class InvestigationService:
             chunks = doc_chunks_map.get(doc_id, [])
             doc_record = doc_records.get(doc_id)
             doc_title = doc_record.filename if doc_record else doc_id
+            cov = doc_coverage.get(doc_id, {"is_exhaustive": True, "total_chunks": len(chunks)})
 
             findings = self._extract_findings_for_document(
                 doc_id=doc_id,
@@ -199,6 +233,7 @@ class InvestigationService:
                 query=inv.query,
                 aspects=inv.comparison_aspects,
                 chunks=chunks,
+                is_exhaustive=cov["is_exhaustive"],
             )
 
             for f in findings:
@@ -211,7 +246,12 @@ class InvestigationService:
                 {
                     "doc_id": doc_id,
                     "filename": doc_title,
+                    "title": doc_title,
                     "chunk_count": len(chunks),
+                    "total_chunks": cov.get("total_chunks", len(chunks)),
+                    "retrieved_chunks": len(chunks),
+                    "coverage_mode": cov.get("coverage_mode", "exhaustive"),
+                    "coverage_ratio": cov.get("coverage_ratio", 1.0),
                     "findings_count": doc_findings_count[doc_id],
                 }
             )
@@ -231,24 +271,65 @@ class InvestigationService:
         for aspect_name in inv.comparison_aspects:
             findings_for_aspect = extracted_findings_by_topic.get(aspect_name, [])
 
-            # Ensure all documents are represented (add not_addressed if document has no findings)
+            # Ensure all documents are represented,
+            # distinguishing verified absence from bounded retrieval
             covered_doc_ids = {f.doc_id for f in findings_for_aspect}
             for doc_id in inv.document_ids:
                 if doc_id not in covered_doc_ids:
                     doc_rec = doc_records.get(doc_id)
                     d_title = doc_rec.filename if doc_rec else doc_id
+                    cov = doc_coverage.get(
+                        doc_id,
+                        {
+                            "coverage_mode": "sampled_retrieval",
+                            "is_exhaustive": False,
+                            "retrieval_error": None,
+                            "retrieved_chunks": 0,
+                            "total_chunks": 0,
+                        },
+                    )
+
+                    if cov.get("retrieval_error"):
+                        rel = "insufficient_evidence"
+                        claim = f"Retrieval failed for '{aspect_name}' on document '{d_title}'."
+                        notes = (
+                            f"Retrieval error: {cov['retrieval_error']}. "
+                            "Cannot evaluate topic coverage."
+                        )
+                        conf = 0.0
+                    elif cov.get("is_exhaustive", False):
+                        rel = "not_addressed"
+                        claim = f"Document does not discuss {aspect_name}."
+                        notes = (
+                            f"Verified absent across all {cov['total_chunks']} chunks of document."
+                        )
+                        conf = 1.0
+                    else:
+                        rel = "insufficient_evidence"
+                        rc = cov.get("retrieved_chunks", 0)
+                        tc = cov.get("total_chunks", 0)
+                        claim = (
+                            f"Insufficient retrieved evidence for '{aspect_name}': absent from "
+                            f"top-{rc} retrieved chunks ({tc} total chunks in document)."
+                        )
+                        notes = (
+                            f"Partial retrieval coverage ({rc}/{tc} chunks examined). "
+                            "Unretrieved chunks may discuss this aspect."
+                        )
+                        conf = 0.5
+
                     missing_finding = EvidenceFinding(
-                        finding_id=f"fnd_na_{uuid4().hex[:8]}",
+                        finding_id=f"fnd_gap_{uuid4().hex[:8]}",
                         topic_id=aspect_name,
                         doc_id=doc_id,
                         doc_title=d_title,
                         chunk_id="none",
                         page_number=None,
-                        claim=f"Document does not discuss {aspect_name}.",
+                        claim=claim,
                         supporting_passage="",
-                        relationship="not_addressed",
-                        confidence=1.0,
-                        methodology_notes="No evidence found in retrieved chunks.",
+                        relationship=cast(EvidenceRelationship, rel),
+                        confidence=conf,
+                        methodology_notes=notes,
                     )
                     findings_for_aspect.append(missing_finding)
 
@@ -306,20 +387,21 @@ class InvestigationService:
 
     def _retrieve_document_evidence(
         self, doc_id: str, query: str, aspects: list[str]
-    ) -> list[Chunk]:
+    ) -> tuple[list[Chunk], str | None, bool]:
         """Retrieve relevant evidence chunks specifically for a given document."""
         # 1. First retrieve all chunks from repository as ground truth
         all_chunks = self.document_repository.get_chunks(doc_id)
         if not all_chunks:
-            return []
+            return [], None, True
 
         if not self.query_service or len(all_chunks) <= 15:
             # Small document or query service absent: include all chunks for exhaustive coverage
-            return all_chunks
+            return all_chunks, None, True
 
         # For larger documents, query BM25 and dense indices to surface top relevant chunks
         selected_chunk_ids: set[str] = set()
         retrieved_chunks: list[Chunk] = []
+        retrieval_error: str | None = None
 
         # Query with overall research query
         try:
@@ -344,6 +426,7 @@ class InvestigationService:
                     )
         except Exception as exc:
             logger.warning("Query retrieval failed for doc '%s': %s", doc_id, exc)
+            retrieval_error = str(exc)
 
         # Ensure first chunk (often title / abstract) is always included
         if all_chunks and all_chunks[0].chunk_id not in selected_chunk_ids:
@@ -354,7 +437,8 @@ class InvestigationService:
         if not retrieved_chunks:
             retrieved_chunks = all_chunks[:10]
 
-        return retrieved_chunks
+        is_exhaustive = len(retrieved_chunks) >= len(all_chunks)
+        return retrieved_chunks, retrieval_error, is_exhaustive
 
     def _extract_findings_for_document(
         self,
@@ -363,6 +447,7 @@ class InvestigationService:
         query: str,
         aspects: list[str],
         chunks: list[Chunk],
+        is_exhaustive: bool = True,
     ) -> list[EvidenceFinding]:
         """Use LLM with strict JSON schema to extract structured findings from chunks."""
         if not chunks:
@@ -440,7 +525,7 @@ class InvestigationService:
                 raw_findings = []
         except Exception as exc:
             logger.warning("Structured extraction failed for doc '%s': %s", doc_id, exc)
-            return self._create_fallback_findings(doc_id, doc_title, aspects, chunks)
+            return self._create_fallback_findings(doc_id, doc_title, aspects, chunks, is_exhaustive)
 
         for item in raw_findings:
             if not isinstance(item, dict):
@@ -454,39 +539,160 @@ class InvestigationService:
 
             claim_text = str(item.get("claim", "")).strip()
             topic_name = str(item.get("topic_name", "")).strip() or aspects[0]
-
-            # Fail-closed provenance validation
-            target_chunk = chunk_lookup.get(cid)
+            raw_notes = item.get("methodology_notes")
+            methodology_notes = str(raw_notes).strip() if raw_notes else None
             page_num = item.get("page_number")
-            conf = float(item.get("confidence", 0.8))
 
-            if target_chunk is not None:
-                if page_num is None:
-                    page_num = target_chunk.page_number
-                # Verify that supporting passage is grounded in chunk content
-                if claimed_passage and claimed_passage.lower() not in target_chunk.content.lower():
-                    # Quote mismatch or hallucinated passage -> downgrade relationship
+            try:
+                conf = float(item.get("confidence", 0.8))
+            except (ValueError, TypeError):
+                conf = 0.5
+            conf = max(0.0, min(1.0, conf))
+
+            norm_pass = _normalize_passage(claimed_passage)
+
+            # Strict Provenance & Fail-Closed Grounding
+            if rel in ("supports", "contradicts", "qualifies"):
+                if not claimed_passage or not norm_pass:
+                    # Empty supporting passage cannot substantiate a claim -> FAIL CLOSED
                     rel = "insufficient_evidence"
-                    conf = min(conf, 0.4)
-            elif cid.lower() in ("none", "n/a", ""):
-                # Document did not find evidence
-                rel = "not_addressed" if not claimed_passage else "insufficient_evidence"
-                conf = 1.0
-            else:
-                # Hallucinated chunk ID -> search if passage exists in any chunk
-                found_chunk = None
-                if claimed_passage:
+                    conf = 0.0
+                    claimed_passage = "[PROVENANCE FAILED: Empty supporting passage]"
+                    note = "Substantive claim failed provenance: supporting passage is empty."
+                    methodology_notes = (
+                        f"{methodology_notes} | {note}" if methodology_notes else note
+                    )
+                    if cid in chunk_lookup:
+                        page_num = chunk_lookup[cid].page_number
+                    else:
+                        cid = "invalid_provenance"
+                        page_num = None
+
+                elif not cid or cid.lower() in ("none", "n/a", "unknown", ""):
+                    # Missing chunk ID -> search if passage exists in any chunk of the document
+                    found_chunk = None
                     for chk in chunks:
-                        if claimed_passage.lower() in chk.content.lower():
+                        if norm_pass in _normalize_passage(chk.content):
                             found_chunk = chk
                             break
-                if found_chunk:
-                    cid = found_chunk.chunk_id
-                    page_num = found_chunk.page_number
+                    if found_chunk:
+                        cid = found_chunk.chunk_id
+                        page_num = found_chunk.page_number
+                        note = f"Re-anchored to verified chunk {cid} based on passage match."
+                        methodology_notes = (
+                            f"{methodology_notes} | {note}" if methodology_notes else note
+                        )
+                    else:
+                        rel = "insufficient_evidence"
+                        conf = 0.0
+                        claimed_passage = (
+                            "[PROVENANCE FAILED: Missing chunk ID and unverified passage]"
+                        )
+                        cid = "invalid_provenance"
+                        page_num = None
+
                 else:
-                    cid = "unverified"
+                    target_chunk = chunk_lookup.get(cid)
+                    if target_chunk is not None:
+                        if norm_pass in _normalize_passage(target_chunk.content):
+                            # Passage verified in referenced chunk
+                            canonical_page = target_chunk.page_number
+                            if page_num is None:
+                                page_num = canonical_page
+                            elif canonical_page is not None and int(page_num) != int(
+                                canonical_page
+                            ):
+                                note = (
+                                    f"Canonical chunk page {canonical_page} overrides "
+                                    f"reported page {page_num}."
+                                )
+                                methodology_notes = (
+                                    f"{methodology_notes} | {note}" if methodology_notes else note
+                                )
+                                page_num = canonical_page
+                        else:
+                            # Passage NOT in referenced chunk -> check other chunks
+                            found_other = None
+                            for chk in chunks:
+                                if chk.chunk_id != cid and norm_pass in _normalize_passage(
+                                    chk.content
+                                ):
+                                    found_other = chk
+                                    break
+                            if found_other:
+                                note = (
+                                    f"Passage not in referenced chunk {cid}; re-anchored to "
+                                    f"verified chunk {found_other.chunk_id}."
+                                )
+                                methodology_notes = (
+                                    f"{methodology_notes} | {note}" if methodology_notes else note
+                                )
+                                cid = found_other.chunk_id
+                                page_num = found_other.page_number
+                                conf = min(conf, 0.7)
+                            else:
+                                # FAIL CLOSED: Fabricated passage referencing a valid chunk ID
+                                rel = "insufficient_evidence"
+                                conf = 0.0
+                                claimed_passage = (
+                                    f"[PROVENANCE FAILED: Passage not found in chunk {cid}]"
+                                )
+                                note = f"Provenance check failed: passage absent from chunk {cid}."
+                                methodology_notes = (
+                                    f"{methodology_notes} | {note}" if methodology_notes else note
+                                )
+
+                    else:
+                        # cid not in document chunks -> search if passage exists in any chunk
+                        found_chk = None
+                        for chk in chunks:
+                            if norm_pass in _normalize_passage(chk.content):
+                                found_chk = chk
+                                break
+                        if found_chk:
+                            note = (
+                                f"Hallucinated chunk ID '{cid}' re-anchored to verified "
+                                f"chunk {found_chk.chunk_id} based on passage."
+                            )
+                            methodology_notes = (
+                                f"{methodology_notes} | {note}" if methodology_notes else note
+                            )
+                            cid = found_chk.chunk_id
+                            page_num = found_chk.page_number
+                            conf = min(conf, 0.7)
+                        else:
+                            # FAIL CLOSED: Fabricated chunk ID and unverified passage
+                            rel = "insufficient_evidence"
+                            conf = 0.0
+                            claimed_passage = (
+                                f"[PROVENANCE FAILED: Fabricated chunk ID '{cid}' "
+                                "and unverified passage]"
+                            )
+                            note = f"Provenance check failed: chunk ID '{cid}' does not exist."
+                            methodology_notes = (
+                                f"{methodology_notes} | {note}" if methodology_notes else note
+                            )
+                            cid = "invalid_chunk_provenance"
+                            page_num = None
+
+            elif rel == "not_addressed":
+                if not is_exhaustive:
                     rel = "insufficient_evidence"
-                    conf = 0.2
+                    conf = min(conf, 0.5)
+                    note = "Downgraded from not_addressed: only partial chunks examined."
+                    methodology_notes = (
+                        f"{methodology_notes} | {note}" if methodology_notes else note
+                    )
+                cid = "none"
+                page_num = None
+                claimed_passage = ""
+
+            elif rel == "insufficient_evidence":
+                if cid in chunk_lookup:
+                    page_num = chunk_lookup[cid].page_number
+                else:
+                    cid = "none" if not cid or cid.lower() in ("none", "n/a", "") else cid
+                    page_num = None
 
             finding = EvidenceFinding(
                 finding_id=f"fnd_{uuid4().hex[:12]}",
@@ -499,12 +705,9 @@ class InvestigationService:
                 supporting_passage=claimed_passage,
                 relationship=rel,  # type: ignore[arg-type]
                 confidence=conf,
-                methodology_notes=item.get("methodology_notes"),
+                methodology_notes=methodology_notes,
             )
             extracted_findings.append(finding)
-
-        if not extracted_findings:
-            return self._create_fallback_findings(doc_id, doc_title, aspects, chunks)
 
         return extracted_findings
 
@@ -514,6 +717,7 @@ class InvestigationService:
         doc_title: str,
         aspects: list[str],
         chunks: list[Chunk],
+        is_exhaustive: bool = True,
     ) -> list[EvidenceFinding]:
         """Create conservative, grounded findings when LLM extraction fails or is unavailable."""
         findings: list[EvidenceFinding] = []
@@ -532,12 +736,14 @@ class InvestigationService:
                         page_number=first_chunk.page_number,
                         claim=f"Discusses relevant domain concepts for {aspect}.",
                         supporting_passage=snippet,
-                        relationship="qualifies",
-                        confidence=0.5,
-                        methodology_notes="Extracted via fallback heuristic.",
+                        relationship="insufficient_evidence",
+                        confidence=0.3,
+                        methodology_notes="Fallback finding created due to extraction failure.",
                     )
                 )
             else:
+                rel = "not_addressed" if is_exhaustive else "insufficient_evidence"
+                conf = 1.0 if is_exhaustive else 0.5
                 findings.append(
                     EvidenceFinding(
                         finding_id=f"fnd_{uuid4().hex[:12]}",
@@ -548,8 +754,8 @@ class InvestigationService:
                         page_number=None,
                         claim=f"No evidence retrieved for {aspect}.",
                         supporting_passage="",
-                        relationship="insufficient_evidence",
-                        confidence=1.0,
+                        relationship=cast(EvidenceRelationship, rel),
+                        confidence=conf,
                     )
                 )
         return findings
@@ -569,56 +775,150 @@ class InvestigationService:
         doc_records: dict[str, DocumentRecord],
     ) -> tuple[str, str, list[str]]:
         """Synthesize cross-source agreements, disagreements, and evidence gaps."""
-        supports_docs: list[str] = []
-        contradicts_docs: list[str] = []
-        qualifies_docs: list[str] = []
-        gaps_docs: list[str] = []
+        supports_findings = [
+            f
+            for f in findings
+            if f.relationship == "supports"
+            and not f.supporting_passage.startswith("[PROVENANCE FAILED")
+        ]
+        contradicts_findings = [
+            f
+            for f in findings
+            if f.relationship == "contradicts"
+            and not f.supporting_passage.startswith("[PROVENANCE FAILED")
+        ]
+        qualifies_findings = [
+            f
+            for f in findings
+            if f.relationship == "qualifies"
+            and not f.supporting_passage.startswith("[PROVENANCE FAILED")
+        ]
+        na_findings = [f for f in findings if f.relationship == "not_addressed"]
+        insuff_findings = [f for f in findings if f.relationship == "insufficient_evidence"]
 
-        for f in findings:
-            if f.relationship == "supports":
-                supports_docs.append(f.doc_title)
-            elif f.relationship == "contradicts":
-                contradicts_docs.append(f.doc_title)
-            elif f.relationship == "qualifies":
-                qualifies_docs.append(f.doc_title)
-            elif f.relationship in ("not_addressed", "insufficient_evidence"):
-                gaps_docs.append(f.doc_title)
+        # Helper to extract environment/methodology indicators
+        def _get_env_markers(f: EvidenceFinding) -> set[str]:
+            text = f"{f.claim} {f.supporting_passage} {f.methodology_notes or ''}".lower()
+            markers = set()
+            for kw in (
+                "gpu",
+                "cpu",
+                "tpu",
+                "a100",
+                "v100",
+                "h100",
+                "arm",
+                "raspberry",
+                "mobile",
+                "fp16",
+                "int4",
+                "int8",
+            ):
+                if kw in text:
+                    markers.add(kw)
+            return markers
 
         # 1. Agreements synthesis
-        if len(supports_docs) >= 2:
+        if len(supports_findings) >= 2:
+            env_map = {f.doc_title: _get_env_markers(f) for f in supports_findings}
+            distinct_envs = False
+            docs_list = list(env_map.keys())
+            for i in range(len(docs_list)):
+                for j in range(i + 1, len(docs_list)):
+                    e1, e2 = env_map[docs_list[i]], env_map[docs_list[j]]
+                    if e1 and e2 and not (e1 & e2):
+                        distinct_envs = True
+                        break
+
+            if distinct_envs:
+                doc_notes = [
+                    f"{f.doc_title}: {f.methodology_notes or 'custom setup'}"
+                    for f in supports_findings[:2]
+                ]
+                sources_str = ", ".join(s.doc_title for s in supports_findings[:3])
+                notes_str = "; ".join(doc_notes)
+                agreements = (
+                    f"Sources ({sources_str}) both support '{topic_name}', "
+                    f"but evaluate under distinct experimental conditions ({notes_str}). "
+                    "Findings are complementary rather than an identical consensus."
+                )
+            else:
+                agreements = (
+                    f"Verified consensus across {len(supports_findings)} sources "
+                    f"({', '.join(s.doc_title for s in supports_findings[:3])}): "
+                    f"Corroborates claims regarding '{topic_name}' with verified passages."
+                )
+        elif len(supports_findings) == 1:
+            sf = supports_findings[0]
             agreements = (
-                f"Consensus across {len(supports_docs)} sources ({', '.join(supports_docs[:3])}): "
-                f"Directly supports claims regarding '{topic_name}' with verified passages."
-            )
-        elif len(supports_docs) == 1:
-            agreements = (
-                f"Supported primarily by {supports_docs[0]}. "
+                f"Supported primarily by {sf.doc_title}. "
                 "Other examined sources provide complementary or unstated evidence."
             )
         else:
             agreements = f"No cross-source consensus established for '{topic_name}'."
 
         # 2. Disagreements synthesis
-        if contradicts_docs:
+        if contradicts_findings:
+            has_methodological_variance = False
+            for cf in contradicts_findings:
+                cf_env = _get_env_markers(cf)
+                notes_lower = (cf.methodology_notes or "").lower()
+                for sf in supports_findings:
+                    sf_env = _get_env_markers(sf)
+                    if cf_env and sf_env and not (cf_env & sf_env):
+                        has_methodological_variance = True
+                        break
+                if any(
+                    w in notes_lower
+                    for w in (
+                        "baseline",
+                        "distinct",
+                        "different hardware",
+                        "cpu vs gpu",
+                        "raspberry",
+                    )
+                ):
+                    has_methodological_variance = True
+
+            contra_doc_names = list({f.doc_title for f in contradicts_findings})
+            c_docs_str = ", ".join(contra_doc_names)
+
+            if has_methodological_variance:
+                disagreements = (
+                    f"Conflicting or opposing evidence identified in {c_docs_str}, "
+                    "though divergence reflects distinct experimental setups or baseline "
+                    "conditions rather than a direct empirical conflict."
+                )
+            else:
+                disagreements = (
+                    f"Conflicting or opposing evidence identified in {c_docs_str}. "
+                    "Findings indicate differing results or divergent claims under "
+                    "comparable evaluation scopes."
+                )
+        elif qualifies_findings:
+            q_docs = list({f.doc_title for f in qualifies_findings})
             disagreements = (
-                f"Conflicting or opposing evidence identified in {', '.join(contradicts_docs)}. "
-                "Findings indicate differing results or divergent claims on this aspect."
-            )
-        elif qualifies_docs:
-            disagreements = (
-                f"Conditional variance identified: {', '.join(qualifies_docs)} "
+                f"Conditional variance identified: {', '.join(q_docs)} "
                 "qualifies findings based on specific parameters or setups."
             )
         else:
             disagreements = "No direct contradictions detected among the retrieved evidence."
 
-        # 3. Gaps
+        # 3. Gaps synthesis
         evidence_gaps: list[str] = []
-        if gaps_docs:
+        if na_findings:
+            na_docs = list({f.doc_title for f in na_findings})
+            na_str = ", ".join(na_docs)
             evidence_gaps.append(
-                f"Topic not addressed or insufficient evidence in: {', '.join(gaps_docs)}."
+                f"Verified absence of coverage in {len(na_docs)} source(s): {na_str}."
             )
-        if not supports_docs and not contradicts_docs:
+        if insuff_findings:
+            insuff_docs = list({f.doc_title for f in insuff_findings})
+            ins_str = ", ".join(insuff_docs)
+            evidence_gaps.append(
+                f"Insufficient retrieved evidence in {len(insuff_docs)} source(s): {ins_str}."
+            )
+        if not supports_findings and not contradicts_findings and not qualifies_findings:
             evidence_gaps.append(
                 f"Overall evidence is weak or unstated across documents for '{topic_name}'."
             )

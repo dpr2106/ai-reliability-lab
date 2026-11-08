@@ -19,6 +19,7 @@ export interface RunSummary {
   metric_count: number;
   query_count: number;
   metrics: Record<string, number>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RunListResponse {
@@ -54,6 +55,10 @@ export interface QueryResult {
   generated_answer?: string;
   citation_mapping?: Record<string, string>;
   required_citations?: string[];
+  failure_diagnostic?: FailureDiagnostic;
+  relevant_chunk_ids?: string[];
+  relevance_grades?: Record<string, number>;
+  ground_truth_answer?: string | null;
   [key: string]: unknown;
 }
 
@@ -294,4 +299,148 @@ export interface InvestigationListResponse {
   offset: number;
   investigations: InvestigationSummary[];
 }
+
+// ============================================================================
+// V2-005: RAG Evaluation, Comparison & Regression Studio Types
+// ============================================================================
+
+export interface FailureDiagnostic {
+  classification:
+    | 'passed'
+    | 'retrieval_miss'
+    | 'partial_retrieval'
+    | 'citation_hallucination'
+    | 'citation_omission'
+    | 'ungrounded_generation';
+  severity: 'none' | 'moderate' | 'high' | 'critical';
+  explanation: string;
+  has_failure: boolean;
+}
+
+export interface BenchmarkQuery {
+  query_id: string;
+  text: string;
+  relevant_chunk_ids: string[];
+  relevance_grades: Record<string, number>;
+  ground_truth_answer?: string | null;
+  required_citations: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface DatasetSummary {
+  dataset_id: string;
+  name: string;
+  description?: string | null;
+  document_scope: string[];
+  query_count: number;
+  is_synthetic: boolean;
+  created_at: string;
+  updated_at: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DatasetDetail extends DatasetSummary {
+  queries: BenchmarkQuery[];
+}
+
+export interface DatasetListResponse {
+  datasets: DatasetSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface CreateDatasetRequest {
+  name: string;
+  description?: string | null;
+  document_scope?: string[];
+  is_synthetic?: boolean;
+  metadata?: Record<string, unknown>;
+  queries?: BenchmarkQuery[];
+}
+
+export interface CreateQueryRequest {
+  query_id: string;
+  text: string;
+  relevant_chunk_ids?: string[];
+  relevance_grades?: Record<string, number>;
+  ground_truth_answer?: string | null;
+  required_citations?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ImportDatasetRequest {
+  name: string;
+  jsonl_content: string;
+  description?: string | null;
+  document_scope?: string[];
+  is_synthetic?: boolean;
+}
+
+export interface LaunchEvaluationRequest {
+  experiment_name: string;
+  dataset_id: string;
+  document_ids?: string[];
+  retriever_type?: 'bm25' | 'faiss' | 'hybrid';
+  retriever_params?: Record<string, unknown>;
+  top_k?: number;
+  provider?: 'ollama' | 'mock' | 'gemini';
+  model_name?: string | null;
+  temperature?: number;
+  max_output_tokens?: number;
+  prompt_version?: string;
+  enable_groundedness?: boolean;
+  enable_citations?: boolean;
+  enable_nli?: boolean;
+  enable_judge?: boolean;
+  judge_provider?: string | null;
+  judge_model?: string | null;
+}
+
+export interface EvaluationJob {
+  job_id: string;
+  experiment_name: string;
+  dataset_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  queries_completed: number;
+  total_queries: number;
+  progress_percent: number;
+  run_id?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export interface EvaluationJobListResponse {
+  jobs: EvaluationJob[];
+}
+
+export interface MetricDefinition {
+  name: string;
+  category: string;
+  direction: 'higher' | 'lower';
+  range: string;
+  source: string;
+  method: string;
+  description: string;
+  limitations: string;
+}
+
+export interface MetricsMetaResponse {
+  metrics: Record<string, MetricDefinition>;
+}
+
+export interface RunReproducibilityResponse {
+  run_id: string;
+  experiment_name: string;
+  config_hash: string;
+  dataset_id?: string | null;
+  dataset_exists: boolean;
+  corpus_document_ids: string[];
+  corpus_documents_exist: boolean;
+  can_reproduce: boolean;
+  metadata?: Record<string, unknown>;
+  raw_config?: Record<string, unknown>;
+}
+
 

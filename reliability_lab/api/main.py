@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Annotated, Any
@@ -32,31 +33,44 @@ from fastapi.responses import StreamingResponse
 from reliability_lab.api.middleware import RequestBodyLimitMiddleware
 from reliability_lab.api.privacy import sanitize_path_message
 from reliability_lab.api.schemas import (
+    BenchmarkQuerySchema,
     ChunkSchema,
     CitationAuditQueryItem,
     CitationAuditResponse,
     CompareRequest,
+    CreateDatasetRequest,
     CreateInvestigationRequest,
+    CreateQueryRequest,
     CreateSessionRequest,
+    DatasetDetailResponse,
+    DatasetListResponse,
+    DatasetSummarySchema,
     DocumentChunkListResponse,
     DocumentDeleteResponse,
     DocumentDetailResponse,
     DocumentListResponse,
     DocumentSummarySchema,
     DocumentUploadResponse,
+    EvaluationJobListResponse,
+    EvaluationJobResponse,
     HealthResponse,
+    ImportDatasetRequest,
     InvestigationDeleteResponse,
     InvestigationDetailResponse,
     InvestigationListResponse,
     InvestigationReportSchema,
     InvestigationSummarySchema,
+    LaunchEvaluationRequest,
     MalformedCitationSchema,
     MessageResponse,
+    MetricDefinitionSchema,
+    MetricsMetaResponse,
     QueryRequest,
     QueryResponse,
     ResolvedCitationSchema,
     RunDetailResponse,
     RunListResponse,
+    RunReproducibilityResponse,
     RunSummarySchema,
     SessionDeleteResponse,
     SessionDetailResponse,
@@ -65,9 +79,25 @@ from reliability_lab.api.schemas import (
     SessionQueryResponse,
     SessionSummarySchema,
     UnresolvedCitationSchema,
+    UpdateDatasetRequest,
+    UpdateQueryRequest,
+)
+from reliability_lab.benchmark import (
+    BenchmarkDatasetRepository,
+    BenchmarkDatasetService,
+    DatasetValidationError,
 )
 from reliability_lab.core.models import Chunk, RetrievalResult
+from reliability_lab.core.models import Query as BenchmarkQuery
 from reliability_lab.evaluation.citation_metrics import CitationEvaluator, CitationParser
+from reliability_lab.evaluation.execution_service import (
+    EvaluationExecutionService,
+    ExperimentExecutionConfig,
+)
+from reliability_lab.evaluation.metrics_meta import (
+    METRIC_DEFINITIONS,
+    classify_query_failure,
+)
 from reliability_lab.ingestion.repository import DocumentRepository
 from reliability_lab.ingestion.service import (
     DocumentDeletionError,
@@ -182,6 +212,55 @@ def get_investigation_service(
 
 InvestigationRepoDep = Annotated[InvestigationRepository, Depends(get_investigation_repository)]
 InvestigationServiceDep = Annotated[InvestigationService, Depends(get_investigation_service)]
+
+_shared_eval_service: EvaluationExecutionService | None = None
+_eval_service_lock = threading.Lock()
+
+
+def get_dataset_repository() -> BenchmarkDatasetRepository:
+    """FastAPI dependency providing an active BenchmarkDatasetRepository."""
+    db_path = get_db_path()
+    return BenchmarkDatasetRepository(db_path)
+
+
+def get_dataset_service(
+    dataset_repo: Annotated[BenchmarkDatasetRepository, Depends(get_dataset_repository)],
+    doc_repo: Annotated[DocumentRepository, Depends(get_document_repository)],
+) -> BenchmarkDatasetService:
+    """FastAPI dependency providing an active BenchmarkDatasetService."""
+    return BenchmarkDatasetService(
+        dataset_repository=dataset_repo,
+        document_repository=doc_repo,
+    )
+
+
+def get_evaluation_service(
+    repo: Annotated[ExperimentRepository, Depends(get_repository)],
+    doc_repo: Annotated[DocumentRepository, Depends(get_document_repository)],
+    dataset_repo: Annotated[BenchmarkDatasetRepository, Depends(get_dataset_repository)],
+    ingestion: Annotated[DocumentIngestionService, Depends(get_ingestion_service)],
+) -> EvaluationExecutionService:
+    """FastAPI dependency providing EvaluationExecutionService."""
+    global _shared_eval_service
+    with _eval_service_lock:
+        if _shared_eval_service is None:
+            _shared_eval_service = EvaluationExecutionService(
+                experiment_repository=repo,
+                document_repository=doc_repo,
+                dataset_repository=dataset_repo,
+                ingestion_service=ingestion,
+            )
+        else:
+            _shared_eval_service.experiment_repository = repo
+            _shared_eval_service.document_repository = doc_repo
+            _shared_eval_service.dataset_repository = dataset_repo
+            _shared_eval_service.ingestion_service = ingestion
+        return _shared_eval_service
+
+
+DatasetRepoDep = Annotated[BenchmarkDatasetRepository, Depends(get_dataset_repository)]
+DatasetServiceDep = Annotated[BenchmarkDatasetService, Depends(get_dataset_service)]
+EvaluationServiceDep = Annotated[EvaluationExecutionService, Depends(get_evaluation_service)]
 
 
 def _count_runs(repo: ExperimentRepository, experiment_name: str | None = None) -> int:
@@ -413,8 +492,11 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
         query_id: str | None = None,
+        failed_only: bool = Query(False),
+        failure_type: str | None = None,
+        sort_by: str = Query("default"),
     ) -> dict[str, Any]:
-        """Return paginated query diagnostic records for a specific run."""
+        """Return paginated query diagnostic records with failure classification."""
         try:
             with repo:
                 run = repo.get_run(run_id)
@@ -425,11 +507,49 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                     )
 
                 queries = run.per_query_results
-                if query_id:
-                    queries = [q for q in queries if q.get("query_id") == query_id]
+                annotated_queries: list[dict[str, Any]] = []
+                for q in queries:
+                    q_copy = dict(q)
+                    diag = classify_query_failure(q_copy)
+                    q_copy["failure_diagnostic"] = diag
+                    if not q_copy.get("failure_trace") and diag["has_failure"]:
+                        q_copy["failure_trace"] = diag["explanation"]
+                    annotated_queries.append(q_copy)
 
-                total = len(queries)
-                paged = queries[offset : offset + limit]
+                if query_id:
+                    annotated_queries = [
+                        q for q in annotated_queries if q.get("query_id") == query_id
+                    ]
+
+                if failed_only:
+                    annotated_queries = [
+                        q
+                        for q in annotated_queries
+                        if q.get("failure_diagnostic", {}).get("has_failure")
+                    ]
+
+                if failure_type:
+                    annotated_queries = [
+                        q
+                        for q in annotated_queries
+                        if q.get("failure_diagnostic", {}).get("classification") == failure_type
+                    ]
+
+                if sort_by == "worst_hitrate":
+                    annotated_queries.sort(
+                        key=lambda q: float(q.get("metrics", {}).get("HitRate@K", 1.0))
+                    )
+                elif sort_by == "worst_recall":
+                    annotated_queries.sort(
+                        key=lambda q: float(q.get("metrics", {}).get("Recall@K", 1.0))
+                    )
+                elif sort_by == "latency":
+                    annotated_queries.sort(
+                        key=lambda q: float(q.get("latency_ms", 0.0) or 0.0), reverse=True
+                    )
+
+                total = len(annotated_queries)
+                paged = annotated_queries[offset : offset + limit]
 
                 return {
                     "run_id": run.run_id,
@@ -1461,6 +1581,372 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                 "Content-Disposition": f'attachment; filename="{filename}"',
             },
         )
+
+    # ========================================================================
+    # V2-005: Evaluation Datasets Studio Endpoints
+    # ========================================================================
+
+    @app.post(
+        "/api/datasets",
+        response_model=DatasetDetailResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_dataset_endpoint(
+        req: CreateDatasetRequest,
+        service: DatasetServiceDep,
+    ) -> DatasetDetailResponse:
+        """Create a new golden evaluation dataset."""
+        try:
+            queries = [
+                BenchmarkQuery(
+                    query_id=q.query_id,
+                    text=q.text,
+                    relevant_chunk_ids=q.relevant_chunk_ids,
+                    relevance_grades=q.relevance_grades,
+                    ground_truth_answer=q.ground_truth_answer,
+                    required_citations=q.required_citations,
+                    metadata=q.metadata,
+                )
+                for q in req.queries
+            ]
+            ds = service.create_dataset(
+                name=req.name,
+                description=req.description,
+                document_scope=req.document_scope,
+                is_synthetic=req.is_synthetic,
+                metadata=req.metadata,
+                queries=queries,
+            )
+            return DatasetDetailResponse(**ds.to_dict())
+        except (DatasetValidationError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/api/datasets", response_model=DatasetListResponse)
+    def list_datasets_endpoint(
+        service: DatasetServiceDep,
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+    ) -> DatasetListResponse:
+        """List persisted benchmark datasets with pagination."""
+        records = service.list_datasets(limit=limit, offset=offset)
+        total = service.dataset_repository.count_datasets()
+        return DatasetListResponse(
+            datasets=[DatasetSummarySchema(**r.to_dict()) for r in records],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    @app.get("/api/datasets/{dataset_id}", response_model=DatasetDetailResponse)
+    def get_dataset_endpoint(
+        dataset_id: str,
+        service: DatasetServiceDep,
+    ) -> DatasetDetailResponse:
+        """Retrieve dataset details and all constituent benchmark queries."""
+        try:
+            ds = service.get_dataset(dataset_id)
+            return DatasetDetailResponse(**ds.to_dict())
+        except DatasetValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+
+    @app.put("/api/datasets/{dataset_id}", response_model=DatasetSummarySchema)
+    def update_dataset_endpoint(
+        dataset_id: str,
+        req: UpdateDatasetRequest,
+        service: DatasetServiceDep,
+    ) -> DatasetSummarySchema:
+        """Update dataset title, description, or document scope."""
+        try:
+            updated = service.update_dataset(
+                dataset_id=dataset_id,
+                name=req.name,
+                description=req.description,
+                document_scope=req.document_scope,
+                metadata=req.metadata,
+            )
+            return DatasetSummarySchema(**updated.to_dict())
+        except (DatasetValidationError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.delete("/api/datasets/{dataset_id}")
+    def delete_dataset_endpoint(
+        dataset_id: str,
+        service: DatasetServiceDep,
+    ) -> dict[str, Any]:
+        """Delete an evaluation dataset and all its queries."""
+        deleted = service.delete_dataset(dataset_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Dataset '{dataset_id}' not found.",
+            )
+        return {"deleted": True, "dataset_id": dataset_id}
+
+    @app.post("/api/datasets/{dataset_id}/queries", response_model=BenchmarkQuerySchema)
+    def add_query_endpoint(
+        dataset_id: str,
+        req: CreateQueryRequest,
+        service: DatasetServiceDep,
+    ) -> BenchmarkQuerySchema:
+        """Add a single benchmark query to a dataset."""
+        try:
+            query = BenchmarkQuery(
+                query_id=req.query_id,
+                text=req.text,
+                relevant_chunk_ids=req.relevant_chunk_ids,
+                relevance_grades=req.relevance_grades,
+                ground_truth_answer=req.ground_truth_answer,
+                required_citations=req.required_citations,
+                metadata=req.metadata,
+            )
+            added = service.add_query(dataset_id, query)
+            return BenchmarkQuerySchema(**added.to_dict())
+        except (DatasetValidationError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.put(
+        "/api/datasets/{dataset_id}/queries/{query_id}",
+        response_model=BenchmarkQuerySchema,
+    )
+    def update_query_endpoint(
+        dataset_id: str,
+        query_id: str,
+        req: UpdateQueryRequest,
+        service: DatasetServiceDep,
+    ) -> BenchmarkQuerySchema:
+        """Update an existing benchmark query in a dataset."""
+        try:
+            query = BenchmarkQuery(
+                query_id=query_id,
+                text=req.text,
+                relevant_chunk_ids=req.relevant_chunk_ids,
+                relevance_grades=req.relevance_grades,
+                ground_truth_answer=req.ground_truth_answer,
+                required_citations=req.required_citations,
+                metadata=req.metadata,
+            )
+            updated = service.update_query(dataset_id, query)
+            return BenchmarkQuerySchema(**updated.to_dict())
+        except (DatasetValidationError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.delete("/api/datasets/{dataset_id}/queries/{query_id}")
+    def delete_query_endpoint(
+        dataset_id: str,
+        query_id: str,
+        service: DatasetServiceDep,
+    ) -> dict[str, Any]:
+        """Delete an evaluation query from a dataset."""
+        deleted = service.delete_query(dataset_id, query_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Query '{query_id}' not found in dataset '{dataset_id}'.",
+            )
+        return {"deleted": True, "dataset_id": dataset_id, "query_id": query_id}
+
+    @app.post(
+        "/api/datasets/import",
+        response_model=DatasetDetailResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def import_dataset_endpoint(
+        req: ImportDatasetRequest,
+        service: DatasetServiceDep,
+    ) -> DatasetDetailResponse:
+        """Import an evaluation dataset from raw JSONL text."""
+        try:
+            ds = service.import_jsonl(
+                name=req.name,
+                jsonl_content=req.jsonl_content,
+                description=req.description,
+                document_scope=req.document_scope,
+                is_synthetic=req.is_synthetic,
+            )
+            return DatasetDetailResponse(**ds.to_dict())
+        except (DatasetValidationError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/api/datasets/{dataset_id}/export")
+    def export_dataset_endpoint(
+        dataset_id: str,
+        service: DatasetServiceDep,
+    ) -> Response:
+        """Export dataset queries to standard benchmark JSONL format."""
+        try:
+            jsonl_str = service.export_jsonl(dataset_id)
+            filename = f"dataset_{dataset_id}.jsonl"
+            return Response(
+                content=jsonl_str,
+                media_type="application/x-jsonlines",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+        except DatasetValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+
+    # ========================================================================
+    # V2-005: Experiment Execution & Regression Studio Endpoints
+    # ========================================================================
+
+    @app.post("/api/evaluation/run", response_model=EvaluationJobResponse)
+    def launch_evaluation_endpoint(
+        req: LaunchEvaluationRequest,
+        eval_service: EvaluationServiceDep,
+    ) -> EvaluationJobResponse:
+        """Configure and launch a local RAG evaluation experiment asynchronously."""
+        try:
+            config = ExperimentExecutionConfig(
+                experiment_name=req.experiment_name,
+                dataset_id=req.dataset_id,
+                document_ids=req.document_ids,
+                retriever_type=req.retriever_type,
+                retriever_params=req.retriever_params,
+                top_k=req.top_k,
+                provider=req.provider,
+                model_name=req.model_name,
+                temperature=req.temperature,
+                max_output_tokens=req.max_output_tokens,
+                prompt_version=req.prompt_version,
+                enable_groundedness=req.enable_groundedness,
+                enable_citations=req.enable_citations,
+                enable_nli=req.enable_nli,
+                enable_judge=req.enable_judge,
+                judge_provider=req.judge_provider,
+                judge_model=req.judge_model,
+            )
+            job = eval_service.start_evaluation_job(config)
+            return EvaluationJobResponse(**job.to_dict())
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/api/evaluation/jobs", response_model=EvaluationJobListResponse)
+    def list_evaluation_jobs_endpoint(
+        eval_service: EvaluationServiceDep,
+    ) -> EvaluationJobListResponse:
+        """List active and recent evaluation jobs."""
+        jobs = eval_service.list_jobs()
+        return EvaluationJobListResponse(jobs=[EvaluationJobResponse(**j.to_dict()) for j in jobs])
+
+    @app.get("/api/evaluation/jobs/{job_id}", response_model=EvaluationJobResponse)
+    def get_evaluation_job_endpoint(
+        job_id: str,
+        eval_service: EvaluationServiceDep,
+    ) -> EvaluationJobResponse:
+        """Get status, progress percentage, and resulting run ID of an evaluation job."""
+        job = eval_service.get_job(job_id)
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Evaluation job '{job_id}' not found.",
+            )
+        return EvaluationJobResponse(**job.to_dict())
+
+    @app.get("/api/evaluation/metrics-meta", response_model=MetricsMetaResponse)
+    def get_metrics_meta_endpoint() -> MetricsMetaResponse:
+        """Return comprehensive metadata, definitions, directions, and limitations of metrics."""
+        return MetricsMetaResponse(
+            metrics={k: MetricDefinitionSchema(**v) for k, v in METRIC_DEFINITIONS.items()}
+        )
+
+    @app.get("/api/runs/{run_id}/reproducibility", response_model=RunReproducibilityResponse)
+    def get_run_reproducibility_endpoint(
+        run_id: str,
+        repo: RepositoryDep,
+        dataset_repo: DatasetRepoDep,
+        doc_repo: DocRepoDep,
+    ) -> RunReproducibilityResponse:
+        """Inspect reproducibility manifest and source dependency existence for a historical run."""
+        try:
+            with repo:
+                run = repo.get_run(run_id)
+                if not run:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Run '{run_id}' not found.",
+                    )
+
+                meta = run.metadata or {}
+                dataset_id = run.dataset_reference or meta.get("dataset_id")
+                dataset_exists = (
+                    dataset_repo.get_dataset_record(dataset_id) is not None if dataset_id else False
+                )
+
+                corpus_doc_ids = meta.get("document_ids", [])
+                corpus_exists = True
+                if corpus_doc_ids:
+                    for d in corpus_doc_ids:
+                        if doc_repo.get_document(d) is None:
+                            corpus_exists = False
+                            break
+
+                can_reproduce = bool(dataset_exists and corpus_exists)
+
+                return RunReproducibilityResponse(
+                    run_id=run.run_id,
+                    experiment_name=run.experiment_name,
+                    config_hash=run.config_hash,
+                    dataset_id=dataset_id,
+                    dataset_exists=dataset_exists,
+                    corpus_document_ids=corpus_doc_ids,
+                    corpus_documents_exist=corpus_exists,
+                    can_reproduce=can_reproduce,
+                    metadata=meta,
+                    raw_config=run.config,
+                )
+        except StorageError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(exc),
+            ) from exc
+
+    @app.post("/api/runs/{run_id}/set-baseline")
+    def set_run_baseline_endpoint(
+        run_id: str,
+        repo: RepositoryDep,
+        is_baseline: bool = Query(True),
+    ) -> dict[str, Any]:
+        """Tag an experiment run as a designated baseline reference."""
+        with repo.database.get_connection() as conn:
+            row = conn.execute(
+                "SELECT metadata_json FROM experiment_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Run '{run_id}' not found.",
+                )
+            meta = json.loads(row["metadata_json"] or "{}")
+            meta["is_baseline"] = is_baseline
+            conn.execute(
+                "UPDATE experiment_runs SET metadata_json = ? WHERE run_id = ?",
+                (json.dumps(meta), run_id),
+            )
+        return {"run_id": run_id, "is_baseline": is_baseline}
 
     return app
 

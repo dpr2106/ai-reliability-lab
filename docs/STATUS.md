@@ -18,9 +18,10 @@ Task IDs and statuses are defined in `docs/roadmap/TASKS.md`. All 11 roadmap mil
 ## V2 Product Status
 
 - **Product direction**: STING — evidence-first, local-first RAG reliability workbench built on AI Reliability Lab.
-- **V2-001**: Complete — Ollama local inference provider.
+- **V2-001**: Complete — Ollama local inference provider (PR #57 merged).
 - **V2-002**: Complete — Local document upload and indexing pipeline (PR #58, #59 merged).
 - **V2-003**: Complete — Evidence-First Query and Trace Orchestrator, Persistent Sessions & Turn History, and True LLM Streaming via SSE (PR #61, #62, #63 merged).
-- **V2-004**: Active Feature Branch — Cross-Document Evidence Intelligence Workbench (`feat/v2-004-evidence-investigation`). Multi-document evidence extraction, thematic comparison matrix, source passage inspector, and markdown report export.
+- **V2-004**: Complete — Cross-Document Evidence Intelligence Workbench (PR #64 merged). Multi-document evidence extraction, thematic comparison matrix, source passage inspector, and markdown report export.
+- **V2-005**: IN_PROGRESS — RAG Evaluation, Comparison and Regression Studio (`feat/v2-005-evaluation-regression-studio`). Golden benchmark dataset manager, fail-closed corpus validation, background experiment runner, diagnostic query failure classification, baseline regression comparison, and run reproducibility manifests.
 - **Product differentiator**: Cross-document evidence investigation, retrieval traceability, citation provenance, claim-level evidence inspection, safe abstention, and reproducible RAG evaluation—not generic local chat.
 - **Portfolio rule**: Describe only capabilities that are merged, tested, and demonstrated. Keep benchmark dataset sizes and metric methodology visible.

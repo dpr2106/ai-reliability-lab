@@ -13,13 +13,13 @@ The product should let a user ask a question about local documents and then insp
 ```
 [V2-001] Local inference foundation (Ollama)                  COMPLETE
         |
-[V2-002] Document ingestion and persistent indexes           IN REVIEW
+[V2-002] Document ingestion and persistent indexes            COMPLETE
         |
-[V2-003] Evidence-first query and trace orchestrator          NEXT
+[V2-003] Evidence-first query and trace orchestrator          COMPLETE
         |
-[V2-004] STING workbench UI and source evidence inspector     BACKLOG
+[V2-004] STING workbench UI and source evidence inspector     COMPLETE
         |
-[V2-005] RAG evaluation, comparison and regression studio     BACKLOG
+[V2-005] RAG evaluation, comparison and regression studio     IN_PROGRESS
         |
 [V2-006] Reproducible demo and portfolio release              BACKLOG
 ```
@@ -32,13 +32,13 @@ The provider-independent LLM contract supports Ollama over its native HTTP API w
 
 ## V2-002 — Document Ingestion and Persistent Indexing
 
-**Status:** `IN_REVIEW` (core ingestion implementation exists; follow-up hardening is in PR #59)
+**Status:** `COMPLETED` (PR #58, #59 merged)
 
-The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, source provenance, SQLite persistence, BM25 and FAISS indexes, lifecycle states, and safe deletion. PR #59 adds upload-body limits, freshness/lifecycle protection, stale-index invalidation, dimension validation, cleanup resilience, and host-path privacy. Do not mark the hardening follow-up complete until PR #59 is actually merged and verified.
+The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, source provenance, SQLite persistence, BM25 and FAISS indexes, lifecycle states, and safe deletion. PR #59 adds upload-body limits, freshness/lifecycle protection, stale-index invalidation, dimension validation, cleanup resilience, and host-path privacy.
 
 ## V2-003 — Evidence-First Query and Trace Orchestrator
 
-**Status:** `BACKLOG` — next implementation milestone after V2-002 hardening is merged.
+**Status:** `COMPLETED` (PR #61, #62, #63 merged)
 
 **Objective:** Build the application-level query service that connects selected documents, retrieval, local generation, citation validation, and an inspectable query trace. Conversational sessions are supported, but a generic chat interface is not the acceptance criterion.
 
@@ -69,7 +69,7 @@ The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, sour
 
 ## V2-004 — STING Evidence Intelligence Workbench and Source Evidence Inspector
 
-**Status:** `IN_PROGRESS` (Branch `feat/v2-004-evidence-investigation`)
+**Status:** `COMPLETED` (PR #64 merged)
 
 **Objective:** Build the polished, local-first Evidence Intelligence Workbench that establishes STING's signature cross-document investigation capability.
 
@@ -87,7 +87,7 @@ The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, sour
 
 ## V2-005 — RAG Evaluation, Comparison and Regression Studio
 
-**Status:** `BACKLOG`
+**Status:** `IN_PROGRESS` (Branch `feat/v2-005-evaluation-regression-studio`)
 
 **Objective:** Make reliability measurement a first-class user workflow, not merely a collection of backend modules.
 

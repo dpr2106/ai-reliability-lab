@@ -37,6 +37,10 @@
       </a>
 
       <nav class="nav-links">
+        <a href="/evaluation" class="nav-link eval-link">
+          <span class="eval-dot"></span>
+          Evaluation Studio
+        </a>
         <a href="/investigations" class="nav-link highlight-link">
           <span class="workbench-dot"></span>
           Investigations
@@ -148,6 +152,22 @@
   .nav-link:hover {
     color: var(--text-primary);
     background: var(--bg-hover);
+  }
+
+  .nav-link.eval-link {
+    color: #a78bfa;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+  }
+
+  .eval-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: #a78bfa;
+    box-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
   }
 
   .nav-link.highlight-link {

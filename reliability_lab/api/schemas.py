@@ -645,3 +645,199 @@ class InvestigationDeleteResponse(BaseModel):
 
     deleted: bool = True
     investigation_id: str
+
+
+# ============================================================================
+# V2-005: RAG Evaluation, Comparison & Regression Studio Schemas
+# ============================================================================
+
+
+class BenchmarkQuerySchema(BaseModel):
+    """Schema for an individual evaluation query with ground truth annotations."""
+
+    query_id: str = Field(..., min_length=1, description="Stable query identifier")
+    text: str = Field(..., min_length=1, description="Query text")
+    relevant_chunk_ids: list[str] = Field(default_factory=list, description="Relevant chunk IDs")
+    relevance_grades: dict[str, int] = Field(
+        default_factory=dict, description="Graded relevance map (chunk_id -> non-negative int)"
+    )
+    ground_truth_answer: str | None = Field(None, description="Optional reference answer")
+    required_citations: list[str] = Field(
+        default_factory=list, description="Required citation identifiers"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary evaluation metadata"
+    )
+
+
+class DatasetSummarySchema(BaseModel):
+    """Summary representation of a benchmark evaluation dataset."""
+
+    dataset_id: str
+    name: str
+    description: str | None = None
+    document_scope: list[str] = Field(default_factory=list)
+    query_count: int = 0
+    is_synthetic: bool = False
+    created_at: str
+    updated_at: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasetDetailResponse(BaseModel):
+    """Full detail of a benchmark dataset including all constituent queries."""
+
+    dataset_id: str
+    name: str
+    description: str | None = None
+    document_scope: list[str] = Field(default_factory=list)
+    query_count: int = 0
+    is_synthetic: bool = False
+    created_at: str
+    updated_at: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    queries: list[BenchmarkQuerySchema] = Field(default_factory=list)
+
+
+class DatasetListResponse(BaseModel):
+    """Paginated collection of benchmark dataset summaries."""
+
+    datasets: list[DatasetSummarySchema]
+    total: int
+    limit: int
+    offset: int
+
+
+class CreateDatasetRequest(BaseModel):
+    """Request payload to create a new evaluation dataset."""
+
+    name: str = Field(..., min_length=1, max_length=200, description="Dataset title")
+    description: str | None = Field(None, max_length=2000, description="Optional description")
+    document_scope: list[str] = Field(
+        default_factory=list, description="Optional scoped document IDs"
+    )
+    is_synthetic: bool = Field(False, description="Flag indicating synthetic demonstration data")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Dataset metadata")
+    queries: list[BenchmarkQuerySchema] = Field(
+        default_factory=list, description="Initial benchmark queries"
+    )
+
+
+class UpdateDatasetRequest(BaseModel):
+    """Request payload to update dataset header metadata."""
+
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=2000)
+    document_scope: list[str] | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class CreateQueryRequest(BaseModel):
+    """Request payload to add a single query to a dataset."""
+
+    query_id: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1)
+    relevant_chunk_ids: list[str] = Field(default_factory=list)
+    relevance_grades: dict[str, int] = Field(default_factory=dict)
+    ground_truth_answer: str | None = None
+    required_citations: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class UpdateQueryRequest(BaseModel):
+    """Request payload to update an existing query in a dataset."""
+
+    text: str = Field(..., min_length=1)
+    relevant_chunk_ids: list[str] = Field(default_factory=list)
+    relevance_grades: dict[str, int] = Field(default_factory=dict)
+    ground_truth_answer: str | None = None
+    required_citations: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportDatasetRequest(BaseModel):
+    """Request payload to import benchmark queries from raw JSONL text."""
+
+    name: str = Field(..., min_length=1, max_length=200)
+    jsonl_content: str = Field(..., min_length=1, description="Raw JSONL string")
+    description: str | None = Field(None, max_length=2000)
+    document_scope: list[str] = Field(default_factory=list)
+    is_synthetic: bool = Field(False)
+
+
+class LaunchEvaluationRequest(BaseModel):
+    """Request payload to configure and launch an evaluation experiment."""
+
+    experiment_name: str = Field(..., min_length=1, max_length=200)
+    dataset_id: str = Field(..., min_length=1)
+    document_ids: list[str] = Field(default_factory=list)
+    retriever_type: str = Field("hybrid", description="'bm25', 'faiss', or 'hybrid'")
+    retriever_params: dict[str, Any] = Field(default_factory=dict)
+    top_k: int = Field(5, ge=1, le=100)
+    provider: str = Field("ollama", description="'ollama', 'mock', or 'gemini'")
+    model_name: str | None = None
+    temperature: float = Field(0.0, ge=0.0, le=2.0)
+    max_output_tokens: int = Field(1024, ge=1, le=8192)
+    prompt_version: str = Field("v1")
+    enable_groundedness: bool = True
+    enable_citations: bool = True
+    enable_nli: bool = True
+    enable_judge: bool = True
+    judge_provider: str | None = None
+    judge_model: str | None = None
+
+
+class EvaluationJobResponse(BaseModel):
+    """Job status and progress tracking response."""
+
+    job_id: str
+    experiment_name: str
+    dataset_id: str
+    status: str
+    queries_completed: int
+    total_queries: int
+    progress_percent: float
+    run_id: str | None = None
+    error_message: str | None = None
+    created_at: str
+    completed_at: str | None = None
+
+
+class EvaluationJobListResponse(BaseModel):
+    """List of recent evaluation jobs."""
+
+    jobs: list[EvaluationJobResponse]
+
+
+class MetricDefinitionSchema(BaseModel):
+    """Definition, direction, and measurement limitations of a metric."""
+
+    name: str
+    category: str
+    direction: str
+    range: str
+    source: str
+    method: str
+    description: str
+    limitations: str
+
+
+class MetricsMetaResponse(BaseModel):
+    """Catalog of supported evaluation metrics and diagnostic metadata."""
+
+    metrics: dict[str, MetricDefinitionSchema]
+
+
+class RunReproducibilityResponse(BaseModel):
+    """Reproducibility manifest for an experiment run."""
+
+    run_id: str
+    experiment_name: str
+    config_hash: str
+    dataset_id: str | None = None
+    dataset_exists: bool
+    corpus_document_ids: list[str] = Field(default_factory=list)
+    corpus_documents_exist: bool
+    can_reproduce: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    raw_config: dict[str, Any] = Field(default_factory=dict)

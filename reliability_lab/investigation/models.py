@@ -269,8 +269,11 @@ class InvestigationReport:
             did = doc.get("doc_id", "unknown")
             fname = doc.get("title") or doc.get("filename") or did
             chunks = doc.get("chunk_count", 0)
+            total = doc.get("total_chunks", chunks)
+            mode = doc.get("coverage_mode", "exhaustive")
             findings = doc.get("findings_count", 0)
-            lines.append(f"| `{did}` | {fname} | {chunks} | {findings} |")
+            chunk_str = f"{chunks}/{total} ({mode})" if total != chunks else str(chunks)
+            lines.append(f"| `{did}` | {fname} | {chunk_str} | {findings} |")
 
         contra_count = self.relationship_counts.get("contradicts", 0)
         qual_count = self.relationship_counts.get("qualifies", 0)

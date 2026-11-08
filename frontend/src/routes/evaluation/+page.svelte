@@ -1390,8 +1390,16 @@
       </div>
       <div class="repro-body">
         <div class="repro-row">
-          <span>Can Re-Execute Now:</span>
-          <strong>{selectedReproducibility.can_reproduce ? 'YES (Dependencies Verified)' : 'NO (Missing Dependencies)'}</strong>
+          <span>Reproducibility Tier:</span>
+          <strong>
+            {#if selectedReproducibility.reproducibility_tier === 'exact'}
+              <span class="badge badge-success">EXACT REPRODUCTION VERIFIED</span>
+            {:else if selectedReproducibility.reproducibility_tier === 'partial'}
+              <span class="badge badge-warning">PARTIAL REPRODUCTION</span>
+            {:else}
+              <span class="badge badge-danger">IMPOSSIBLE (MISSING DEPENDENCIES)</span>
+            {/if}
+          </strong>
         </div>
         <div class="repro-row">
           <span>Config Hash:</span>
@@ -1399,12 +1407,35 @@
         </div>
         <div class="repro-row">
           <span>Dataset Reference:</span>
-          <span>{selectedReproducibility.dataset_id ?? 'None'} ({selectedReproducibility.dataset_exists ? 'Verified' : 'Missing'})</span>
+          <span>
+            {selectedReproducibility.dataset_id ?? 'None'}
+            ({#if selectedReproducibility.dataset_exists}
+              {selectedReproducibility.dataset_unchanged ? 'Verified Unchanged' : 'Exists, Content Modified'}
+            {:else}
+              Missing
+            {/if})
+          </span>
         </div>
         <div class="repro-row">
           <span>Corpus Verified:</span>
-          <span>{selectedReproducibility.corpus_documents_exist ? 'All documents available' : 'Some corpus files missing'}</span>
+          <span>
+            {#if selectedReproducibility.corpus_documents_exist}
+              {selectedReproducibility.corpus_unchanged ? 'All documents & chunks verified unchanged' : 'Documents exist, content modified'}
+            {:else}
+              Some corpus files missing or not ready
+            {/if}
+          </span>
         </div>
+        {#if selectedReproducibility.reproducibility_notes && selectedReproducibility.reproducibility_notes.length > 0}
+          <div class="repro-notes-box mt-3">
+            <h5 class="sub-title">Diagnostics &amp; Dependency Ledger</h5>
+            <ul class="notes-list">
+              {#each selectedReproducibility.reproducibility_notes as note}
+                <li>{note}</li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
       </div>
       <div class="modal-footer">
         <button class="btn-primary" onclick={() => (showReproducibilityModal = false)}>Close</button>

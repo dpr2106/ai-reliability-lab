@@ -436,9 +436,15 @@ export interface RunReproducibilityResponse {
   config_hash: string;
   dataset_id?: string | null;
   dataset_exists: boolean;
+  dataset_unchanged?: boolean | null;
   corpus_document_ids: string[];
   corpus_documents_exist: boolean;
+  corpus_unchanged?: boolean | null;
+  configuration_available: boolean;
+  model_available?: boolean | null;
+  reproducibility_tier: 'exact' | 'partial' | 'impossible';
   can_reproduce: boolean;
+  reproducibility_notes?: string[];
   metadata?: Record<string, unknown>;
   raw_config?: Record<string, unknown>;
 }

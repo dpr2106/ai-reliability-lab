@@ -6,6 +6,7 @@ duplicating SQLite persistence or metric calculations.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -93,6 +94,7 @@ from reliability_lab.evaluation.citation_metrics import CitationEvaluator, Citat
 from reliability_lab.evaluation.execution_service import (
     EvaluationExecutionService,
     ExperimentExecutionConfig,
+    compute_dataset_content_hash,
 )
 from reliability_lab.evaluation.metrics_meta import (
     METRIC_DEFINITIONS,
@@ -1890,20 +1892,145 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                     )
 
                 meta = run.metadata or {}
-                dataset_id = run.dataset_reference or meta.get("dataset_id")
-                dataset_exists = (
-                    dataset_repo.get_dataset_record(dataset_id) is not None if dataset_id else False
-                )
+                notes: list[str] = []
 
+                # 1. Dataset verification
+                dataset_id = run.dataset_reference or meta.get("dataset_id")
+                dataset = dataset_repo.get_dataset(dataset_id) if dataset_id else None
+                dataset_exists = dataset is not None
+                dataset_unchanged: bool | None = None
+
+                if dataset_exists and dataset is not None:
+                    orig_ds_hash = meta.get("dataset_content_hash")
+                    if orig_ds_hash:
+                        curr_ds_hash = compute_dataset_content_hash(dataset)
+                        dataset_unchanged = bool(curr_ds_hash == orig_ds_hash)
+                        if dataset_unchanged:
+                            notes.append(
+                                "Dataset content hash verified matches execution baseline."
+                            )
+                        else:
+                            notes.append("Dataset content has been modified since run execution.")
+                    else:
+                        notes.append("Dataset exists, but original content hash was not recorded.")
+                else:
+                    notes.append(f"Benchmark dataset '{dataset_id}' is missing from repository.")
+
+                # 2. Corpus verification
                 corpus_doc_ids = meta.get("document_ids", [])
                 corpus_exists = True
+                corpus_unchanged: bool | None = None
+                unready_docs: list[str] = []
+
                 if corpus_doc_ids:
                     for d in corpus_doc_ids:
-                        if doc_repo.get_document(d) is None:
+                        doc = doc_repo.get_document(d)
+                        if doc is None:
                             corpus_exists = False
-                            break
+                            unready_docs.append(f"{d} (missing)")
+                        else:
+                            st = getattr(doc, "status", None)
+                            st_str = (
+                                st.value
+                                if (st is not None and hasattr(st, "value"))
+                                else str(st or "")
+                            )
+                            if st_str.upper() != "READY":
+                                corpus_exists = False
+                                unready_docs.append(f"{d} (status: {st_str})")
 
-                can_reproduce = bool(dataset_exists and corpus_exists)
+                    if not corpus_exists:
+                        notes.append(f"Corpus documents unavailable: {', '.join(unready_docs)}.")
+                    else:
+                        orig_corpus_fps = meta.get("corpus_fingerprints")
+                        if orig_corpus_fps and isinstance(orig_corpus_fps, dict):
+                            all_match = True
+                            for d in corpus_doc_ids:
+                                doc = doc_repo.get_document(d)
+                                doc_chunks = doc_repo.get_chunks(d)
+                                orig_fp = orig_corpus_fps.get(d, {})
+                                if orig_fp.get("content_hash") and getattr(
+                                    doc, "content_hash", None
+                                ) != orig_fp.get("content_hash"):
+                                    all_match = False
+                                if orig_fp.get("chunk_count") is not None and len(
+                                    doc_chunks
+                                ) != orig_fp.get("chunk_count"):
+                                    all_match = False
+                                if orig_fp.get("chunks_hash"):
+                                    c_digests = [
+                                        f"{c.chunk_id}:"
+                                        f"{getattr(c, 'content', '') or getattr(c, 'text', '')}:"
+                                        f"{getattr(c, 'page_number', None)}"
+                                        for c in sorted(doc_chunks, key=lambda x: str(x.chunk_id))
+                                    ]
+                                    chunk_bytes = "\n".join(c_digests).encode("utf-8")
+                                    h = hashlib.sha256(chunk_bytes).hexdigest()
+                                    if h != orig_fp.get("chunks_hash"):
+                                        all_match = False
+                            corpus_unchanged = all_match
+                            if corpus_unchanged:
+                                notes.append("Corpus document fingerprints verified unchanged.")
+                            else:
+                                notes.append(
+                                    "Corpus documents or chunks have changed since execution."
+                                )
+                        else:
+                            notes.append(
+                                "Corpus documents exist, but original "
+                                "fingerprints were not recorded."
+                            )
+                else:
+                    notes.append("No explicit corpus documents associated with run.")
+
+                # 3. Configuration availability
+                config_available = bool(run.config and run.config_hash)
+                if config_available:
+                    notes.append("Full configuration and hyperparameters available.")
+                else:
+                    notes.append("Execution configuration is incomplete.")
+
+                # 4. Model / Provider availability probe
+                provider = str(meta.get("provider") or run.config.get("provider", "ollama")).lower()
+                model_available: bool | None = None
+                if provider == "mock":
+                    model_available = True
+                    notes.append("Mock LLM client is available locally.")
+                elif provider == "ollama":
+                    try:
+                        import httpx
+
+                        r = httpx.get("http://localhost:11434/api/tags", timeout=1.0)
+                        model_available = r.status_code == 200
+                        if model_available:
+                            notes.append("Local Ollama daemon is active and reachable.")
+                        else:
+                            notes.append(f"Ollama server returned HTTP {r.status_code}.")
+                    except Exception:
+                        model_available = False
+                        notes.append("Local Ollama daemon is currently offline or unreachable.")
+                elif provider == "gemini":
+                    import os
+
+                    model_available = bool(os.getenv("GEMINI_API_KEY"))
+                    if model_available:
+                        notes.append("Gemini API key is configured in environment.")
+                    else:
+                        notes.append("GEMINI_API_KEY is not configured.")
+
+                # 5. Reproducibility Tier classification
+                if not dataset_exists or not corpus_exists or not config_available:
+                    tier = "impossible"
+                elif (
+                    dataset_unchanged is True
+                    and corpus_unchanged is True
+                    and model_available is True
+                ):
+                    tier = "exact"
+                else:
+                    tier = "partial"
+
+                can_reproduce = bool(tier == "exact")
 
                 return RunReproducibilityResponse(
                     run_id=run.run_id,
@@ -1911,9 +2038,15 @@ def create_app(max_request_body_size: int | None = None) -> FastAPI:
                     config_hash=run.config_hash,
                     dataset_id=dataset_id,
                     dataset_exists=dataset_exists,
+                    dataset_unchanged=dataset_unchanged,
                     corpus_document_ids=corpus_doc_ids,
                     corpus_documents_exist=corpus_exists,
+                    corpus_unchanged=corpus_unchanged,
+                    configuration_available=config_available,
+                    model_available=model_available,
+                    reproducibility_tier=tier,
                     can_reproduce=can_reproduce,
+                    reproducibility_notes=notes,
                     metadata=meta,
                     raw_config=run.config,
                 )

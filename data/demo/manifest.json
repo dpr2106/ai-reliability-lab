@@ -1,0 +1,29 @@
+{
+  "corpus_id": "demo-northstar-v2",
+  "version": "1.0.0",
+  "title": "Northstar Technical Demonstration Suite",
+  "description": "Original three-document technical corpus and golden evaluation dataset for STING",
+  "license": "Apache-2.0",
+  "documents": [
+    {
+      "filename": "architecture.md",
+      "doc_identifier": "NORTHSTAR-ARCH-2026-V2",
+      "title": "Northstar System Architecture & Indexing Topology",
+      "description": "Baseline architecture, chunking specification, and hybrid RRF retrieval configuration."
+    },
+    {
+      "filename": "benchmark_report.md",
+      "doc_identifier": "NORTHSTAR-BENCH-2026-Q3",
+      "title": "Northstar Retrieval Evaluation & Benchmark Report",
+      "description": "Empirical evaluation comparing BM25, dense FAISS, and Hybrid RRF across 40 technical queries."
+    },
+    {
+      "filename": "incident_report.md",
+      "doc_identifier": "NORTHSTAR-INC-4091",
+      "title": "Northstar Incident Post-Mortem: Retrieval Regression on Alphanumeric Codes",
+      "description": "Post-mortem analysis of RRF rank dilution on alphanumeric hardware SKUs and corrective actions."
+    }
+  ],
+  "benchmark_file": "golden_questions.json"
+}
+

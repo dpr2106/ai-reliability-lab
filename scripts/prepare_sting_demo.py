@@ -401,7 +401,8 @@ def prepare_demo_local(
             for d in doc_repo.list_documents(limit=100):
                 if d.filename == fname and d.content_hash == fhash:
                     st = getattr(d, "status", None)
-                    st_str = st.value if (st is not None and hasattr(st, "value")) else str(st or "")
+                    st_val = getattr(st, "value", None)
+                    st_str = str(st_val if st_val is not None else (st or ""))
                     if st_str.upper() == "READY":
                         doc_ids[fname] = d.doc_id
                         reused = True

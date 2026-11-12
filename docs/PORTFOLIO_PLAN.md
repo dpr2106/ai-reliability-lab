@@ -22,16 +22,16 @@ Do not imply that the project created a foundation model, invented RAG, guarante
 
 ## 2. Required proof assets
 
-| Proof asset | What it should demonstrate | Evidence to capture |
-|---|---|---|
-| Architecture diagram | Ingestion → chunking → indexes → retrieval trace → generation → citation resolution → evaluation | Versioned diagram and linked source modules |
-| Retrieval comparison | BM25 vs dense vs Hybrid RRF behavior | Dataset, queries, relevance labels, top-K results, metrics |
-| Citation walkthrough | A cited claim resolves to an actual source passage | Query, answer, chunk ID, document/page/span |
-| Abstention case | System refuses to invent an answer when evidence is absent | Input document set, question, retrieved candidates, response |
-| Regression demo | A change degrades a measured result and the gate detects it | Baseline/candidate config hashes, failing query, regression output |
-| Local deployment | User can run without sending routine document contents to a cloud API | Setup transcript, provider provenance, network/privacy notes |
-| Test evidence | Correctness and maintainability | Commit SHA, CI run, test count, coverage, lint/typecheck output |
-| Product demo | Usable experience end-to-end | Short unedited or clearly narrated screen recording |
+| Proof asset | What it should demonstrate | Evidence to capture | Proof Status |
+|---|---|---|---|
+| Architecture diagram | Ingestion → chunking → indexes → retrieval trace → generation → citation resolution → evaluation | Versioned diagram and linked source modules | Implemented in docs & code; release asset verification in V2-006 |
+| Retrieval comparison | BM25 vs dense vs Hybrid RRF behavior | Dataset, queries, relevance labels, top-K results, metrics | Implemented in engine & Evaluation Studio; demo capture pending V2-006 |
+| Citation walkthrough | A cited claim resolves to an actual source passage | Query, answer, chunk ID, document/page/span | Implemented in Evidence Inspector; walkthrough capture pending V2-006 |
+| Abstention case | System refuses to invent an answer when evidence is absent | Input document set, question, retrieved candidates, response | Implemented in query/investigation service; proof capture pending V2-006 |
+| Regression demo | A change degrades a measured result and the gate detects it | Baseline/candidate config hashes, failing query, regression output | Implemented in RegressionDetector & Studio; scenario capture pending V2-006 |
+| Local deployment | User can run without sending routine document contents to a cloud API | Setup transcript, provider provenance, network/privacy notes | Implemented with Ollama; setup transcript capture pending V2-006 |
+| Test evidence | Correctness and maintainability | Commit SHA, CI run, test count, coverage, lint/typecheck output | Verified on main: 1,028 unit tests, CI Run 42499098507 (complete) |
+| Product demo | Usable experience end-to-end | Short unedited or clearly narrated screen recording | Workbench complete in code; recording pending V2-006 |
 
 ## 3. Benchmark discipline
 
@@ -73,13 +73,13 @@ Do not post this as a completed-project announcement until the core workflow is 
 
 ## 6. Portfolio release checklist
 
-- [ ] V2-003 query trace and citation resolution merged.
-- [ ] V2-004 workbench UI and source navigation demonstrated.
-- [ ] V2-005 benchmark comparison and regression workflow reproduced.
-- [ ] Sample data and benchmark questions are redistributable and documented.
-- [ ] Setup works from a clean checkout.
-- [ ] Screenshots and demo show real current behavior.
-- [ ] Published metrics include dataset/method/environment context.
-- [ ] README clearly distinguishes Ollama/local inference from STING's value.
-- [ ] Known limitations, hardware requirements, and privacy boundaries are disclosed.
-- [ ] Resume and LinkedIn wording matches merged code, tests, and demo evidence.
+- [x] V2-003 query trace, citation resolution, and SSE streaming merged (PR #61, #62, #63).
+- [x] V2-004 workbench UI and cross-document source navigation merged (PR #64).
+- [x] V2-005 benchmark comparison and regression workflow merged (PR #65).
+- [ ] V2-006 Redistributable sample document collection and benchmark questions packaged.
+- [ ] V2-006 Clean-checkout setup works without missing dependencies.
+- [ ] V2-006 Screenshots and short screen recording captured from live current build.
+- [ ] V2-006 Published metrics include dataset, method, and environment context.
+- [ ] V2-006 README and portfolio case study clearly distinguish local inference from STING's evaluation value.
+- [ ] V2-006 Known limitations, hardware requirements, and privacy boundaries are disclosed.
+- [ ] V2-006 Resume and LinkedIn wording verified against captured demo evidence.

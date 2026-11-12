@@ -19,9 +19,9 @@ The product should let a user ask a question about local documents and then insp
         |
 [V2-004] STING workbench UI and source evidence inspector     COMPLETE
         |
-[V2-005] RAG evaluation, comparison and regression studio     IN_PROGRESS
+[V2-005] RAG evaluation, comparison and regression studio     COMPLETE
         |
-[V2-006] Reproducible demo and portfolio release              BACKLOG
+[V2-006] Reproducible demo and portfolio release              READY
 ```
 
 ## V2-001 — Local LLM Inference Provider (Ollama)
@@ -87,26 +87,27 @@ The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, sour
 
 ## V2-005 — RAG Evaluation, Comparison and Regression Studio
 
-**Status:** `IN_PROGRESS` (Branch `feat/v2-005-evaluation-regression-studio`)
+**Status:** `COMPLETED` (PR #65 merged; merge commit `bb3057d1a1dd544856376ed5a374cb89d2cce9a3`, 2026-11-08)
 
 **Objective:** Make reliability measurement a first-class user workflow, not merely a collection of backend modules.
 
 **Key deliverables:**
 
-- User-editable or bundled golden question sets with documented relevance labels and evidence references.
+- User-editable and bundled golden question sets with documented relevance labels, citation mappings, and evidence references.
 - Side-by-side comparison of BM25, dense, and Hybrid RRF retrieval.
-- Configurable comparison of local LLMs, embedding models, prompts, chunking parameters, and top-K settings where supported.
+- Configurable comparison of local LLMs, embedding models, prompts, chunking parameters, and top-K settings.
 - Retrieval metrics: Recall@K, Precision@K, Hit Rate@K, MRR@K, NDCG@K, and latency percentiles.
 - Citation precision/recall, claim-groundedness diagnostics, abstention behavior, generation latency, and token throughput where measurable.
-- Per-query failure inspection and regression comparison against a saved baseline.
-- Reproducible experiment records containing dataset identity, configuration hash, provider/model provenance, software versions, and run metadata.
+- Per-query failure inspection with diagnostic classification (`retrieval_miss`, `partial_retrieval`, `citation_hallucination`, `citation_omission`, `ungrounded_generation`, `passed`) and regression comparison against a saved baseline.
+- Multi-tier run reproducibility manifests (`exact`, `partial`, `impossible`) containing dataset SHA-256 content hash, corpus document fingerprints, configuration hash, provider/model provenance, and dependency diagnostics ledger.
+- SvelteKit + Svelte 5 frontend studio with 5 dedicated tabs: Experiment Launcher, Datasets Studio, Runs & Baselines, Failure Explorer, and Regression Studio.
 - Honest limitations and dataset-size disclosure beside charts and summary metrics.
 
-**Acceptance criteria:** A user can reproduce a baseline, change a retrieval or generation setting, compare the results, inspect the worst query-level changes, and trigger a deterministic regression result.
+**Acceptance criteria:** A user can reproduce a baseline, change a retrieval or generation setting, compare the results, inspect the worst query-level changes, and trigger a deterministic regression result. All criteria met and verified across 1,028 backend unit tests and full frontend build.
 
 ## V2-006 — Reproducible Demo and Portfolio Release
 
-**Status:** `BACKLOG`
+**Status:** `READY`
 
 **Objective:** Turn completed engineering into independently verifiable portfolio evidence.
 

@@ -23,7 +23,7 @@ The product focus is to make RAG behavior inspectable: compare BM25, dense FAISS
 
 **Product direction:** Ask. Inspect. Verify. Benchmark. See the [STING Product Brief](docs/STING_PRODUCT_BRIEF.md), [V2 Roadmap](docs/roadmap/V2_ROADMAP.md), and [Portfolio Evidence Plan](docs/PORTFOLIO_PLAN.md).
 
-> Roadmap note: STING is under active development. The product claims above describe its target direction; consult milestone status, merged code, and the reproducible demo before treating a capability as released.
+> **Milestone Status Note**: STING V2 milestones V2-001 through V2-005 are fully merged and verified on `main` (latest merge commit `bb3057d`, 2026-11-08). The platform supports local Ollama inference, document ingestion, evidence-first query execution with SSE streaming, cross-document evidence investigation, and RAG evaluation/regression benchmarking. The current active milestone is V2-006 (Reproducible Demo and Portfolio Release). Consult [`docs/STATUS.md`](docs/STATUS.md) and [`docs/roadmap/V2_ROADMAP.md`](docs/roadmap/V2_ROADMAP.md) for detailed milestone tracking.
 
 ### The Problem
 Generative AI and RAG systems fail in silent, compounding ways:
@@ -51,8 +51,11 @@ For the comprehensive technical evaluation and deep-dive empirical analysis, rea
 - **Citation Precision & Recall**: Inline citation tag parsing (`[CHK-xxx]`, `[CIT-xxx]`), candidate set resolution, and precision/recall calculations.
 - **Local NLI & Structured LLM Judging**: Cross-encoder NLI entailment classification paired with schema-validated `LLMJudge` faithfulness scoring and directional Pearson/Spearman correlation analysis.
 - **End-to-End Pipeline Orchestrator**: Reusable backend orchestration (`RAGEvaluationRunner`) executing retrieval, generation, groundedness, citation auditing, judging, and persistence in a single call.
+- **Evidence-First Query & SSE Streaming**: Standalone and session-based conversational RAG query endpoints delivering progressive token-by-token Server-Sent Events (SSE), strict candidate citation resolution, and full retrieval query traces.
+- **Cross-Document Evidence Intelligence**: Multi-document claim extraction, aspect-based comparison matrices, relationship classification (`supports`, `contradicts`, `qualifies`, `not_addressed`, `insufficient_evidence`), and publication-grade markdown report export.
+- **Evaluation, Comparison & Regression Studio**: Golden benchmark dataset management with SQLite persistence and JSONL import/export, thread-safe incremental job progress, 6-mode diagnostic failure classification, and multi-tier reproducibility manifests (`exact`, `partial`, `impossible`).
 - **Automated CI/CD Regression Gating**: `RegressionDetector` comparing candidate runs against baseline experiments with configurable tolerances and deterministic exit codes.
-- **Diagnostic Studio**: Interactive dark-themed SvelteKit 3 / Svelte 5 frontend with client-side run filtering, side-by-side regression diffing, and citation auditing.
+- **Interactive Workbench UI**: SvelteKit 3 / Svelte 5 frontend with dedicated tabs for Evidence Investigations, Dataset Studio, Experiment Launcher, Failure Explorer, and Regression Diffing.
 - **Containerized Deployment**: Multi-stage Dockerfiles and Docker Compose topology with non-root security and persistent SQLite named volume storage.
 
 ---
@@ -389,6 +392,32 @@ Response:
   - **Dense FAISS Vector Index**: Flat inner-product index and chunk metadata stored under `.reliability-lab/indexes/{doc_id}/faiss/` (`index.faiss` + `metadata.json`).
   - **Partial Indexing Support**: When local dense embedding models are unavailable, BM25 indexing still succeeds and the document transitions to `status: READY` with `indexing_status: PARTIAL`, enabling conversational and evaluation retrieval via keyword search.
 
+### 4. Evidence-First Query & SSE Streaming API
+- **Evidence-Grounded Query** (`POST /api/query`):
+  Executes document-scoped BM25/FAISS/Hybrid retrieval, builds injection-safe context, generates answers with inline citation tags, validates citations against candidate chunks, and returns complete query trace metadata.
+- **Real-Time Token Streaming** (`POST /api/query/stream`):
+  W3C Server-Sent Events (SSE) delivering progressive `start`, `token`, `citation`, and `complete` event frames directly from Ollama or Mock clients.
+- **Conversational Sessions** (`POST /api/sessions`, `GET /api/sessions/{session_id}`):
+  Persistent multi-turn conversation sessions with scoped document context and durable message history.
+- **Session Streaming Query** (`POST /api/sessions/{session_id}/query/stream`):
+  SSE token streaming within a session context with atomic turn persistence upon clean stream completion.
+
+### 5. Cross-Document Investigation API
+- **Launch Investigation** (`POST /api/investigations`):
+  Coordinates multi-document claim extraction, aspect-based comparison matrices, and relationship classification (`supports`, `contradicts`, `qualifies`, `not_addressed`, `insufficient_evidence`).
+- **Inspect & Export Reports** (`GET /api/investigations/{id}`, `GET /api/investigations/{id}/export`):
+  Retrieves structured synthesis of consensus, disagreement, and evidence gaps, with one-click export to publication-grade Markdown.
+
+### 6. RAG Evaluation & Regression Studio API
+- **Benchmark Dataset Studio** (`GET|POST /api/datasets`, `POST /api/datasets/import`, `GET /api/datasets/{id}/export`):
+  Create, import, and export golden evaluation datasets with strict fail-closed chunk validation against indexed documents.
+- **Evaluation Job Execution** (`POST /api/evaluation/launch`, `GET /api/evaluation/jobs/{job_id}`):
+  Dispatches asynchronous pipeline evaluations across configurable retrievers and LLM providers with thread-safe incremental turn-by-turn progress updates.
+- **Run Reproducibility Manifest** (`GET /api/runs/{run_id}/reproducibility`):
+  Calculates multi-tier reproducibility status (`exact`, `partial`, `impossible`) using deterministic SHA-256 dataset query hashes and corpus chunk fingerprints.
+- **Diagnostic Failure Mode Filtering** (`GET /api/runs/{run_id}/queries?failure_mode=...`):
+  Filters query outcomes by diagnostic failure modes (`retrieval_miss`, `partial_retrieval`, `citation_hallucination`, `citation_omission`, `ungrounded_generation`, or `passed`).
+
 ---
 
 ## Technical Stack
@@ -419,17 +448,18 @@ The platform is designed following strict Architecture Decision Records document
 - **ADR-012: Multi-Stage Containerization & Adapter-Node Topology**: Minimal non-root containers with persistent SQLite volume durability.
 - **ADR-013: Local LLM Inference Provider Integration via Ollama HTTP API**: 100% offline local LLM generation and judging with zero cloud dependencies or API costs.
 - **ADR-014: Local Document Ingestion Architecture with Citation-Aware Chunking and Dual-Index Persistence**: Asynchronous multipart streaming upload, provenance-preserving extraction, and dual BM25/FAISS index persistence.
+- **ADR-015: Position STING as an Evidence-First RAG Reliability Workbench**: Focuses product development on inspectable retrieval, citation verification, safe abstention, and regression testing rather than generic chatbot UI.
 
 ---
 
 ## Testing & Reliability
 
 The platform enforces 100% test pass rates and strict quality gates on every commit:
-- **Python Backend Suite**: **648 passed, 1 warning** across Python 3.11, 3.12, and 3.13.
-- **Package Coverage**: **93%** line coverage across `reliability_lab`.
-- **Static Quality**: 0 errors on `ruff check .`, 100% formatted via `ruff format`, 0 issues on `mypy reliability_lab`.
-- **Frontend Suite**: 0 errors on `svelte-check --tsconfig ./tsconfig.json`, 6/6 unit tests passed via Vitest, clean production build via `@sveltejs/adapter-node`.
-- **Hermetic CI**: Mandatory GitHub Actions matrix (`test-and-lint (3.11)` and `test-and-lint (3.12)`) gates every pull request before rebase merge.
+- **Historical Release Baseline (Milestone 11 / V1 Audit)**: **648 passed, 1 warning** across Python 3.11, 3.12, and 3.13 (93% line coverage).
+- **Current Comprehensive Backend Suite (V2-005 Merge)**: **1,028 passed unit tests, 0 failures, 6 warnings** (verified on `main` at commit `bb3057d`, 2026-11-08).
+- **Static Quality**: 0 errors on `ruff check .`, 100% formatted via `ruff format`, 0 issues on `mypy reliability_lab` (62 source files).
+- **Frontend Verification**: 0 errors on `svelte-check --tsconfig ./tsconfig.json`, 8/8 unit tests passed via Vitest (`src/lib/api.spec.ts`), clean production build via `@sveltejs/adapter-node`.
+- **Hermetic CI**: Mandatory GitHub Actions matrix (`test-and-lint (3.11)` and `test-and-lint (3.12)`) gates every pull request and verifies `main` on every merge (Run [42499098507](https://github.com/dpr2106/ai-reliability-lab/actions/runs/42499098507)).
 
 ---
 

@@ -1,0 +1,107 @@
+{
+  "dataset_name": "Northstar Golden Benchmark",
+  "description": "10 manually verified benchmark queries covering keyword, semantic, cross-document comparison, incident analysis, and safe abstention.",
+  "version": "1.0.0",
+  "questions": [
+    {
+      "query_id": "DEMO-Q01",
+      "text": "What target chunk size and overlap are specified for Northstar document ingestion?",
+      "source_filename": "architecture.md",
+      "evidence_anchor": "Target Chunk Size: 500 characters",
+      "relevance_grade": 2,
+      "required_citation": "CIT-ARCH-CHUNK",
+      "category": "keyword_retrieval",
+      "reference_answer": "Northstar specifies a target chunk size of 500 characters and a chunk overlap of 100 characters with sentence and newline boundary preservation."
+    },
+    {
+      "query_id": "DEMO-Q02",
+      "text": "Which dense embedding model and vector index topology does Northstar employ for conceptual semantic search?",
+      "source_filename": "architecture.md",
+      "evidence_anchor": "384-dimensional dense sentence embeddings using `all-MiniLM-L6-v2`.",
+      "relevance_grade": 2,
+      "required_citation": "CIT-ARCH-DENSE",
+      "category": "semantic_retrieval",
+      "reference_answer": "Northstar uses 384-dimensional dense sentence embeddings from all-MiniLM-L6-v2 with an IndexFlatIP exact inner product FAISS index."
+    },
+    {
+      "query_id": "DEMO-Q03",
+      "text": "What smoothing constant and formula does Northstar use to merge sparse and dense rankings?",
+      "source_filename": "architecture.md",
+      "evidence_anchor": "Reciprocal Rank Fusion (RRF) with a standard smoothing constant of k=60",
+      "relevance_grade": 2,
+      "required_citation": "CIT-ARCH-RRF",
+      "category": "methodology",
+      "reference_answer": "Northstar merges sparse and dense rankings using Reciprocal Rank Fusion (RRF) with a standard smoothing constant of k=60."
+    },
+    {
+      "query_id": "DEMO-Q04",
+      "text": "What happens if a generated answer cites a chunk outside the retrieved evidence set?",
+      "source_filename": "architecture.md",
+      "evidence_anchor": "Any citation tag referencing a chunk outside the retrieved evidence set is flagged as an invalid citation.",
+      "relevance_grade": 2,
+      "required_citation": "CIT-ARCH-CITE",
+      "category": "citation_provenance",
+      "reference_answer": "Any citation tag referencing a chunk outside the retrieved evidence set is flagged as an invalid citation by the citation resolver."
+    },
+    {
+      "query_id": "DEMO-Q05",
+      "text": "What Recall@5 and NDCG@5 did Hybrid RRF achieve in the Q3 benchmark report?",
+      "source_filename": "benchmark_report.md",
+      "evidence_anchor": "Hybrid RRF achieved superior Recall@5 (0.9625) and NDCG@5 (0.9420)",
+      "relevance_grade": 2,
+      "required_citation": "CIT-BENCH-METRIC",
+      "category": "metric_interpretation",
+      "reference_answer": "In the Q3 benchmark evaluation, Hybrid RRF achieved a Recall@5 of 0.9625 and an NDCG@5 of 0.9420, outperforming both isolated sparse and dense baselines."
+    },
+    {
+      "query_id": "DEMO-Q06",
+      "text": "How does the P50 latency of Okapi BM25 compare to neural dense vector inference in Northstar benchmarks?",
+      "source_filename": "benchmark_report.md",
+      "evidence_anchor": "BM25 is ~270x faster than neural vector inference",
+      "relevance_grade": 2,
+      "required_citation": "CIT-BENCH-LATENCY",
+      "category": "performance_analysis",
+      "reference_answer": "Okapi BM25 demonstrated a P50 latency of 0.12 ms, which is approximately 270 times faster than neural vector inference (32.50 ms)."
+    },
+    {
+      "query_id": "DEMO-Q07",
+      "text": "What specific query types were excluded from the Q3 benchmark evaluation dataset?",
+      "source_filename": "benchmark_report.md",
+      "evidence_anchor": "Alphanumeric SKU lookups and single-token error code searches were excluded",
+      "relevance_grade": 2,
+      "required_citation": "CIT-BENCH-LIMIT",
+      "category": "methodology",
+      "reference_answer": "Alphanumeric SKU lookups and single-token error code searches were excluded from the 40-query evaluation set, representing a known coverage limitation."
+    },
+    {
+      "query_id": "DEMO-Q08",
+      "text": "What caused the retrieval failure on product SKUs like NS-9000-XL in Incident INC-4091?",
+      "source_filename": "incident_report.md",
+      "evidence_anchor": "pushing the correct chunk down to rank 7 or 8 (outside top-K=5)",
+      "relevance_grade": 2,
+      "required_citation": "CIT-INC-ROOTCAUSE",
+      "category": "failure_analysis",
+      "reference_answer": "Dense retrieval populated top ranks with irrelevant clustered documents due to subword tokenization, causing RRF rank dilution to push the rank 1 BM25 hit down to rank 7 or 8."
+    },
+    {
+      "query_id": "DEMO-Q09",
+      "text": "What corrective remediation actions were approved in Incident INC-4091 to prevent RRF dilution?",
+      "source_filename": "incident_report.md",
+      "evidence_anchor": "When a query contains an exact alphanumeric token matching indexed hardware codes, the BM25 top hit is automatically pinned into the top-3 candidate evidence set.",
+      "relevance_grade": 2,
+      "required_citation": "CIT-INC-REMEDY",
+      "category": "cross_document_synthesis",
+      "reference_answer": "Remediation included lexical exact-match promotion (pinning BM25 top hit into top-3 for exact hardware codes), dense confidence thresholding (0.45), and safe abstention enforcement."
+    },
+    {
+      "query_id": "DEMO-Q10",
+      "text": "What reinforcement learning from human feedback (RLHF) reward model and PPO hyperparameters are used in Northstar?",
+      "source_filename": null,
+      "evidence_anchor": null,
+      "relevance_grade": 0,
+      "required_citation": null,
+      "category": "safe_abstention",
+      "reference_answer": "INSUFFICIENT_EVIDENCE: The Northstar documentation does not mention reinforcement learning from human feedback, reward models, or PPO hyperparameters. The system should abstain."
+    }
+  ]
+}

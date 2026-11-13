@@ -411,7 +411,7 @@ Response:
 ### 6. RAG Evaluation & Regression Studio API
 - **Benchmark Dataset Studio** (`GET|POST /api/datasets`, `POST /api/datasets/import`, `GET /api/datasets/{id}/export`):
   Create, import, and export golden evaluation datasets with strict fail-closed chunk validation against indexed documents.
-- **Evaluation Job Execution** (`POST /api/evaluation/launch`, `GET /api/evaluation/jobs/{job_id}`):
+- **Evaluation Job Execution** (`POST /api/evaluation/run`, `GET /api/evaluation/jobs/{job_id}`):
   Dispatches asynchronous pipeline evaluations across configurable retrievers and LLM providers with thread-safe incremental turn-by-turn progress updates.
 - **Run Reproducibility Manifest** (`GET /api/runs/{run_id}/reproducibility`):
   Calculates multi-tier reproducibility status (`exact`, `partial`, `impossible`) using deterministic SHA-256 dataset query hashes and corpus chunk fingerprints.

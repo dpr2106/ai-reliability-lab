@@ -92,10 +92,13 @@ npm run dev -- --port 5173
 Execute the preparation workflow to ingest the bundled Northstar corpus and create the verified golden benchmark dataset:
 
 ```bash
-# Run against running backend server:
+# Run against running backend server (API mode):
 python scripts/prepare_sting_demo.py --api-url http://127.0.0.1:8000
 
-# Or run directly in local service mode (no server needed):
+# Or emit machine-readable JSON receipt with dynamic identifiers:
+python scripts/prepare_sting_demo.py --api-url http://127.0.0.1:8000 --receipt-json data/demo/receipt.json
+
+# Or run directly in local service mode (no HTTP server needed):
 python scripts/prepare_sting_demo.py --local
 ```
 
@@ -111,23 +114,40 @@ Example output receipt:
 ======================================================================
   STING DEMO PACK PREPARATION RECEIPT
 ======================================================================
-Execution Mode:       API
-Benchmark Dataset:    Northstar Golden Benchmark
-Dataset Identifier:   ds_2ce1e51bb4ec
-Total Golden Queries: 10 (100% verified anchors)
+Execution Mode:             API
+Benchmark Dataset:          Northstar Golden Benchmark
+Dataset Identifier:         ds_a25467494a36
+Total Golden Queries:       10
+  * Evidence-Anchored:      9 (resolved to unique chunks: 9)
+  * Safe Abstention:        1 (intentional zero-evidence ground truth)
 ----------------------------------------------------------------------
 Ingested Documents:
-  * architecture.md           -> Doc ID: doc_447de7d4db4347ed (7 chunks)
-  * benchmark_report.md       -> Doc ID: doc_062d269988764857 (6 chunks)
-  * incident_report.md        -> Doc ID: doc_e8e99352d25b4da9 (7 chunks)
-Total Ingested Chunks: 20
+  * architecture.md           -> Doc ID: doc_0e3790a853fd4d11 (7 chunks)
+  * benchmark_report.md       -> Doc ID: doc_2e33747df04b4bbc (6 chunks)
+  * incident_report.md        -> Doc ID: doc_d983c0dbd6214275 (7 chunks)
+Total Ingested Chunks:      20
 ----------------------------------------------------------------------
-Ready for STING demonstration:
+Next Steps for STING Demonstration:
   1. Evidence Queries:      POST /api/query or /api/query/stream
+     Scoped Doc IDs:        doc_0e3790a853fd4d11, doc_2e33747df04b4bbc, doc_d983c0dbd6214275
   2. Cross-Document Invest: POST /api/investigations
-  3. Evaluation Studio:     POST /api/evaluation/run with dataset 'ds_2ce1e51bb4ec'
+  3. Evaluation Studio:     POST /api/evaluation/run with dataset 'ds_a25467494a36'
+----------------------------------------------------------------------
+Quick Shell Variables (Bash / Zsh):
+  export DOC_ARCH="doc_0e3790a853fd4d11"
+  export DOC_BENCH="doc_2e33747df04b4bbc"
+  export DOC_INCIDENT="doc_d983c0dbd6214275"
+  export DEMO_DATASET_ID="ds_a25467494a36"
+
+Quick PowerShell Variables:
+  $env:DOC_ARCH = "doc_0e3790a853fd4d11"
+  $env:DOC_BENCH = "doc_2e33747df04b4bbc"
+  $env:DOC_INCIDENT = "doc_d983c0dbd6214275"
+  $env:DEMO_DATASET_ID = "ds_a25467494a36"
 ======================================================================
 ```
+
+> **Dynamic ID Workflow**: Copy the shell exports printed at the end of the receipt into your terminal session. All walkthrough commands below reference `$DOC_ARCH`, `$DOC_BENCH`, `$DOC_INCIDENT`, and `$DEMO_DATASET_ID` directly.
 
 ---
 
@@ -140,8 +160,8 @@ curl -X POST "http://localhost:8000/api/query" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What target chunk size and overlap are specified for Northstar document ingestion?",
-    "document_ids": ["doc_447de7d4db4347ed"],
-    "retriever_type": "hybrid",
+    "document_ids": ["'"$DOC_ARCH"'"],
+    "strategy": "hybrid",
     "top_k": 5
   }'
 ```
@@ -155,8 +175,8 @@ curl -N "http://localhost:8000/api/query/stream" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What target chunk size and overlap are specified for Northstar document ingestion?",
-    "document_ids": ["doc_447de7d4db4347ed"],
-    "retriever_type": "hybrid",
+    "document_ids": ["'"$DOC_ARCH"'"],
+    "strategy": "hybrid",
     "top_k": 5
   }'
 ```
@@ -169,7 +189,7 @@ curl -X POST "http://localhost:8000/api/investigations" \
   -d '{
     "title": "Hybrid Retrieval Performance on Alphanumeric Identifiers",
     "query": "Does Hybrid RRF perform reliably on alphanumeric model codes compared to standard benchmarks?",
-    "document_ids": ["doc_447de7d4db4347ed", "doc_062d269988764857", "doc_e8e99352d25b4da9"]
+    "document_ids": ["'"$DOC_ARCH"'", "'"$DOC_BENCH"'", "'"$DOC_INCIDENT"'"]
   }'
 ```
 - **Inspect Findings Matrix**: In the UI (`/investigations`), observe the comparison table across documents.
@@ -177,11 +197,14 @@ curl -X POST "http://localhost:8000/api/investigations" \
 - **Export Publication Report**: Download a formatted report via `GET /api/investigations/{id}/export`.
 
 ### Workflow 3: RAG Evaluation & Regression Studio
+You can launch evaluations via the interactive UI or directly via the API:
+
+**Option A: Via Interactive UI**
 1. Navigate to the **Evaluation Studio** in the UI ([http://localhost:5173/evaluation](http://localhost:5173/evaluation)).
 2. Under the **Datasets Studio** tab, inspect the imported `Northstar Golden Benchmark` (10 queries).
 3. Under the **Experiment Launcher** tab, configure a run:
    - Dataset: `Northstar Golden Benchmark`
-   - Retriever: `hybrid` (or compare `bm25` vs `dense`)
+   - Retriever: `bm25` (or compare `hybrid` vs `dense`)
    - Provider: `mock` (or `ollama` with `llama3.2`)
 4. Click **Launch Evaluation Experiment**:
    - Observe live thread-safe incremental progress (`queries_completed` / `total_queries`).
@@ -190,6 +213,26 @@ curl -X POST "http://localhost:8000/api/investigations" \
 6. Open the **Reproducibility Manifest** modal:
    - Inspect the verified reproducibility tier (`exact`, `partial`, `impossible`), dataset SHA-256 content hash, and corpus chunk fingerprints.
 
+**Option B: Via Backend API (`POST /api/evaluation/run`)**
+```bash
+curl -X POST "http://localhost:8000/api/evaluation/run" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "experiment_name": "northstar_baseline_eval",
+    "dataset_id": "'"$DEMO_DATASET_ID"'",
+    "document_ids": ["'"$DOC_ARCH"'", "'"$DOC_BENCH"'", "'"$DOC_INCIDENT"'"],
+    "retriever_type": "bm25",
+    "provider": "mock",
+    "model_name": "mock-pipeline",
+    "top_k": 5,
+    "enable_groundedness": true,
+    "enable_citations": true,
+    "enable_nli": false,
+    "enable_judge": false
+  }'
+```
+Poll the returned `job_id` via `GET /api/evaluation/jobs/{job_id}`, then fetch the reproducibility manifest via `GET /api/runs/{run_id}/reproducibility`.
+
 ### Workflow 4: Safe Abstention on Missing Evidence
 Submit a query about an unmentioned topic:
 ```bash
@@ -197,8 +240,8 @@ curl -X POST "http://localhost:8000/api/query" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What reinforcement learning from human feedback (RLHF) reward model and PPO hyperparameters are used in Northstar?",
-    "document_ids": ["doc_447de7d4db4347ed", "doc_062d269988764857", "doc_e8e99352d25b4da9"],
-    "retriever_type": "hybrid",
+    "document_ids": ["'"$DOC_ARCH"'", "'"$DOC_BENCH"'", "'"$DOC_INCIDENT"'"],
+    "strategy": "hybrid",
     "top_k": 5
   }'
 ```
@@ -213,8 +256,22 @@ STING supports three distinct LLM execution paths:
 | Provider | Purpose | Network Requirement | Hardware Requirements | Reproducibility |
 |---|---|---|---|---|
 | **Deterministic Mock (`mock`)** | Hermetic CI, unit testing, deterministic validation | Zero network calls | Minimal CPU (< 100 MB RAM) | 100% deterministic rule-based output |
-| **Local Ollama (`ollama`)** | Authentic local-first neural generation | 100% offline (local daemon) | 4-8 GB RAM, modern CPU | Genuine local LLM reasoning (`llama3.2`) |
+| **Local Ollama (`ollama`)** | Authentic local-first neural generation | 100% offline (local daemon) | 4-8 GB RAM, multi-core CPU / GPU | Genuine local LLM reasoning (`llama3.2`) |
 | **Cloud Gemini (`gemini`)** | Comparison baseline against hosted models | Requires internet & `GEMINI_API_KEY` | Minimal client overhead | API response latency & quota dependent |
 
 > **Transparency Note**: Synthetic mock execution should never be presented as real neural model performance. Local inference requires downloading model weights via `ollama pull` and consumes local system memory during execution.
+
+### CPU Hardware Inference & Timeout Considerations
+When running local Ollama inference on CPU without dedicated GPU compute, prompt processing and autoregressive token generation take significantly longer than on GPU hardware (~15-25 seconds per turn on 3B parameter models). For large multi-paragraph prompts (such as cross-document JSON extractions), CPU inference can exceed the default 60-second HTTP client timeout. For rapid evaluation and regression testing on CPU environments, the deterministic `mock` provider is strongly recommended, while `ollama` is ideal for qualitative inspection and interactive chat turns.
+
+### Scenario Transparency: Fictional Demonstration Corpus
+The documents in `data/demo/corpus/` (*Northstar Distributed Retrieval & Evidence Investigation Engine*) represent a fictional technical scenario created specifically to demonstrate STING's evaluation, regression, contradiction analysis, and citation verification capabilities. The evaluation figures cited within the demo documents (e.g., Recall@5: 0.9625, NDCG@5: 0.9420) are narrative elements of that scenario and do not represent measured benchmarks of STING itself.
+
+---
+
+## 7. Known Limitations
+
+- **Cross-document structured extraction on CPU**: Generating deep structured JSON across multiple documents concurrently requires adequate Ollama client timeouts or GPU offload.
+- **Dense index cold start**: The first dense ingestion run downloads `sentence-transformers/all-MiniLM-L6-v2` (~90 MB) into the local HuggingFace cache. Subsequent runs reuse the local cache completely offline.
+- **Browser SSE streaming**: SSE token streaming requires an HTTP client or browser supporting `text/event-stream`.
 

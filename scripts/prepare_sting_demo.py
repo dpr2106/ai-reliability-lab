@@ -34,6 +34,10 @@ class DemoPreparationResult:
     query_count: int
     resolved_queries: list[dict[str, Any]] = field(default_factory=list)
     mode: str = "api"
+    db_path: str | None = None
+    evidence_anchored_queries: int = 0
+    resolved_anchors: int = 0
+    intentional_abstentions: int = 0
 
 
 def compute_file_hash(path: Path) -> str:
@@ -143,12 +147,18 @@ def resolve_anchors_to_chunks(
                 f"Query '{qid}' targets document '{fname}' but provides no evidence anchor."
             )
 
+        def _get_chunk_text(c: Any) -> str:
+            if isinstance(c, dict):
+                return str(c.get("content") or c.get("text") or "")
+            return str(getattr(c, "content", None) or getattr(c, "text", "") or "")
+
+        def _get_chunk_id(c: Any) -> str:
+            if isinstance(c, dict):
+                return str(c.get("chunk_id", ""))
+            return str(getattr(c, "chunk_id", ""))
+
         anchor_str = str(anchor).strip()
-        matching_chunks = [
-            c
-            for c in chunks
-            if anchor_str in (getattr(c, "content", None) or getattr(c, "text", "") or "")
-        ]
+        matching_chunks = [c for c in chunks if anchor_str in _get_chunk_text(c)]
 
         if not matching_chunks:
             raise ValueError(
@@ -163,7 +173,7 @@ def resolve_anchors_to_chunks(
             )
 
         target_chunk = matching_chunks[0]
-        chunk_id = target_chunk.chunk_id
+        chunk_id = _get_chunk_id(target_chunk)
 
         resolved.append(
             {
@@ -345,6 +355,17 @@ def prepare_demo_api(
         dataset_id = r.json()["dataset_id"]
         logger.info("Successfully created dataset '%s' (%s).", dataset_name, dataset_id)
 
+    abstentions = sum(
+        1
+        for q in resolved_queries
+        if (
+            q.get("metadata", {}).get("category") == "safe_abstention"
+            or not q.get("relevant_chunk_ids")
+        )
+    )
+    anchored = len(resolved_queries) - abstentions
+    resolved_cnt = sum(1 for q in resolved_queries if len(q.get("relevant_chunk_ids", [])) == 1)
+
     return DemoPreparationResult(
         documents=doc_ids,
         chunk_counts=chunk_counts,
@@ -353,6 +374,10 @@ def prepare_demo_api(
         query_count=len(resolved_queries),
         resolved_queries=resolved_queries,
         mode="api",
+        db_path=None,
+        evidence_anchored_queries=anchored,
+        resolved_anchors=resolved_cnt,
+        intentional_abstentions=abstentions,
     )
 
 
@@ -463,6 +488,17 @@ def prepare_demo_local(
         dataset_id = created.dataset_id
         logger.info("Created local benchmark dataset '%s' (%s).", dataset_name, dataset_id)
 
+    abstentions = sum(
+        1
+        for q in resolved_queries
+        if (
+            q.get("metadata", {}).get("category") == "safe_abstention"
+            or not q.get("relevant_chunk_ids")
+        )
+    )
+    anchored = len(resolved_queries) - abstentions
+    resolved_cnt = sum(1 for q in resolved_queries if len(q.get("relevant_chunk_ids", [])) == 1)
+
     return DemoPreparationResult(
         documents=doc_ids,
         chunk_counts=chunk_counts,
@@ -471,6 +507,10 @@ def prepare_demo_local(
         query_count=len(resolved_queries),
         resolved_queries=resolved_queries,
         mode="local",
+        db_path=str(db_path),
+        evidence_anchored_queries=anchored,
+        resolved_anchors=resolved_cnt,
+        intentional_abstentions=abstentions,
     )
 
 
@@ -479,25 +519,49 @@ def print_receipt(result: DemoPreparationResult) -> None:
     print("\n" + "=" * 70)
     print("  STING DEMO PACK PREPARATION RECEIPT")
     print("=" * 70)
-    print(f"Execution Mode:       {result.mode.upper()}")
-    print(f"Benchmark Dataset:    {result.dataset_name}")
-    print(f"Dataset Identifier:   {result.dataset_id}")
-    print(f"Total Golden Queries: {result.query_count} (100% verified anchors)")
+    print(f"Execution Mode:             {result.mode.upper()}")
+    if result.db_path:
+        print(f"Database Path:              {result.db_path}")
+    print(f"Benchmark Dataset:          {result.dataset_name}")
+    print(f"Dataset Identifier:         {result.dataset_id}")
+    print(f"Total Golden Queries:       {result.query_count}")
+    print(
+        f"  * Evidence-Anchored:      {result.evidence_anchored_queries} "
+        f"(resolved to unique chunks: {result.resolved_anchors})"
+    )
+    print(
+        f"  * Safe Abstention:        {result.intentional_abstentions} "
+        f"(intentional zero-evidence ground truth)"
+    )
     print("-" * 70)
     print("Ingested Documents:")
     total_chunks = sum(result.chunk_counts.values())
     for fname, did in result.documents.items():
         cnt = result.chunk_counts.get(fname, 0)
         print(f"  * {fname:25s} -> Doc ID: {did} ({cnt} chunks)")
-    print(f"Total Ingested Chunks: {total_chunks}")
+    print(f"Total Ingested Chunks:      {total_chunks}")
     print("-" * 70)
-    print("Ready for STING demonstration:")
+    print("Next Steps for STING Demonstration:")
     print("  1. Evidence Queries:      POST /api/query or /api/query/stream")
     print(f"     Scoped Doc IDs:        {', '.join(result.documents.values())}")
     print("  2. Cross-Document Invest: POST /api/investigations")
     print(
         f"  3. Evaluation Studio:     POST /api/evaluation/run with dataset '{result.dataset_id}'"
     )
+    print("-" * 70)
+    arch_id = result.documents.get("architecture.md", "")
+    bench_id = result.documents.get("benchmark_report.md", "")
+    inc_id = result.documents.get("incident_report.md", "")
+    print("Quick Shell Variables (Bash / Zsh):")
+    print(f'  export DOC_ARCH="{arch_id}"')
+    print(f'  export DOC_BENCH="{bench_id}"')
+    print(f'  export DOC_INCIDENT="{inc_id}"')
+    print(f'  export DEMO_DATASET_ID="{result.dataset_id}"')
+    print("\nQuick PowerShell Variables:")
+    print(f'  $env:DOC_ARCH = "{arch_id}"')
+    print(f'  $env:DOC_BENCH = "{bench_id}"')
+    print(f'  $env:DOC_INCIDENT = "{inc_id}"')
+    print(f'  $env:DEMO_DATASET_ID = "{result.dataset_id}"')
     print("=" * 70 + "\n")
 
 
@@ -554,30 +618,20 @@ def main() -> int:
         action="store_false",
         help="Force new uploads and dataset creation instead of reusing existing records.",
     )
+    parser.add_argument(
+        "--receipt-json",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to write a machine-readable JSON receipt with document and dataset IDs."
+        ),
+    )
 
     args = parser.parse_args()
 
-    # Determine execution mode
-    use_local = args.local
-    if not use_local:
-        # Check if server is running
-        import httpx
-
-        try:
-            r = httpx.get(f"{args.api_url.rstrip('/')}/api/health", timeout=1.5)
-            if r.status_code != 200:
-                logger.info(
-                    "Server at %s returned status %d. Falling back to local mode.",
-                    args.api_url,
-                    r.status_code,
-                )
-                use_local = True
-        except Exception:
-            logger.info("No server detected at %s. Running in local service mode.", args.api_url)
-            use_local = True
-
     try:
-        if use_local:
+        if args.local:
+            logger.info("Executing in explicit LOCAL mode using database '%s'.", args.db_path)
             result = prepare_demo_local(
                 db_path=args.db_path,
                 storage_dir=args.storage_dir,
@@ -586,14 +640,54 @@ def main() -> int:
                 reuse_existing=args.reuse_existing,
             )
         else:
+            # API mode: require running server, fail-closed without silent local fallback
+            import httpx
+
+            target_url = args.api_url.rstrip("/")
+            try:
+                r = httpx.get(f"{target_url}/api/health", timeout=3.0)
+                if r.status_code != 200:
+                    raise RuntimeError(
+                        f"STING API server at {target_url} returned unhealthy status "
+                        f"{r.status_code}."
+                    )
+            except Exception as exc:
+                raise ConnectionError(
+                    f"Cannot connect to STING API server at '{target_url}': {exc}\n"
+                    "To run in API mode, first start the STING server:\n"
+                    "  uvicorn reliability_lab.api.main:app --port 8000\n"
+                    "Or pass '--local' to execute directly against local SQLite and storage "
+                    "without a server."
+                ) from exc
+
+            logger.info("Executing in API mode against server at '%s'.", target_url)
             result = prepare_demo_api(
-                api_url=args.api_url,
+                api_url=target_url,
                 demo_dir=args.demo_dir,
                 timeout=args.timeout,
                 reuse_existing=args.reuse_existing,
             )
 
         print_receipt(result)
+
+        if args.receipt_json:
+            receipt_payload = {
+                "mode": result.mode,
+                "db_path": result.db_path,
+                "dataset_id": result.dataset_id,
+                "dataset_name": result.dataset_name,
+                "document_ids": result.documents,
+                "chunk_counts": result.chunk_counts,
+                "total_chunks": sum(result.chunk_counts.values()),
+                "total_queries": result.query_count,
+                "evidence_anchored_queries": result.evidence_anchored_queries,
+                "resolved_anchors": result.resolved_anchors,
+                "intentional_abstentions": result.intentional_abstentions,
+            }
+            args.receipt_json.parent.mkdir(parents=True, exist_ok=True)
+            args.receipt_json.write_text(json.dumps(receipt_payload, indent=2), encoding="utf-8")
+            logger.info("Machine-readable receipt written to '%s'.", args.receipt_json)
+
         return 0
     except Exception as exc:
         logger.error("Demo preparation failed: %s", exc, exc_info=True)

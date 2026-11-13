@@ -211,10 +211,21 @@ class TestRepeatableDemoPreparation:
             reuse_existing=True,
         )
 
+        # Assert accurate golden query and anchor breakdown
+        assert res1.query_count == 10
+        assert res1.evidence_anchored_queries == 9
+        assert res1.resolved_anchors == 9
+        assert res1.intentional_abstentions == 1
+        assert res1.mode == "local"
+        assert res1.db_path == str(db_path)
+
         # Assert identical IDs reused
         assert res2.documents == res1.documents
         assert res2.dataset_id == res1.dataset_id
         assert res2.query_count == res1.query_count
+        assert res2.evidence_anchored_queries == res1.evidence_anchored_queries
+        assert res2.resolved_anchors == res1.resolved_anchors
+        assert res2.intentional_abstentions == res1.intentional_abstentions
 
         # Verify database record counts
         from reliability_lab.benchmark.repository import BenchmarkDatasetRepository
@@ -232,3 +243,61 @@ class TestRepeatableDemoPreparation:
             ds for ds in ds_repo.list_datasets() if ds.name == "Northstar Golden Benchmark"
         ]
         assert len(northstar_datasets) == 1
+
+    def test_api_mode_fails_closed_when_server_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """API mode must fail with code 1 and not fall back to local mode."""
+        from scripts.prepare_sting_demo import main
+
+        dummy_args = [
+            "prepare_sting_demo.py",
+            "--api-url",
+            "http://127.0.0.1:59999",
+            "--demo-dir",
+            str(tmp_path),
+        ]
+        monkeypatch.setattr("sys.argv", dummy_args)
+        exit_code = main()
+        assert exit_code == 1
+
+    def test_receipt_json_generation_and_schema(
+        self, tmp_path: Path, demo_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Preparation script emits machine-readable JSON receipt with dynamic identifiers."""
+        from scripts.prepare_sting_demo import main
+
+        receipt_file = tmp_path / "receipt.json"
+        db_file = tmp_path / "receipt_test.sqlite3"
+        storage_dir = tmp_path / "storage"
+        index_dir = tmp_path / "indexes"
+
+        cli_args = [
+            "prepare_sting_demo.py",
+            "--local",
+            "--demo-dir",
+            str(demo_dir),
+            "--db-path",
+            str(db_file),
+            "--storage-dir",
+            str(storage_dir),
+            "--index-dir",
+            str(index_dir),
+            "--receipt-json",
+            str(receipt_file),
+        ]
+        monkeypatch.setattr("sys.argv", cli_args)
+        exit_code = main()
+        assert exit_code == 0
+        assert receipt_file.exists()
+
+        data = json.loads(receipt_file.read_text(encoding="utf-8"))
+        assert data["mode"] == "local"
+        assert data["db_path"] == str(db_file)
+        assert data["dataset_name"] == "Northstar Golden Benchmark"
+        assert data["dataset_id"].startswith("ds_")
+        assert len(data["document_ids"]) == 3
+        assert data["total_queries"] == 10
+        assert data["evidence_anchored_queries"] == 9
+        assert data["resolved_anchors"] == 9
+        assert data["intentional_abstentions"] == 1

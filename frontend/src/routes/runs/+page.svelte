@@ -144,6 +144,7 @@
         type="text"
         class="input search-input"
         placeholder="Filter by experiment name..."
+        aria-label="Filter by experiment name"
         bind:value={searchExperiment}
       />
       <button type="submit" class="btn btn-secondary">Filter</button>

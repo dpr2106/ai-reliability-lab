@@ -125,6 +125,7 @@
           onclick={() => devMode.toggle()}
           role="switch"
           aria-checked={$devMode}
+          aria-label="Toggle Developer Mode"
           title={$devMode ? 'Switch to User Mode (Default)' : 'Switch to Developer Mode (Diagnostic Workbench)'}
         >
           <span class="toggle-track">

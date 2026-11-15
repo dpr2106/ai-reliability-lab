@@ -248,7 +248,7 @@
                     <div class="doc-picker-info">
                       <span class="doc-picker-name">{doc.filename}</span>
                       <span class="doc-picker-meta">
-                        {doc.chunk_count} chunks • {doc.file_type.toUpperCase()} • {(doc.file_size_bytes / 1024).toFixed(0)} KB
+                        {doc.chunk_count} chunks • {doc.file_type.toUpperCase()} • {(((doc.file_size ?? doc.file_size_bytes) || 0) / 1024).toFixed(0)} KB
                       </span>
                     </div>
                   </label>

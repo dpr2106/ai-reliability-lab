@@ -1,0 +1,4117 @@
+{
+  "timestamp": "2026-11-15T19:08:36.597821+00:00",
+  "api_url": "http://127.0.0.1:8000",
+  "dataset": {
+    "dataset_id": "ds_8138dee2cb55",
+    "name": "Northstar Golden Benchmark",
+    "description": "10 manually verified benchmark queries for the Northstar demonstration corpus.",
+    "document_scope": [
+      "doc_323cee5d40fe4b70",
+      "doc_423e1e9d71c442cb",
+      "doc_e151dadb04f14716"
+    ],
+    "query_count": 10,
+    "is_synthetic": true,
+    "created_at": "2026-11-15T19:05:27.066418+00:00",
+    "updated_at": "2026-11-15T19:05:27.066418+00:00",
+    "metadata": {
+      "corpus_id": "demo-northstar-v2"
+    }
+  },
+  "runs": [
+    {
+      "run_index": 1,
+      "run_id": "ae3d82cb-0a36-4e77-9781-73a88e32d01a",
+      "experiment_name": "northstar_baseline_run_1",
+      "job_id": "job_76ff68796f17",
+      "run_data": {
+        "run_id": "ae3d82cb-0a36-4e77-9781-73a88e32d01a",
+        "experiment_name": "northstar_baseline_run_1",
+        "run_timestamp": "2026-11-15T19:08:34.349860+00:00",
+        "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+        "config": {
+          "citations_enabled": true,
+          "corpus_size": 20,
+          "generator_model": "mock-pipeline",
+          "generator_provider": "mock",
+          "groundedness_enabled": true,
+          "is_mock": true,
+          "judge_enabled": false,
+          "judge_is_mock": null,
+          "judge_model": null,
+          "judge_provider": null,
+          "nli_enabled": false,
+          "pipeline": "RAGEvaluationRunner",
+          "prompt_version": "v1",
+          "query_count": 10,
+          "retriever": "bm25",
+          "top_k": 5
+        },
+        "dataset_reference": "ds_8138dee2cb55",
+        "metadata": {
+          "corpus_chunk_count": 20,
+          "corpus_fingerprints": {
+            "doc_323cee5d40fe4b70": {
+              "chunk_count": 7,
+              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
+            },
+            "doc_423e1e9d71c442cb": {
+              "chunk_count": 7,
+              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
+            },
+            "doc_e151dadb04f14716": {
+              "chunk_count": 6,
+              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            }
+          },
+          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
+          "dataset_id": "ds_8138dee2cb55",
+          "dataset_is_synthetic": true,
+          "dataset_name": "Northstar Golden Benchmark",
+          "document_ids": [
+            "doc_423e1e9d71c442cb",
+            "doc_e151dadb04f14716",
+            "doc_323cee5d40fe4b70"
+          ],
+          "execution_timestamp": "2026-11-15T19:08:34.332844+00:00",
+          "generator_model": "mock-pipeline",
+          "is_mock": true,
+          "llm_provider": "mock",
+          "mock_warning": true,
+          "model_name": "mock-pipeline",
+          "prompt_version": "v1",
+          "provenance_type": "mock",
+          "provider": "mock",
+          "retriever_params": {},
+          "retriever_type": "bm25"
+        },
+        "created_at": "2026-11-15T19:08:34.349860+00:00",
+        "metrics": {
+          "citation_precision": 0.0,
+          "citation_recall": 0.0,
+          "hit_rate@5": 0.8,
+          "latency_p50_ms": 1.2378999963402748,
+          "latency_p90_ms": 1.515640001161955,
+          "latency_p95_ms": 1.6782699953182596,
+          "latency_p99_ms": 1.8083739906433038,
+          "lexical_groundedness": 0.1,
+          "max_latency_ms": 1.8408999894745648,
+          "mean_citation_precision": 0.0,
+          "mean_citation_recall": 0.0,
+          "mean_generation_latency_ms": 0.09682000381872058,
+          "mean_hit_rate@5": 0.8,
+          "mean_latency_ms": 1.2886499986052513,
+          "mean_lexical_groundedness": 0.1,
+          "mean_mrr@5": 0.7,
+          "mean_ndcg@5": 0.7261859507142916,
+          "mean_precision@5": 0.15999999999999998,
+          "mean_recall@5": 0.8,
+          "min_latency_ms": 1.0399000020697713,
+          "mrr@5": 0.7,
+          "ndcg@5": 0.7261859507142916,
+          "precision@5": 0.15999999999999998,
+          "recall@5": 0.8,
+          "total_completion_tokens": 30.0,
+          "total_prompt_tokens": 4406.0,
+          "total_queries": 10.0,
+          "total_tokens": 4436.0
+        },
+        "query_count": 10,
+        "per_query_results": [
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:496:994",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-CHUNK"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.20890001906082034,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 452,
+                "total_tokens": 455
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                      "lcs_score": 0.3333333333333333,
+                      "token_containment": 0.3333333333333333
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:496:994": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": true,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.3333333333333333,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.3333333333333333,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:496:994",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.8408999894745648,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q01",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:496:994",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 13.965736210988728
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 2,
+                "score": 5.741595314168995
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 3,
+                "score": 4.583834934000395
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.402413828074384
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 5,
+                "score": 4.06820046247408
+              }
+            ],
+            "text": "What target chunk size and overlap are specified for Northstar document ingestion?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-DENSE"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.09960000170394778,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 439,
+                "total_tokens": 442
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                      "lcs_score": 0.3333333333333333,
+                      "token_containment": 0.3333333333333333
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": true,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.3333333333333333,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.3333333333333333,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.31559997680597,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q02",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 12.701381157918885
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 2,
+                "score": 10.234927609381986
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 7.174466746185699
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 4,
+                "score": 6.906959824439579
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 5.284514676474948
+              }
+            ],
+            "text": "Which dense embedding model and vector index topology does Northstar employ for conceptual semantic search?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-RRF"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.09889999637380242,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 455,
+                "total_tokens": 458
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.4795000024605542,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q03",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 10.80200776151197
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 2,
+                "score": 6.008402770229837
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 4.291044915479415
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.042747569591112
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.512273916551477
+              }
+            ],
+            "text": "What smoothing constant and formula does Northstar use to merge sparse and dense rankings?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:0:496"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-CITE"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.11309998808428645,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 434,
+                "total_tokens": 437
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 1.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                      "lcs_score": 0.3333333333333333,
+                      "token_containment": 0.3333333333333333
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:2066:2564": {
+                      "lcs_score": 0.6666666666666666,
+                      "token_containment": 0.6666666666666666
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": true,
+                    "passed_lcs": true,
+                    "token_count": 3
+                  },
+                  "is_grounded": true,
+                  "lcs_score": 0.6666666666666666,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.6666666666666666,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 1,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:0:496"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 0
+            },
+            "judge_result": null,
+            "latency_ms": 1.4549000188708305,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q04",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 17.595278048138702
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 4.9095044071710205
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 4.877934974463655
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 4,
+                "score": 3.4281383804830394
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.208239614516942
+              }
+            ],
+            "text": "What happens if a generated answer cites a chunk outside the retrieved evidence set?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:484:904",
+                "doc_e151dadb04f14716:recursive_character:0:484"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-BENCH-METRIC"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.08250001701526344,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 474,
+                "total_tokens": 477
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:484:904": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:484:904",
+                "doc_e151dadb04f14716:recursive_character:0:484"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.2670000141952187,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q05",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 1,
+                "score": 12.560597563757065
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 2,
+                "rank": 2,
+                "score": 9.34007760123996
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 8.102065754675374
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:484:904",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 4,
+                "score": 6.296893052223327
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 5,
+                "score": 6.20705833830123
+              }
+            ],
+            "text": "What Recall@5 and NDCG@5 did Hybrid RRF achieve in the Q3 benchmark report?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1581:1989",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-BENCH-LATENCY"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.07420001202262938,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 467,
+                "total_tokens": 470
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1581:1989": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1581:1989",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.208799978485331,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q06",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1581:1989",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 1,
+                "score": 13.459623920988536
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 2,
+                "rank": 2,
+                "score": 11.40598335748102
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 8.345008658851162
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 6.255881244340117
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 5.257384493512385
+              }
+            ],
+            "text": "How does the P50 latency of Okapi BM25 compare to neural dense vector inference in Northstar benchmarks?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-BENCH-LIMIT"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.0644999963697046,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 429,
+                "total_tokens": 432
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.0878000175580382,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q07",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 2,
+                "rank": 1,
+                "score": 12.278333530144508
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 2,
+                "score": 11.08087633790789
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 10.4533226452509
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.819551593472399
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 2.843832408768333
+              }
+            ],
+            "text": "What specific query types were excluded from the Q3 benchmark evaluation dataset?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-INC-ROOTCAUSE"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.06649998249486089,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 424,
+                "total_tokens": 427
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.06969999615103,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 0.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q08",
+            "retrieval_metrics": {
+              "hit_rate@5": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 1,
+                "score": 20.266552297077656
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 11.761624636161109
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 5.168947873528614
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 5.167239321206933
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 5,
+                "score": 4.329702712773675
+              }
+            ],
+            "text": "What caused the retrieval failure on product SKUs like NS-9000-XL in Incident INC-4091?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:1935:2251"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-INC-REMEDY"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.06620000931434333,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 398,
+                "total_tokens": 401
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:1935:2251"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.0399000020697713,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q09",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 2,
+                "rank": 1,
+                "score": 11.312036651746695
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 8.942142608231043
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 8.885740326028657
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.904655437724436
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.5527660240509675
+              }
+            ],
+            "text": "What corrective remediation actions were approved in Incident INC-4091 to prevent RRF dilution?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 0,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 0,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": false,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:233:703"
+              ],
+              "unreferenced_required_citations": [],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.09380001574754715,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 434,
+                "total_tokens": 437
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:233:703"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.1223999899812043,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 0.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q10",
+            "retrieval_metrics": {
+              "hit_rate@5": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 1,
+                "score": 5.822979060423046
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 4.001003223824176
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 3,
+                "score": 3.954046063256794
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 4,
+                "score": 3.396890964452577
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.1115307749533723
+              }
+            ],
+            "text": "What reinforcement learning from human feedback (RLHF) reward model and PPO hyperparameters are used in Northstar?"
+          }
+        ]
+      },
+      "repro_data": {
+        "run_id": "ae3d82cb-0a36-4e77-9781-73a88e32d01a",
+        "experiment_name": "northstar_baseline_run_1",
+        "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+        "dataset_id": "ds_8138dee2cb55",
+        "dataset_exists": true,
+        "dataset_unchanged": true,
+        "corpus_document_ids": [
+          "doc_423e1e9d71c442cb",
+          "doc_e151dadb04f14716",
+          "doc_323cee5d40fe4b70"
+        ],
+        "corpus_documents_exist": true,
+        "corpus_unchanged": true,
+        "configuration_available": true,
+        "model_available": true,
+        "reproducibility_tier": "exact",
+        "can_reproduce": true,
+        "reproducibility_notes": [
+          "Dataset content hash verified matches execution baseline.",
+          "Corpus document fingerprints verified unchanged.",
+          "Full configuration and hyperparameters available.",
+          "Mock LLM client is available locally."
+        ],
+        "metadata": {
+          "corpus_chunk_count": 20,
+          "corpus_fingerprints": {
+            "doc_323cee5d40fe4b70": {
+              "chunk_count": 7,
+              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
+            },
+            "doc_423e1e9d71c442cb": {
+              "chunk_count": 7,
+              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
+            },
+            "doc_e151dadb04f14716": {
+              "chunk_count": 6,
+              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            }
+          },
+          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
+          "dataset_id": "ds_8138dee2cb55",
+          "dataset_is_synthetic": true,
+          "dataset_name": "Northstar Golden Benchmark",
+          "document_ids": [
+            "doc_423e1e9d71c442cb",
+            "doc_e151dadb04f14716",
+            "doc_323cee5d40fe4b70"
+          ],
+          "execution_timestamp": "2026-11-15T19:08:34.332844+00:00",
+          "generator_model": "mock-pipeline",
+          "is_mock": true,
+          "llm_provider": "mock",
+          "mock_warning": true,
+          "model_name": "mock-pipeline",
+          "prompt_version": "v1",
+          "provenance_type": "mock",
+          "provider": "mock",
+          "retriever_params": {},
+          "retriever_type": "bm25"
+        },
+        "raw_config": {
+          "citations_enabled": true,
+          "corpus_size": 20,
+          "generator_model": "mock-pipeline",
+          "generator_provider": "mock",
+          "groundedness_enabled": true,
+          "is_mock": true,
+          "judge_enabled": false,
+          "judge_is_mock": null,
+          "judge_model": null,
+          "judge_provider": null,
+          "nli_enabled": false,
+          "pipeline": "RAGEvaluationRunner",
+          "prompt_version": "v1",
+          "query_count": 10,
+          "retriever": "bm25",
+          "top_k": 5
+        }
+      }
+    },
+    {
+      "run_index": 2,
+      "run_id": "0267b6d8-c2e6-4751-9d41-c00b75dcff2c",
+      "experiment_name": "northstar_baseline_run_2",
+      "job_id": "job_0fd5c46100de",
+      "run_data": {
+        "run_id": "0267b6d8-c2e6-4751-9d41-c00b75dcff2c",
+        "experiment_name": "northstar_baseline_run_2",
+        "run_timestamp": "2026-11-15T19:08:35.512364+00:00",
+        "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+        "config": {
+          "citations_enabled": true,
+          "corpus_size": 20,
+          "generator_model": "mock-pipeline",
+          "generator_provider": "mock",
+          "groundedness_enabled": true,
+          "is_mock": true,
+          "judge_enabled": false,
+          "judge_is_mock": null,
+          "judge_model": null,
+          "judge_provider": null,
+          "nli_enabled": false,
+          "pipeline": "RAGEvaluationRunner",
+          "prompt_version": "v1",
+          "query_count": 10,
+          "retriever": "bm25",
+          "top_k": 5
+        },
+        "dataset_reference": "ds_8138dee2cb55",
+        "metadata": {
+          "corpus_chunk_count": 20,
+          "corpus_fingerprints": {
+            "doc_323cee5d40fe4b70": {
+              "chunk_count": 7,
+              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
+            },
+            "doc_423e1e9d71c442cb": {
+              "chunk_count": 7,
+              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
+            },
+            "doc_e151dadb04f14716": {
+              "chunk_count": 6,
+              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            }
+          },
+          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
+          "dataset_id": "ds_8138dee2cb55",
+          "dataset_is_synthetic": true,
+          "dataset_name": "Northstar Golden Benchmark",
+          "document_ids": [
+            "doc_423e1e9d71c442cb",
+            "doc_e151dadb04f14716",
+            "doc_323cee5d40fe4b70"
+          ],
+          "execution_timestamp": "2026-11-15T19:08:35.495242+00:00",
+          "generator_model": "mock-pipeline",
+          "is_mock": true,
+          "llm_provider": "mock",
+          "mock_warning": true,
+          "model_name": "mock-pipeline",
+          "prompt_version": "v1",
+          "provenance_type": "mock",
+          "provider": "mock",
+          "retriever_params": {},
+          "retriever_type": "bm25"
+        },
+        "created_at": "2026-11-15T19:08:35.512364+00:00",
+        "metrics": {
+          "citation_precision": 0.0,
+          "citation_recall": 0.0,
+          "hit_rate@5": 0.8,
+          "latency_p50_ms": 1.3075000169919804,
+          "latency_p90_ms": 1.567469979636371,
+          "latency_p95_ms": 1.668134986539371,
+          "latency_p99_ms": 1.7486669920617715,
+          "lexical_groundedness": 0.1,
+          "max_latency_ms": 1.7687999934423715,
+          "mean_citation_precision": 0.0,
+          "mean_citation_recall": 0.0,
+          "mean_generation_latency_ms": 0.1033900014590472,
+          "mean_hit_rate@5": 0.8,
+          "mean_latency_ms": 1.3301499973749742,
+          "mean_lexical_groundedness": 0.1,
+          "mean_mrr@5": 0.7,
+          "mean_ndcg@5": 0.7261859507142916,
+          "mean_precision@5": 0.15999999999999998,
+          "mean_recall@5": 0.8,
+          "min_latency_ms": 1.0680000123102218,
+          "mrr@5": 0.7,
+          "ndcg@5": 0.7261859507142916,
+          "precision@5": 0.15999999999999998,
+          "recall@5": 0.8,
+          "total_completion_tokens": 30.0,
+          "total_prompt_tokens": 4406.0,
+          "total_queries": 10.0,
+          "total_tokens": 4436.0
+        },
+        "query_count": 10,
+        "per_query_results": [
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:496:994",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-CHUNK"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.11510000331327319,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 452,
+                "total_tokens": 455
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                      "lcs_score": 0.3333333333333333,
+                      "token_containment": 0.3333333333333333
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:496:994": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": true,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.3333333333333333,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.3333333333333333,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:496:994",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.1742999777197838,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q01",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:496:994",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 13.965736210988728
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 2,
+                "score": 5.741595314168995
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 3,
+                "score": 4.583834934000395
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.402413828074384
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 5,
+                "score": 4.06820046247408
+              }
+            ],
+            "text": "What target chunk size and overlap are specified for Northstar document ingestion?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-DENSE"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.08560001151636243,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 439,
+                "total_tokens": 442
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                      "lcs_score": 0.3333333333333333,
+                      "token_containment": 0.3333333333333333
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": true,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.3333333333333333,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.3333333333333333,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.1116999958176166,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q02",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 12.701381157918885
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 2,
+                "score": 10.234927609381986
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 7.174466746185699
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 4,
+                "score": 6.906959824439579
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 5.284514676474948
+              }
+            ],
+            "text": "Which dense embedding model and vector index topology does Northstar employ for conceptual semantic search?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-RRF"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.08979998528957367,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 455,
+                "total_tokens": 458
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.4070000033825636,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q03",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 10.80200776151197
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 2,
+                "score": 6.008402770229837
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 4.291044915479415
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.042747569591112
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.512273916551477
+              }
+            ],
+            "text": "What smoothing constant and formula does Northstar use to merge sparse and dense rankings?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:0:496"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-ARCH-CITE"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.1044000091496855,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 434,
+                "total_tokens": 437
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 1.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                      "lcs_score": 0.3333333333333333,
+                      "token_containment": 0.3333333333333333
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:2066:2564": {
+                      "lcs_score": 0.6666666666666666,
+                      "token_containment": 0.6666666666666666
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": true,
+                    "passed_lcs": true,
+                    "token_count": 3
+                  },
+                  "is_grounded": true,
+                  "lcs_score": 0.6666666666666666,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.6666666666666666,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 1,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:0:496"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 0
+            },
+            "judge_result": null,
+            "latency_ms": 1.7687999934423715,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q04",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 2,
+                "rank": 1,
+                "score": 17.595278048138702
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 4.9095044071710205
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 4.877934974463655
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 4,
+                "score": 3.4281383804830394
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.208239614516942
+              }
+            ],
+            "text": "What happens if a generated answer cites a chunk outside the retrieved evidence set?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:484:904",
+                "doc_e151dadb04f14716:recursive_character:0:484"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-BENCH-METRIC"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.17220000154338777,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 474,
+                "total_tokens": 477
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:484:904": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:484:904",
+                "doc_e151dadb04f14716:recursive_character:0:484"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.4887999859638512,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q05",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 1,
+                "score": 12.560597563757065
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 2,
+                "rank": 2,
+                "score": 9.34007760123996
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 8.102065754675374
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:484:904",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 4,
+                "score": 6.296893052223327
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 5,
+                "score": 6.20705833830123
+              }
+            ],
+            "text": "What Recall@5 and NDCG@5 did Hybrid RRF achieve in the Q3 benchmark report?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1581:1989",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-BENCH-LATENCY"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.07100001676008105,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 467,
+                "total_tokens": 470
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1581:1989": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1581:1989",
+                "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.3485000235959888,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q06",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 0.5,
+              "ndcg@5": 0.6309297535714574,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1581:1989",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 1,
+                "score": 13.459623920988536
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 2,
+                "rank": 2,
+                "score": 11.40598335748102
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 8.345008658851162
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 6.255881244340117
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 5.257384493512385
+              }
+            ],
+            "text": "How does the P50 latency of Okapi BM25 compare to neural dense vector inference in Northstar benchmarks?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-BENCH-LIMIT"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.14250000822357833,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 429,
+                "total_tokens": 432
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.545099978102371,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q07",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 2,
+                "rank": 1,
+                "score": 12.278333530144508
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 2,
+                "score": 11.08087633790789
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 10.4533226452509
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.819551593472399
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 2.843832408768333
+              }
+            ],
+            "text": "What specific query types were excluded from the Q3 benchmark evaluation dataset?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-INC-ROOTCAUSE"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.08100000559352338,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 424,
+                "total_tokens": 427
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.266500010387972,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 0.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q08",
+            "retrieval_metrics": {
+              "hit_rate@5": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 1,
+                "score": 20.266552297077656
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 11.761624636161109
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 5.168947873528614
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 5.167239321206933
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 5,
+                "score": 4.329702712773675
+              }
+            ],
+            "text": "What caused the retrieval failure on product SKUs like NS-9000-XL in Incident INC-4091?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 1,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 1,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": true,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:1935:2251"
+              ],
+              "unreferenced_required_citations": [
+                "CIT-INC-REMEDY"
+              ],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.07389998063445091,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 398,
+                "total_tokens": 401
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                  "candidate_scores": {
+                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_e151dadb04f14716:recursive_character:1935:2251"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.0680000123102218,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 1.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q09",
+            "retrieval_metrics": {
+              "hit_rate@5": 1.0,
+              "mrr@5": 1.0,
+              "ndcg@5": 1.0,
+              "precision@5": 0.2,
+              "recall@5": 1.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 2,
+                "rank": 1,
+                "score": 11.312036651746695
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 8.942142608231043
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 3,
+                "score": 8.885740326028657
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 4,
+                "score": 4.904655437724436
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.5527660240509675
+              }
+            ],
+            "text": "What corrective remediation actions were approved in Incident INC-4091 to prevent RRF dilution?"
+          },
+          {
+            "citation_validation": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "citation_to_chunk_map": {},
+              "diagnostics": {
+                "distinct_parsed_count": 0,
+                "duplicate_count": 0,
+                "invalid_count": 0,
+                "malformed_count": 0,
+                "missing_evidence_count": 0,
+                "required_count": 0,
+                "satisfied_required_count": 0,
+                "total_parsed_count": 0,
+                "unreferenced_required_count": 0,
+                "unresolved_count": 0,
+                "valid_count": 0
+              },
+              "distinct_citations": [],
+              "duplicate_citations": [],
+              "has_required_citations": false,
+              "invalid_citations": [],
+              "malformed_citations": [],
+              "missing_evidence_citations": [],
+              "parsed_citations": [],
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:233:703"
+              ],
+              "unreferenced_required_citations": [],
+              "unresolved_citations": [],
+              "valid_citations": []
+            },
+            "generated_answer": "Mock generation response",
+            "generation_provenance": {
+              "is_mock": true,
+              "latency_ms": 0.09839999256655574,
+              "model": "mock-pipeline",
+              "prompt_version": "v1",
+              "provider": "mock",
+              "token_usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 434,
+                "total_tokens": 437
+              }
+            },
+            "groundedness": {
+              "aggregate_score": 0.0,
+              "claims": [
+                {
+                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "candidate_scores": {
+                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    },
+                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                      "lcs_score": 0.0,
+                      "token_containment": 0.0
+                    }
+                  },
+                  "claim_text": "Mock generation response",
+                  "diagnostics": {
+                    "passed_containment": false,
+                    "passed_lcs": false,
+                    "token_count": 3
+                  },
+                  "is_grounded": false,
+                  "lcs_score": 0.0,
+                  "span": [
+                    0,
+                    24
+                  ],
+                  "token_containment": 0.0,
+                  "tokens": [
+                    "mock",
+                    "generation",
+                    "response"
+                  ]
+                }
+              ],
+              "diagnostics": {
+                "answer_char_length": 24,
+                "evidence_chunks_count": 5
+              },
+              "grounded_claims_count": 0,
+              "has_claims": true,
+              "no_evidence_claims_count": 0,
+              "retrieved_chunk_ids": [
+                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_423e1e9d71c442cb:recursive_character:233:703"
+              ],
+              "thresholds": {
+                "containment_threshold": 0.5,
+                "lcs_threshold": 0.3
+              },
+              "total_claims": 1,
+              "unsupported_claims_count": 1
+            },
+            "judge_result": null,
+            "latency_ms": 1.1227999930270016,
+            "metrics": {
+              "citation_precision": 0.0,
+              "citation_recall": 0.0,
+              "hit_rate@5": 0.0,
+              "lexical_groundedness": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "nli_result": null,
+            "query_id": "DEMO-Q10",
+            "retrieval_metrics": {
+              "hit_rate@5": 0.0,
+              "mrr@5": 0.0,
+              "ndcg@5": 0.0,
+              "precision@5": 0.0,
+              "recall@5": 0.0
+            },
+            "retrieved": [
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 1,
+                "score": 5.822979060423046
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 2,
+                "score": 4.001003223824176
+              },
+              {
+                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
+                "doc_id": "doc_e151dadb04f14716",
+                "grade": 0,
+                "rank": 3,
+                "score": 3.954046063256794
+              },
+              {
+                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
+                "doc_id": "doc_323cee5d40fe4b70",
+                "grade": 0,
+                "rank": 4,
+                "score": 3.396890964452577
+              },
+              {
+                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
+                "doc_id": "doc_423e1e9d71c442cb",
+                "grade": 0,
+                "rank": 5,
+                "score": 3.1115307749533723
+              }
+            ],
+            "text": "What reinforcement learning from human feedback (RLHF) reward model and PPO hyperparameters are used in Northstar?"
+          }
+        ]
+      },
+      "repro_data": {
+        "run_id": "0267b6d8-c2e6-4751-9d41-c00b75dcff2c",
+        "experiment_name": "northstar_baseline_run_2",
+        "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+        "dataset_id": "ds_8138dee2cb55",
+        "dataset_exists": true,
+        "dataset_unchanged": true,
+        "corpus_document_ids": [
+          "doc_423e1e9d71c442cb",
+          "doc_e151dadb04f14716",
+          "doc_323cee5d40fe4b70"
+        ],
+        "corpus_documents_exist": true,
+        "corpus_unchanged": true,
+        "configuration_available": true,
+        "model_available": true,
+        "reproducibility_tier": "exact",
+        "can_reproduce": true,
+        "reproducibility_notes": [
+          "Dataset content hash verified matches execution baseline.",
+          "Corpus document fingerprints verified unchanged.",
+          "Full configuration and hyperparameters available.",
+          "Mock LLM client is available locally."
+        ],
+        "metadata": {
+          "corpus_chunk_count": 20,
+          "corpus_fingerprints": {
+            "doc_323cee5d40fe4b70": {
+              "chunk_count": 7,
+              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
+            },
+            "doc_423e1e9d71c442cb": {
+              "chunk_count": 7,
+              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
+            },
+            "doc_e151dadb04f14716": {
+              "chunk_count": 6,
+              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            }
+          },
+          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
+          "dataset_id": "ds_8138dee2cb55",
+          "dataset_is_synthetic": true,
+          "dataset_name": "Northstar Golden Benchmark",
+          "document_ids": [
+            "doc_423e1e9d71c442cb",
+            "doc_e151dadb04f14716",
+            "doc_323cee5d40fe4b70"
+          ],
+          "execution_timestamp": "2026-11-15T19:08:35.495242+00:00",
+          "generator_model": "mock-pipeline",
+          "is_mock": true,
+          "llm_provider": "mock",
+          "mock_warning": true,
+          "model_name": "mock-pipeline",
+          "prompt_version": "v1",
+          "provenance_type": "mock",
+          "provider": "mock",
+          "retriever_params": {},
+          "retriever_type": "bm25"
+        },
+        "raw_config": {
+          "citations_enabled": true,
+          "corpus_size": 20,
+          "generator_model": "mock-pipeline",
+          "generator_provider": "mock",
+          "groundedness_enabled": true,
+          "is_mock": true,
+          "judge_enabled": false,
+          "judge_is_mock": null,
+          "judge_model": null,
+          "judge_provider": null,
+          "nli_enabled": false,
+          "pipeline": "RAGEvaluationRunner",
+          "prompt_version": "v1",
+          "query_count": 10,
+          "retriever": "bm25",
+          "top_k": 5
+        }
+      }
+    }
+  ],
+  "metrics_comparison": {
+    "citation_precision": {
+      "run_1": 0.0,
+      "run_2": 0.0,
+      "delta": 0.0
+    },
+    "citation_recall": {
+      "run_1": 0.0,
+      "run_2": 0.0,
+      "delta": 0.0
+    },
+    "hit_rate@5": {
+      "run_1": 0.8,
+      "run_2": 0.8,
+      "delta": 0.0
+    },
+    "latency_p50_ms": {
+      "run_1": 1.2378999963402748,
+      "run_2": 1.3075000169919804,
+      "delta": 0.06960002065170556
+    },
+    "latency_p90_ms": {
+      "run_1": 1.515640001161955,
+      "run_2": 1.567469979636371,
+      "delta": 0.05182997847441584
+    },
+    "latency_p95_ms": {
+      "run_1": 1.6782699953182596,
+      "run_2": 1.668134986539371,
+      "delta": -0.01013500877888851
+    },
+    "latency_p99_ms": {
+      "run_1": 1.8083739906433038,
+      "run_2": 1.7486669920617715,
+      "delta": -0.05970699858153239
+    },
+    "lexical_groundedness": {
+      "run_1": 0.1,
+      "run_2": 0.1,
+      "delta": 0.0
+    },
+    "max_latency_ms": {
+      "run_1": 1.8408999894745648,
+      "run_2": 1.7687999934423715,
+      "delta": -0.0720999960321933
+    },
+    "mean_citation_precision": {
+      "run_1": 0.0,
+      "run_2": 0.0,
+      "delta": 0.0
+    },
+    "mean_citation_recall": {
+      "run_1": 0.0,
+      "run_2": 0.0,
+      "delta": 0.0
+    },
+    "mean_generation_latency_ms": {
+      "run_1": 0.09682000381872058,
+      "run_2": 0.1033900014590472,
+      "delta": 0.006569997640326619
+    },
+    "mean_hit_rate@5": {
+      "run_1": 0.8,
+      "run_2": 0.8,
+      "delta": 0.0
+    },
+    "mean_latency_ms": {
+      "run_1": 1.2886499986052513,
+      "run_2": 1.3301499973749742,
+      "delta": 0.04149999876972288
+    },
+    "mean_lexical_groundedness": {
+      "run_1": 0.1,
+      "run_2": 0.1,
+      "delta": 0.0
+    },
+    "mean_mrr@5": {
+      "run_1": 0.7,
+      "run_2": 0.7,
+      "delta": 0.0
+    },
+    "mean_ndcg@5": {
+      "run_1": 0.7261859507142916,
+      "run_2": 0.7261859507142916,
+      "delta": 0.0
+    },
+    "mean_precision@5": {
+      "run_1": 0.15999999999999998,
+      "run_2": 0.15999999999999998,
+      "delta": 0.0
+    },
+    "mean_recall@5": {
+      "run_1": 0.8,
+      "run_2": 0.8,
+      "delta": 0.0
+    },
+    "min_latency_ms": {
+      "run_1": 1.0399000020697713,
+      "run_2": 1.0680000123102218,
+      "delta": 0.0281000102404505
+    },
+    "mrr@5": {
+      "run_1": 0.7,
+      "run_2": 0.7,
+      "delta": 0.0
+    },
+    "ndcg@5": {
+      "run_1": 0.7261859507142916,
+      "run_2": 0.7261859507142916,
+      "delta": 0.0
+    },
+    "precision@5": {
+      "run_1": 0.15999999999999998,
+      "run_2": 0.15999999999999998,
+      "delta": 0.0
+    },
+    "recall@5": {
+      "run_1": 0.8,
+      "run_2": 0.8,
+      "delta": 0.0
+    },
+    "total_completion_tokens": {
+      "run_1": 30.0,
+      "run_2": 30.0,
+      "delta": 0.0
+    },
+    "total_prompt_tokens": {
+      "run_1": 4406.0,
+      "run_2": 4406.0,
+      "delta": 0.0
+    },
+    "total_queries": {
+      "run_1": 10.0,
+      "run_2": 10.0,
+      "delta": 0.0
+    },
+    "total_tokens": {
+      "run_1": 4436.0,
+      "run_2": 4436.0,
+      "delta": 0.0
+    }
+  }
+}

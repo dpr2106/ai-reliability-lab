@@ -21,7 +21,11 @@ The product should let a user ask a question about local documents and then insp
         |
 [V2-005] RAG evaluation, comparison and regression studio     COMPLETE
         |
-[V2-006] Reproducible demo and portfolio release              READY
+[V2-006.1] Reproducible Northstar demo pack                   COMPLETE
+        |
+[V2-007] STING UI/UX Redesign (User-First & Dev Mode)         COMPLETE
+        |
+[V2-006.2] Clean-checkout reproducibility & demo verification IN_PROGRESS
 ```
 
 ## V2-001 — Local LLM Inference Provider (Ollama)
@@ -105,23 +109,48 @@ The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, sour
 
 **Acceptance criteria:** A user can reproduce a baseline, change a retrieval or generation setting, compare the results, inspect the worst query-level changes, and trigger a deterministic regression result. All criteria met and verified across 1,028 backend unit tests and full frontend build.
 
-## V2-006 — Reproducible Demo and Portfolio Release
+## V2-006.1 — Reproducible Northstar Demo Pack
 
-**Status:** `READY`
+**Status:** `COMPLETED` (PR #67 merged)
 
-**Objective:** Turn completed engineering into independently verifiable portfolio evidence.
+**Objective:** Build an open, redistributable demo dataset and automated verification tooling.
 
 **Key deliverables:**
+- Small, redistributable Northstar benchmark corpus (3 markdown documents: Architecture Blueprint, Operational Runbook, IR Benchmark Report, 20 chunks total).
+- 10 verified golden evaluation questions with citation anchors and abstention test.
+- Manifest (`data/demo/manifest.json`), Golden Questions (`data/demo/golden_questions.json`), License (`data/demo/LICENSE`).
+- Preparation script (`scripts/prepare_sting_demo.py`) supporting both local service mode (`--local`) and live API mode (`--api-url`), with deterministic receipt generation (`data/demo/demo_receipt.json`) and verification script (`scripts/verify_sting_demo.py`).
 
-- A small, redistributable sample document collection and manually verified benchmark questions.
-- Clean-checkout setup instructions, local-model setup, data/privacy explanation, and resource requirements.
-- Reproducible commands for ingestion, query traces, evaluation, and regression tests.
-- Architecture diagram and concise engineering case study explaining design trade-offs and limitations.
-- Screenshots and a short demo recording that show ingestion, retrieval inspection, citation verification, and evaluation comparison.
-- CI status, test totals, coverage, and benchmark outputs captured from actual runs with date, commit, environment, and dataset size.
-- Portfolio/resume/LinkedIn wording that only describes merged and demonstrated capabilities.
+## V2-007 — STING UI/UX Redesign: User-First Workspace & Developer Mode
 
-**Acceptance criteria:** A reviewer can follow the README from a clean checkout, reproduce the demo, inspect the evidence trace, and verify that published claims match the repository.
+**Status:** `COMPLETED` (PR #69 merged)
+
+**Objective:** Transform STING from a developer-facing diagnostic dashboard into a polished, document-first AI product while preserving all existing engineering capabilities.
+
+**Key deliverables:**
+- Minimal document intelligence landing workspace (User Mode default) with headline *"Your documents. Understood."*, drag-and-drop file upload, file type cards, and recent documents list.
+- Transparent stage progression: `UPLOAD` → `EXTRACTION` → `CHUNKING` → `INDEXING` → `READY`.
+- Document chat workspace with conversational input, grounded answer rendering, verified inline citations, and expandable source evidence drawer.
+- Header Developer Mode toggle revealing diagnostic workbench (Evaluation Studio, Investigations, Run Explorer, Diagnostics, Comparison, Citation Audit).
+- Accessibility hardening: zero actionable svelte-check warnings, keyboard navigation, full Vitest frontend suite (29/29 tests passed).
+
+## V2-006.2 — Clean-Checkout Reproducibility & End-to-End Demo Verification
+
+**Status:** `IN_PROGRESS`
+
+**Objective:** Verify end-to-end setup and reproducibility from a genuinely clean checkout in an isolated directory, document environment variables and credential-free capabilities, verify idempotency, capture refreshed high-resolution screenshots, record deterministic evaluation comparisons, and provide an exhaustive demonstration guide.
+
+**Key deliverables:**
+- Genuine clean-checkout verification in an isolated temporary directory (`$env:TEMP\clean_checkout_sting`).
+- Complete Python 3.10 virtual environment creation and package installation via `pip install -e ".[dev,faiss,web]"`.
+- Frontend verification via `npm ci`, `npm run test`, `npm run check`, and `npm run build`.
+- Environment variable matrix documentation and credential-free local capability specification in `docs/DEMO_GUIDE.md`.
+- Verified demo pack ingestion in both `--local` and `--api-url` modes, including idempotency without duplicate documents or datasets.
+- End-to-end browser workflows verified in User Mode and Developer Mode with refreshed high-resolution screenshots in `docs/screenshots/`.
+- Deterministic evaluation comparison across consecutive runs recorded in `docs/reproducibility_evidence.json` (`exact` reproducibility tier, 0.0000 metric deltas).
+- Comprehensive end-to-end guide in `docs/DEMO_GUIDE.md` and reconciled `README.md`.
+
+**Acceptance criteria:** A reviewer can clone the repository to a clean directory, follow `docs/DEMO_GUIDE.md`, ingest the demo pack, inspect citations in the User Workspace, toggle Developer Mode, execute reproducible evaluations, and verify that reported metrics match exact repository records.
 
 ## Future Extensions
 

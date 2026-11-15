@@ -15,15 +15,27 @@ Industrial-grade reliability, evaluation, and regression testing platform for do
 
 AI Reliability Lab provides a production-grade infrastructure to evaluate retrieval quality, verify document groundedness, audit inline citations, detect subtle pipeline regressions, and visually debug failure modes in document-based AI applications.
 
-### STING: Evidence-First RAG Reliability Workbench
+### STING: User-First Workspace & Developer Diagnostic Mode
 
 AI Reliability Lab is the engineering and evaluation core behind **STING**, a local-first workbench for inspecting and benchmarking document-grounded AI. STING uses local inference runtimes such as Ollama; it does not aim to replace them or become another generic chatbot.
 
-The product focus is to make RAG behavior inspectable: compare BM25, dense FAISS, and Hybrid RRF retrieval; see which evidence reached the model; verify citations against original document passages; identify insufficiently supported claims; and reproduce evaluations/regression checks when configurations change.
+STING provides two distinct interface modes:
 
-**Product direction:** Ask. Inspect. Verify. Benchmark. See the [STING Product Brief](docs/STING_PRODUCT_BRIEF.md), [V2 Roadmap](docs/roadmap/V2_ROADMAP.md), and [Portfolio Evidence Plan](docs/PORTFOLIO_PLAN.md).
+1. **User Mode (Default)**: A clean, minimal document intelligence application.
+   - Headline: *"Your documents. Understood."*
+   - Drag-and-drop file ingestion supporting PDF (`.pdf`), Plain Text (`.txt`), and Markdown (`.md`) up to 50 MB.
+   - Honest stage-based processing progression: `UPLOAD` → `EXTRACTION` → `CHUNKING` → `INDEXING` → `READY`.
+   - Conversational document workspace with verified inline citation tags (`[CHK-xxx]`), expandable evidence passages, and page coordinates.
+2. **Developer Mode (Optional)**: Toggled via the application header, revealing the complete RAG reliability and diagnostic workbench.
+   - **Evaluation Studio**: Benchmark datasets, experiment launcher, and run comparisons.
+   - **Failure Explorer**: Diagnostic classification of retrieval misses, hallucinated citations, and ungrounded generation.
+   - **Reproducibility Manifest**: Multi-tier provenance verification (`exact`, `partial`, `impossible`).
+   - **Cross-Document Investigations**: Aspect-based claim matrices and publication-grade markdown reports.
+   - **Technical Diagnostics**: Run Explorer, Run Comparison, and Citation Audit.
 
-> **Milestone Status Note**: STING V2 milestones V2-001 through V2-005 are fully merged and verified on `main` (latest merge commit `bb3057d`, 2026-11-08). The platform supports local Ollama inference, document ingestion, evidence-first query execution with SSE streaming, cross-document evidence investigation, and RAG evaluation/regression benchmarking. The current active milestone is V2-006 (Reproducible Demo and Portfolio Release). Consult [`docs/STATUS.md`](docs/STATUS.md) and [`docs/roadmap/V2_ROADMAP.md`](docs/roadmap/V2_ROADMAP.md) for detailed milestone tracking.
+**Product direction:** Ask. Inspect. Verify. Benchmark. See the [Demo Reproduction Guide](docs/DEMO_GUIDE.md), [STING Product Brief](docs/STING_PRODUCT_BRIEF.md), [V2 Roadmap](docs/roadmap/V2_ROADMAP.md), and [Portfolio Evidence Plan](docs/PORTFOLIO_PLAN.md).
+
+> **Milestone Status Note**: STING V2 milestones V2-001 through V2-005, V2-006.1 (PR #67), and V2-007 (PR #69) are fully merged and verified on `main`. Current active milestone is V2-006.2 (*Clean-Checkout Reproducibility & End-to-End Demo Verification*). Consult [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for the complete clean-checkout walkthrough and reproducible benchmark verification, and [`docs/STATUS.md`](docs/STATUS.md) for operational status.
 
 ### The Problem
 Generative AI and RAG systems fail in silent, compounding ways:
@@ -169,7 +181,7 @@ pytest
 
 ---
 
-### 3. Local Diagnostic Studio (FastAPI + SvelteKit)
+### 3. Local STING Workspace & Diagnostic Studio (FastAPI + SvelteKit)
 
 #### Terminal 1: Backend Adapter
 ```bash
@@ -184,11 +196,22 @@ npm ci
 npm run dev
 ```
 
-Visit `http://localhost:5173` to access:
-- **Run Explorer** (`/`): Search, filter, and inspect historic runs.
-- **Run Diagnostics** (`/runs/[run_id]`): Drill down into query-level failure traces and citation breakdowns.
-- **Run Comparison** (`/compare`): Side-by-side regression diffing with interactive tolerance controls.
-- **Citation Audit** (`/citation-audit`): Verify inline citations against retrieved candidates.
+Visit `http://localhost:5173`:
+- **User Mode (Default)**: Minimal document workspace. Drag and drop any `.pdf`, `.txt`, or `.md` file, watch the live ingestion pipeline (`UPLOAD` → `EXTRACTION` → `CHUNKING` → `INDEXING` → `READY`), ask grounded questions, and expand verified inline citation drawer evidence.
+- **Developer Mode Toggle**: Click **Developer Mode** in the header to reveal the full engineering suite:
+  - **Evaluation Studio** (`/evaluation`): Execute benchmarks across BM25, FAISS, and Hybrid RRF, inspect dataset queries, and filter failure modes.
+  - **Investigations** (`/investigations`): Multi-document evidence extraction and thematic comparison matrices.
+  - **Run Explorer** (`/runs`): Search, filter, and inspect historic benchmark runs.
+  - **Run Diagnostics** (`/runs/[run_id]`): Query-level failure traces and citation breakdowns.
+  - **Run Comparison** (`/compare`): Side-by-side regression diffing with configurable tolerances.
+  - **Citation Audit** (`/citation-audit`): Verify inline citations against retrieved candidates.
+
+#### Quick Demo Ingestion (Northstar Demo Pack)
+To instantly populate STING with verified documents and golden evaluation questions:
+```bash
+python scripts/prepare_sting_demo.py --api-url http://localhost:8000
+```
+Consult [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for the complete end-to-end clean-checkout reproduction walkthrough.
 
 ---
 

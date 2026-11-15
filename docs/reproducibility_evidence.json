@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-11-15T19:08:36.597821+00:00",
+  "timestamp": "2026-11-15T19:59:33.437523+00:00",
   "api_url": "http://127.0.0.1:8000",
-  "git_commit_sha": "04cf0cc18f3012c15eb195ceb55e44d60527fba1",
-  "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
+  "git_commit_sha": "98adc37932173fa86d9e5867b23dadc0adccb57d",
+  "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
   "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
   "retriever": "bm25",
   "top_k": 5,
@@ -10,9 +10,12 @@
   "model": "mock-pipeline",
   "query_count": 10,
   "reproducibility_tier": "exact",
+  "is_comparable": true,
+  "provenance_compatible": true,
+  "incompatibilities": [],
   "evaluation_notes": "Exact reproducibility demonstrates pipeline determinism and metric repeatability under identical inputs, not answer quality. The deterministic mock provider emits rule-based test strings without citations or NLI grounding, yielding 0.0000 citation precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the mock provider output and do not represent the performance of authentic neural models such as Ollama llama3.2.",
   "provenance": {
-    "git_commit_sha": "04cf0cc18f3012c15eb195ceb55e44d60527fba1",
+    "git_commit_sha": "98adc37932173fa86d9e5867b23dadc0adccb57d",
     "python_version": "3.13.3 (tags/v3.13.3:6280bb5, Apr  8 2025, 14:47:33) [MSC v.1943 64 bit (AMD64)]",
     "platform": "Windows-11-10.0.26300-SP0",
     "os_system": "Windows",
@@ -33,206 +36,312 @@
     }
   },
   "dataset": {
-    "dataset_id": "ds_8138dee2cb55",
+    "dataset_id": "ds_a25467494a36",
     "name": "Northstar Golden Benchmark",
     "description": "10 manually verified benchmark queries for the Northstar demonstration corpus.",
     "document_scope": [
-      "doc_323cee5d40fe4b70",
-      "doc_423e1e9d71c442cb",
-      "doc_e151dadb04f14716"
+      "doc_0e3790a853fd4d11",
+      "doc_2e33747df04b4bbc",
+      "doc_d983c0dbd6214275"
     ],
     "query_count": 10,
     "is_synthetic": true,
-    "created_at": "2026-11-15T19:05:27.066418+00:00",
-    "updated_at": "2026-11-15T19:05:27.066418+00:00",
+    "created_at": "2026-11-12T07:25:28.515927+00:00",
+    "updated_at": "2026-11-12T07:25:28.515927+00:00",
     "metadata": {
       "corpus_id": "demo-northstar-v2"
     }
   },
-  "metrics_comparison": {
+  "cross_run_validation": {
+    "run_1_provenance": {
+      "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
+      "experiment_name": "northstar_baseline_run_1",
+      "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
+      "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+      "reproducibility_tier": "exact",
+      "can_reproduce": true,
+      "dataset_id": "ds_a25467494a36",
+      "document_scope": [
+        "doc_0e3790a853fd4d11",
+        "doc_2e33747df04b4bbc",
+        "doc_d983c0dbd6214275"
+      ],
+      "query_count": 10,
+      "retriever": "bm25",
+      "top_k": 5,
+      "provider": "mock",
+      "model": "mock-pipeline",
+      "metrics": {
+        "citation_precision": 0.0,
+        "citation_recall": 0.0,
+        "hit_rate@5": 0.8,
+        "latency_p50_ms": 0.5976999964332208,
+        "latency_p90_ms": 0.8664600143674761,
+        "latency_p95_ms": 0.8860800066031516,
+        "latency_p99_ms": 0.9017760003916919,
+        "lexical_groundedness": 0.1,
+        "max_latency_ms": 0.905699998838827,
+        "mean_citation_precision": 0.0,
+        "mean_citation_recall": 0.0,
+        "mean_generation_latency_ms": 0.06375000230036676,
+        "mean_hit_rate@5": 0.8,
+        "mean_latency_ms": 0.5826499982504174,
+        "mean_lexical_groundedness": 0.1,
+        "mean_mrr@5": 0.7,
+        "mean_ndcg@5": 0.7261859507142915,
+        "mean_precision@5": 0.16,
+        "mean_recall@5": 0.8,
+        "min_latency_ms": 0.35669998032972217,
+        "mrr@5": 0.7,
+        "ndcg@5": 0.7261859507142915,
+        "precision@5": 0.16,
+        "recall@5": 0.8,
+        "total_completion_tokens": 30.0,
+        "total_prompt_tokens": 4406.0,
+        "total_queries": 10.0,
+        "total_tokens": 4436.0
+      },
+      "failure_counts": {}
+    },
+    "run_2_provenance": {
+      "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
+      "experiment_name": "northstar_baseline_run_2",
+      "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
+      "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+      "reproducibility_tier": "exact",
+      "can_reproduce": true,
+      "dataset_id": "ds_a25467494a36",
+      "document_scope": [
+        "doc_0e3790a853fd4d11",
+        "doc_2e33747df04b4bbc",
+        "doc_d983c0dbd6214275"
+      ],
+      "query_count": 10,
+      "retriever": "bm25",
+      "top_k": 5,
+      "provider": "mock",
+      "model": "mock-pipeline",
+      "metrics": {
+        "citation_precision": 0.0,
+        "citation_recall": 0.0,
+        "hit_rate@5": 0.8,
+        "latency_p50_ms": 0.7855000003473833,
+        "latency_p90_ms": 0.9963099961169064,
+        "latency_p95_ms": 1.0454050032421944,
+        "latency_p99_ms": 1.0846810089424253,
+        "lexical_groundedness": 0.1,
+        "max_latency_ms": 1.094500010367483,
+        "mean_citation_precision": 0.0,
+        "mean_citation_recall": 0.0,
+        "mean_generation_latency_ms": 0.08041999535635114,
+        "mean_hit_rate@5": 0.8,
+        "mean_latency_ms": 0.8024499984458089,
+        "mean_lexical_groundedness": 0.1,
+        "mean_mrr@5": 0.7,
+        "mean_ndcg@5": 0.7261859507142915,
+        "mean_precision@5": 0.16,
+        "mean_recall@5": 0.8,
+        "min_latency_ms": 0.4521000082604587,
+        "mrr@5": 0.7,
+        "ndcg@5": 0.7261859507142915,
+        "precision@5": 0.16,
+        "recall@5": 0.8,
+        "total_completion_tokens": 30.0,
+        "total_prompt_tokens": 4406.0,
+        "total_queries": 10.0,
+        "total_tokens": 4436.0
+      },
+      "failure_counts": {}
+    },
     "is_comparable": true,
-    "missing_keys": [],
-    "metrics": {
-      "citation_precision": {
-        "run_1": 0.0,
-        "run_2": 0.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "citation_recall": {
-        "run_1": 0.0,
-        "run_2": 0.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "hit_rate@5": {
-        "run_1": 0.8,
-        "run_2": 0.8,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "latency_p50_ms": {
-        "run_1": 1.2378999963402748,
-        "run_2": 1.3075000169919804,
-        "delta": 0.0696,
-        "status": "diverged"
-      },
-      "latency_p90_ms": {
-        "run_1": 1.515640001161955,
-        "run_2": 1.567469979636371,
-        "delta": 0.05183,
-        "status": "diverged"
-      },
-      "latency_p95_ms": {
-        "run_1": 1.6782699953182596,
-        "run_2": 1.668134986539371,
-        "delta": -0.010135,
-        "status": "diverged"
-      },
-      "latency_p99_ms": {
-        "run_1": 1.8083739906433038,
-        "run_2": 1.7486669920617715,
-        "delta": -0.059707,
-        "status": "diverged"
-      },
-      "lexical_groundedness": {
-        "run_1": 0.1,
-        "run_2": 0.1,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "max_latency_ms": {
-        "run_1": 1.8408999894745648,
-        "run_2": 1.7687999934423715,
-        "delta": -0.0721,
-        "status": "diverged"
-      },
-      "mean_citation_precision": {
-        "run_1": 0.0,
-        "run_2": 0.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_citation_recall": {
-        "run_1": 0.0,
-        "run_2": 0.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_generation_latency_ms": {
-        "run_1": 0.09682000381872058,
-        "run_2": 0.1033900014590472,
-        "delta": 0.00657,
-        "status": "diverged"
-      },
-      "mean_hit_rate@5": {
-        "run_1": 0.8,
-        "run_2": 0.8,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_latency_ms": {
-        "run_1": 1.2886499986052513,
-        "run_2": 1.3301499973749742,
-        "delta": 0.0415,
-        "status": "diverged"
-      },
-      "mean_lexical_groundedness": {
-        "run_1": 0.1,
-        "run_2": 0.1,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_mrr@5": {
-        "run_1": 0.7,
-        "run_2": 0.7,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_ndcg@5": {
-        "run_1": 0.7261859507142916,
-        "run_2": 0.7261859507142916,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_precision@5": {
-        "run_1": 0.15999999999999998,
-        "run_2": 0.15999999999999998,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "mean_recall@5": {
-        "run_1": 0.8,
-        "run_2": 0.8,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "min_latency_ms": {
-        "run_1": 1.0399000020697713,
-        "run_2": 1.0680000123102218,
-        "delta": 0.0281,
-        "status": "diverged"
-      },
-      "mrr@5": {
-        "run_1": 0.7,
-        "run_2": 0.7,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "ndcg@5": {
-        "run_1": 0.7261859507142916,
-        "run_2": 0.7261859507142916,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "precision@5": {
-        "run_1": 0.15999999999999998,
-        "run_2": 0.15999999999999998,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "recall@5": {
-        "run_1": 0.8,
-        "run_2": 0.8,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "total_completion_tokens": {
-        "run_1": 30.0,
-        "run_2": 30.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "total_prompt_tokens": {
-        "run_1": 4406.0,
-        "run_2": 4406.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "total_queries": {
-        "run_1": 10.0,
-        "run_2": 10.0,
-        "delta": 0.0,
-        "status": "exact"
-      },
-      "total_tokens": {
-        "run_1": 4436.0,
-        "run_2": 4436.0,
-        "delta": 0.0,
-        "status": "exact"
+    "provenance_compatible": true,
+    "incompatibilities": [],
+    "overall_reproducibility_tier": "exact",
+    "metrics_comparison": {
+      "is_comparable": true,
+      "missing_keys": [],
+      "metrics": {
+        "citation_precision": {
+          "run_1": 0.0,
+          "run_2": 0.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "citation_recall": {
+          "run_1": 0.0,
+          "run_2": 0.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "hit_rate@5": {
+          "run_1": 0.8,
+          "run_2": 0.8,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "latency_p50_ms": {
+          "run_1": 0.5976999964332208,
+          "run_2": 0.7855000003473833,
+          "delta": 0.1878,
+          "status": "diverged"
+        },
+        "latency_p90_ms": {
+          "run_1": 0.8664600143674761,
+          "run_2": 0.9963099961169064,
+          "delta": 0.12985,
+          "status": "diverged"
+        },
+        "latency_p95_ms": {
+          "run_1": 0.8860800066031516,
+          "run_2": 1.0454050032421944,
+          "delta": 0.159325,
+          "status": "diverged"
+        },
+        "latency_p99_ms": {
+          "run_1": 0.9017760003916919,
+          "run_2": 1.0846810089424253,
+          "delta": 0.182905,
+          "status": "diverged"
+        },
+        "lexical_groundedness": {
+          "run_1": 0.1,
+          "run_2": 0.1,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "max_latency_ms": {
+          "run_1": 0.905699998838827,
+          "run_2": 1.094500010367483,
+          "delta": 0.1888,
+          "status": "diverged"
+        },
+        "mean_citation_precision": {
+          "run_1": 0.0,
+          "run_2": 0.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_citation_recall": {
+          "run_1": 0.0,
+          "run_2": 0.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_generation_latency_ms": {
+          "run_1": 0.06375000230036676,
+          "run_2": 0.08041999535635114,
+          "delta": 0.01667,
+          "status": "diverged"
+        },
+        "mean_hit_rate@5": {
+          "run_1": 0.8,
+          "run_2": 0.8,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_latency_ms": {
+          "run_1": 0.5826499982504174,
+          "run_2": 0.8024499984458089,
+          "delta": 0.2198,
+          "status": "diverged"
+        },
+        "mean_lexical_groundedness": {
+          "run_1": 0.1,
+          "run_2": 0.1,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_mrr@5": {
+          "run_1": 0.7,
+          "run_2": 0.7,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_ndcg@5": {
+          "run_1": 0.7261859507142915,
+          "run_2": 0.7261859507142915,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_precision@5": {
+          "run_1": 0.16,
+          "run_2": 0.16,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "mean_recall@5": {
+          "run_1": 0.8,
+          "run_2": 0.8,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "min_latency_ms": {
+          "run_1": 0.35669998032972217,
+          "run_2": 0.4521000082604587,
+          "delta": 0.0954,
+          "status": "diverged"
+        },
+        "mrr@5": {
+          "run_1": 0.7,
+          "run_2": 0.7,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "ndcg@5": {
+          "run_1": 0.7261859507142915,
+          "run_2": 0.7261859507142915,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "precision@5": {
+          "run_1": 0.16,
+          "run_2": 0.16,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "recall@5": {
+          "run_1": 0.8,
+          "run_2": 0.8,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "total_completion_tokens": {
+          "run_1": 30.0,
+          "run_2": 30.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "total_prompt_tokens": {
+          "run_1": 4406.0,
+          "run_2": 4406.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "total_queries": {
+          "run_1": 10.0,
+          "run_2": 10.0,
+          "delta": 0.0,
+          "status": "exact"
+        },
+        "total_tokens": {
+          "run_1": 4436.0,
+          "run_2": 4436.0,
+          "delta": 0.0,
+          "status": "exact"
+        }
       }
     }
   },
   "runs": [
     {
       "run_index": 1,
-      "run_id": "ae3d82cb-0a36-4e77-9781-73a88e32d01a",
+      "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
       "experiment_name": "northstar_baseline_run_1",
-      "job_id": "job_76ff68796f17",
+      "job_id": "job_77f3657284f7",
       "run_data": {
-        "run_id": "ae3d82cb-0a36-4e77-9781-73a88e32d01a",
+        "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
         "experiment_name": "northstar_baseline_run_1",
-        "run_timestamp": "2026-11-15T19:08:34.349860+00:00",
+        "run_timestamp": "2026-11-15T19:59:30.945361+00:00",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
         "config": {
           "citations_enabled": true,
@@ -252,36 +361,36 @@
           "retriever": "bm25",
           "top_k": 5
         },
-        "dataset_reference": "ds_8138dee2cb55",
+        "dataset_reference": "ds_a25467494a36",
         "metadata": {
           "corpus_chunk_count": 20,
           "corpus_fingerprints": {
-            "doc_323cee5d40fe4b70": {
+            "doc_0e3790a853fd4d11": {
               "chunk_count": 7,
-              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "chunks_hash": "6da5c3a2f246449bca35a66fc8cf77e206f06c4409dcc32be648dcf7e55b2d48",
               "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
             },
-            "doc_423e1e9d71c442cb": {
-              "chunk_count": 7,
-              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
-              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
-            },
-            "doc_e151dadb04f14716": {
+            "doc_2e33747df04b4bbc": {
               "chunk_count": 6,
-              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "chunks_hash": "c1aeabca41128e1e4a53392d8a986c64a795823fcdf91d4e6610085ab692b3ec",
               "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            },
+            "doc_d983c0dbd6214275": {
+              "chunk_count": 7,
+              "chunks_hash": "f7e50eb0ea9c197143ad3157d3ac86f46ce97b52e08a0b153ac13b1fee97ef4e",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
             }
           },
-          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
-          "dataset_id": "ds_8138dee2cb55",
+          "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
+          "dataset_id": "ds_a25467494a36",
           "dataset_is_synthetic": true,
           "dataset_name": "Northstar Golden Benchmark",
           "document_ids": [
-            "doc_423e1e9d71c442cb",
-            "doc_e151dadb04f14716",
-            "doc_323cee5d40fe4b70"
+            "doc_0e3790a853fd4d11",
+            "doc_2e33747df04b4bbc",
+            "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:08:34.332844+00:00",
+          "execution_timestamp": "2026-11-15T19:59:30.936799+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",
@@ -293,31 +402,31 @@
           "retriever_params": {},
           "retriever_type": "bm25"
         },
-        "created_at": "2026-11-15T19:08:34.349860+00:00",
+        "created_at": "2026-11-15T19:59:30.945532+00:00",
         "metrics": {
           "citation_precision": 0.0,
           "citation_recall": 0.0,
           "hit_rate@5": 0.8,
-          "latency_p50_ms": 1.2378999963402748,
-          "latency_p90_ms": 1.515640001161955,
-          "latency_p95_ms": 1.6782699953182596,
-          "latency_p99_ms": 1.8083739906433038,
+          "latency_p50_ms": 0.5976999964332208,
+          "latency_p90_ms": 0.8664600143674761,
+          "latency_p95_ms": 0.8860800066031516,
+          "latency_p99_ms": 0.9017760003916919,
           "lexical_groundedness": 0.1,
-          "max_latency_ms": 1.8408999894745648,
+          "max_latency_ms": 0.905699998838827,
           "mean_citation_precision": 0.0,
           "mean_citation_recall": 0.0,
-          "mean_generation_latency_ms": 0.09682000381872058,
+          "mean_generation_latency_ms": 0.06375000230036676,
           "mean_hit_rate@5": 0.8,
-          "mean_latency_ms": 1.2886499986052513,
+          "mean_latency_ms": 0.5826499982504174,
           "mean_lexical_groundedness": 0.1,
           "mean_mrr@5": 0.7,
-          "mean_ndcg@5": 0.7261859507142916,
-          "mean_precision@5": 0.15999999999999998,
+          "mean_ndcg@5": 0.7261859507142915,
+          "mean_precision@5": 0.16,
           "mean_recall@5": 0.8,
-          "min_latency_ms": 1.0399000020697713,
+          "min_latency_ms": 0.35669998032972217,
           "mrr@5": 0.7,
-          "ndcg@5": 0.7261859507142916,
-          "precision@5": 0.15999999999999998,
+          "ndcg@5": 0.7261859507142915,
+          "precision@5": 0.16,
           "recall@5": 0.8,
           "total_completion_tokens": 30.0,
           "total_prompt_tokens": 4406.0,
@@ -352,11 +461,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:496:994",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+                "doc_0e3790a853fd4d11:recursive_character:496:994",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-CHUNK"
@@ -367,7 +476,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.20890001906082034,
+              "latency_ms": 0.08620001608505845,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -381,25 +490,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                    "doc_0e3790a853fd4d11:recursive_character:0:496": {
                       "lcs_score": 0.3333333333333333,
                       "token_containment": 0.3333333333333333
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                    "doc_0e3790a853fd4d11:recursive_character:1662:2066": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:496:994": {
+                    "doc_0e3790a853fd4d11:recursive_character:496:994": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -432,11 +541,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:496:994",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+                "doc_0e3790a853fd4d11:recursive_character:496:994",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -446,7 +555,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.8408999894745648,
+            "latency_ms": 0.6076999998185784,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -468,36 +577,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:496:994",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:496:994",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 13.965736210988728
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 2,
                 "score": 5.741595314168995
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 3,
                 "score": 4.583834934000395
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.402413828074384
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 5,
                 "score": 4.06820046247408
@@ -531,11 +640,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-DENSE"
@@ -546,7 +655,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.09960000170394778,
+              "latency_ms": 0.05490001058205962,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -560,25 +669,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                    "doc_0e3790a853fd4d11:recursive_character:0:496": {
                       "lcs_score": 0.3333333333333333,
                       "token_containment": 0.3333333333333333
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                    "doc_0e3790a853fd4d11:recursive_character:1358:1702": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -611,11 +720,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -625,7 +734,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.31559997680597,
+            "latency_ms": 0.44720000005327165,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -647,36 +756,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 12.701381157918885
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 2,
                 "score": 10.234927609381986
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 7.174466746185699
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 4,
                 "score": 6.906959824439579
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 5.284514676474948
@@ -710,11 +819,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-RRF"
@@ -725,7 +834,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.09889999637380242,
+              "latency_ms": 0.0549999822396785,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -739,25 +848,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                    "doc_0e3790a853fd4d11:recursive_character:1662:2066": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:1110:1581": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -790,11 +899,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -804,7 +913,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.4795000024605542,
+            "latency_ms": 0.5876999930478632,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -826,36 +935,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 10.80200776151197
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 2,
                 "score": 6.008402770229837
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 4.291044915479415
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.042747569591112
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.512273916551477
@@ -889,11 +998,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:0:496"
+                "doc_0e3790a853fd4d11:recursive_character:2066:2564",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:0:496"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-CITE"
@@ -904,7 +1013,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.11309998808428645,
+              "latency_ms": 0.066100008552894,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -918,25 +1027,25 @@
               "aggregate_score": 1.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:2066:2564",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                    "doc_0e3790a853fd4d11:recursive_character:0:496": {
                       "lcs_score": 0.3333333333333333,
                       "token_containment": 0.3333333333333333
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:2066:2564": {
+                    "doc_0e3790a853fd4d11:recursive_character:2066:2564": {
                       "lcs_score": 0.6666666666666666,
                       "token_containment": 0.6666666666666666
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:1730:2090": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -969,11 +1078,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:0:496"
+                "doc_0e3790a853fd4d11:recursive_character:2066:2564",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:0:496"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -983,7 +1092,7 @@
               "unsupported_claims_count": 0
             },
             "judge_result": null,
-            "latency_ms": 1.4549000188708305,
+            "latency_ms": 0.6096000142861158,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1005,36 +1114,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:2066:2564",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 17.595278048138702
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 4.9095044071710205
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 4.877934974463655
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 4,
                 "score": 3.4281383804830394
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.208239614516942
@@ -1068,11 +1177,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:484:904",
-                "doc_e151dadb04f14716:recursive_character:0:484"
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:484:904",
+                "doc_2e33747df04b4bbc:recursive_character:0:484"
               ],
               "unreferenced_required_citations": [
                 "CIT-BENCH-METRIC"
@@ -1083,7 +1192,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08250001701526344,
+              "latency_ms": 0.06260001100599766,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1097,25 +1206,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:0:484": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_2e33747df04b4bbc:recursive_character:1110:1581": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                    "doc_2e33747df04b4bbc:recursive_character:484:904": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:484:904": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -1148,11 +1257,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:484:904",
-                "doc_e151dadb04f14716:recursive_character:0:484"
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:484:904",
+                "doc_2e33747df04b4bbc:recursive_character:0:484"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -1162,7 +1271,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.2670000141952187,
+            "latency_ms": 0.905699998838827,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1184,36 +1293,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 1,
                 "score": 12.560597563757065
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 2,
                 "rank": 2,
                 "score": 9.34007760123996
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 8.102065754675374
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:484:904",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:484:904",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 4,
                 "score": 6.296893052223327
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 5,
                 "score": 6.20705833830123
@@ -1247,11 +1356,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1581:1989",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+                "doc_2e33747df04b4bbc:recursive_character:1581:1989",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480"
               ],
               "unreferenced_required_citations": [
                 "CIT-BENCH-LATENCY"
@@ -1262,7 +1371,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.07420001202262938,
+              "latency_ms": 0.10699999984353781,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1276,25 +1385,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_2e33747df04b4bbc:recursive_character:1110:1581": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                    "doc_2e33747df04b4bbc:recursive_character:1581:1989": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                    "doc_d983c0dbd6214275:recursive_character:2090:2480": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1581:1989": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -1327,11 +1436,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1581:1989",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+                "doc_2e33747df04b4bbc:recursive_character:1581:1989",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -1341,7 +1450,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.208799978485331,
+            "latency_ms": 0.8621000160928816,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1363,36 +1472,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1581:1989",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1581:1989",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 1,
                 "score": 13.459623920988536
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 2,
                 "rank": 2,
                 "score": 11.40598335748102
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 8.345008658851162
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 6.255881244340117
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 5.257384493512385
@@ -1426,11 +1535,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090"
               ],
               "unreferenced_required_citations": [
                 "CIT-BENCH-LIMIT"
@@ -1441,7 +1550,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.0644999963697046,
+              "latency_ms": 0.07320000440813601,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1455,25 +1564,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:0:484": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:1730:2090": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -1506,11 +1615,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -1520,7 +1629,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.0878000175580382,
+            "latency_ms": 0.68299999111332,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1542,36 +1651,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 2,
                 "rank": 1,
                 "score": 12.278333530144508
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 2,
                 "score": 11.08087633790789
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 10.4533226452509
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.819551593472399
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 2.843832408768333
@@ -1605,11 +1714,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+                "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702"
               ],
               "unreferenced_required_citations": [
                 "CIT-INC-ROOTCAUSE"
@@ -1620,7 +1729,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.06649998249486089,
+              "latency_ms": 0.044199987314641476,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1634,25 +1743,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:1358:1702",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                    "doc_0e3790a853fd4d11:recursive_character:1358:1702": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                    "doc_d983c0dbd6214275:recursive_character:0:258": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                    "doc_d983c0dbd6214275:recursive_character:233:703": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -1685,11 +1794,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+                "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -1699,7 +1808,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.06969999615103,
+            "latency_ms": 0.40499999886378646,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1721,36 +1830,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 1,
                 "score": 20.266552297077656
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 11.761624636161109
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 5.168947873528614
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 5.167239321206933
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 5,
                 "score": 4.329702712773675
@@ -1784,11 +1893,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:1935:2251"
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251"
               ],
               "unreferenced_required_citations": [
                 "CIT-INC-REMEDY"
@@ -1799,7 +1908,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.06620000931434333,
+              "latency_ms": 0.03229998401366174,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1813,25 +1922,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_d983c0dbd6214275:recursive_character:0:258": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:1730:2090": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -1864,11 +1973,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:1935:2251"
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -1878,7 +1987,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.0399000020697713,
+            "latency_ms": 0.35669998032972217,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1900,36 +2009,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 2,
                 "rank": 1,
                 "score": 11.312036651746695
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 8.942142608231043
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 8.885740326028657
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.904655437724436
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.5527660240509675
@@ -1963,11 +2072,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:233:703"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:233:703"
               ],
               "unreferenced_required_citations": [],
               "unresolved_citations": [],
@@ -1976,7 +2085,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.09380001574754715,
+              "latency_ms": 0.05600001895800233,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1990,25 +2099,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                    "doc_0e3790a853fd4d11:recursive_character:1662:2066": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                    "doc_d983c0dbd6214275:recursive_character:2090:2480": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:233:703": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -2041,11 +2150,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:233:703"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:233:703"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -2055,7 +2164,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.1223999899812043,
+            "latency_ms": 0.3617999900598079,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2077,36 +2186,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 1,
                 "score": 5.822979060423046
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 4.001003223824176
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 3,
                 "score": 3.954046063256794
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 4,
                 "score": 3.396890964452577
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.1115307749533723
@@ -2117,16 +2226,16 @@
         ]
       },
       "repro_data": {
-        "run_id": "ae3d82cb-0a36-4e77-9781-73a88e32d01a",
+        "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
         "experiment_name": "northstar_baseline_run_1",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
-        "dataset_id": "ds_8138dee2cb55",
+        "dataset_id": "ds_a25467494a36",
         "dataset_exists": true,
         "dataset_unchanged": true,
         "corpus_document_ids": [
-          "doc_423e1e9d71c442cb",
-          "doc_e151dadb04f14716",
-          "doc_323cee5d40fe4b70"
+          "doc_0e3790a853fd4d11",
+          "doc_2e33747df04b4bbc",
+          "doc_d983c0dbd6214275"
         ],
         "corpus_documents_exist": true,
         "corpus_unchanged": true,
@@ -2143,32 +2252,32 @@
         "metadata": {
           "corpus_chunk_count": 20,
           "corpus_fingerprints": {
-            "doc_323cee5d40fe4b70": {
+            "doc_0e3790a853fd4d11": {
               "chunk_count": 7,
-              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "chunks_hash": "6da5c3a2f246449bca35a66fc8cf77e206f06c4409dcc32be648dcf7e55b2d48",
               "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
             },
-            "doc_423e1e9d71c442cb": {
-              "chunk_count": 7,
-              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
-              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
-            },
-            "doc_e151dadb04f14716": {
+            "doc_2e33747df04b4bbc": {
               "chunk_count": 6,
-              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "chunks_hash": "c1aeabca41128e1e4a53392d8a986c64a795823fcdf91d4e6610085ab692b3ec",
               "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            },
+            "doc_d983c0dbd6214275": {
+              "chunk_count": 7,
+              "chunks_hash": "f7e50eb0ea9c197143ad3157d3ac86f46ce97b52e08a0b153ac13b1fee97ef4e",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
             }
           },
-          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
-          "dataset_id": "ds_8138dee2cb55",
+          "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
+          "dataset_id": "ds_a25467494a36",
           "dataset_is_synthetic": true,
           "dataset_name": "Northstar Golden Benchmark",
           "document_ids": [
-            "doc_423e1e9d71c442cb",
-            "doc_e151dadb04f14716",
-            "doc_323cee5d40fe4b70"
+            "doc_0e3790a853fd4d11",
+            "doc_2e33747df04b4bbc",
+            "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:08:34.332844+00:00",
+          "execution_timestamp": "2026-11-15T19:59:30.936799+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",
@@ -2202,13 +2311,13 @@
     },
     {
       "run_index": 2,
-      "run_id": "0267b6d8-c2e6-4751-9d41-c00b75dcff2c",
+      "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
       "experiment_name": "northstar_baseline_run_2",
-      "job_id": "job_0fd5c46100de",
+      "job_id": "job_ab85f0f8757b",
       "run_data": {
-        "run_id": "0267b6d8-c2e6-4751-9d41-c00b75dcff2c",
+        "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
         "experiment_name": "northstar_baseline_run_2",
-        "run_timestamp": "2026-11-15T19:08:35.512364+00:00",
+        "run_timestamp": "2026-11-15T19:59:32.088594+00:00",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
         "config": {
           "citations_enabled": true,
@@ -2228,36 +2337,36 @@
           "retriever": "bm25",
           "top_k": 5
         },
-        "dataset_reference": "ds_8138dee2cb55",
+        "dataset_reference": "ds_a25467494a36",
         "metadata": {
           "corpus_chunk_count": 20,
           "corpus_fingerprints": {
-            "doc_323cee5d40fe4b70": {
+            "doc_0e3790a853fd4d11": {
               "chunk_count": 7,
-              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "chunks_hash": "6da5c3a2f246449bca35a66fc8cf77e206f06c4409dcc32be648dcf7e55b2d48",
               "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
             },
-            "doc_423e1e9d71c442cb": {
-              "chunk_count": 7,
-              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
-              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
-            },
-            "doc_e151dadb04f14716": {
+            "doc_2e33747df04b4bbc": {
               "chunk_count": 6,
-              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "chunks_hash": "c1aeabca41128e1e4a53392d8a986c64a795823fcdf91d4e6610085ab692b3ec",
               "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            },
+            "doc_d983c0dbd6214275": {
+              "chunk_count": 7,
+              "chunks_hash": "f7e50eb0ea9c197143ad3157d3ac86f46ce97b52e08a0b153ac13b1fee97ef4e",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
             }
           },
-          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
-          "dataset_id": "ds_8138dee2cb55",
+          "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
+          "dataset_id": "ds_a25467494a36",
           "dataset_is_synthetic": true,
           "dataset_name": "Northstar Golden Benchmark",
           "document_ids": [
-            "doc_423e1e9d71c442cb",
-            "doc_e151dadb04f14716",
-            "doc_323cee5d40fe4b70"
+            "doc_0e3790a853fd4d11",
+            "doc_2e33747df04b4bbc",
+            "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:08:35.495242+00:00",
+          "execution_timestamp": "2026-11-15T19:59:32.079067+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",
@@ -2269,31 +2378,31 @@
           "retriever_params": {},
           "retriever_type": "bm25"
         },
-        "created_at": "2026-11-15T19:08:35.512364+00:00",
+        "created_at": "2026-11-15T19:59:32.088900+00:00",
         "metrics": {
           "citation_precision": 0.0,
           "citation_recall": 0.0,
           "hit_rate@5": 0.8,
-          "latency_p50_ms": 1.3075000169919804,
-          "latency_p90_ms": 1.567469979636371,
-          "latency_p95_ms": 1.668134986539371,
-          "latency_p99_ms": 1.7486669920617715,
+          "latency_p50_ms": 0.7855000003473833,
+          "latency_p90_ms": 0.9963099961169064,
+          "latency_p95_ms": 1.0454050032421944,
+          "latency_p99_ms": 1.0846810089424253,
           "lexical_groundedness": 0.1,
-          "max_latency_ms": 1.7687999934423715,
+          "max_latency_ms": 1.094500010367483,
           "mean_citation_precision": 0.0,
           "mean_citation_recall": 0.0,
-          "mean_generation_latency_ms": 0.1033900014590472,
+          "mean_generation_latency_ms": 0.08041999535635114,
           "mean_hit_rate@5": 0.8,
-          "mean_latency_ms": 1.3301499973749742,
+          "mean_latency_ms": 0.8024499984458089,
           "mean_lexical_groundedness": 0.1,
           "mean_mrr@5": 0.7,
-          "mean_ndcg@5": 0.7261859507142916,
-          "mean_precision@5": 0.15999999999999998,
+          "mean_ndcg@5": 0.7261859507142915,
+          "mean_precision@5": 0.16,
           "mean_recall@5": 0.8,
-          "min_latency_ms": 1.0680000123102218,
+          "min_latency_ms": 0.4521000082604587,
           "mrr@5": 0.7,
-          "ndcg@5": 0.7261859507142916,
-          "precision@5": 0.15999999999999998,
+          "ndcg@5": 0.7261859507142915,
+          "precision@5": 0.16,
           "recall@5": 0.8,
           "total_completion_tokens": 30.0,
           "total_prompt_tokens": 4406.0,
@@ -2328,11 +2437,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:496:994",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+                "doc_0e3790a853fd4d11:recursive_character:496:994",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-CHUNK"
@@ -2343,7 +2452,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.11510000331327319,
+              "latency_ms": 0.05889998283237219,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2357,25 +2466,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                    "doc_0e3790a853fd4d11:recursive_character:0:496": {
                       "lcs_score": 0.3333333333333333,
                       "token_containment": 0.3333333333333333
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                    "doc_0e3790a853fd4d11:recursive_character:1662:2066": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:496:994": {
+                    "doc_0e3790a853fd4d11:recursive_character:496:994": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -2408,11 +2517,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:496:994",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066"
+                "doc_0e3790a853fd4d11:recursive_character:496:994",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -2422,7 +2531,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.1742999777197838,
+            "latency_ms": 0.4521000082604587,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2444,36 +2553,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:496:994",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:496:994",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 13.965736210988728
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 2,
                 "score": 5.741595314168995
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 3,
                 "score": 4.583834934000395
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.402413828074384
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 5,
                 "score": 4.06820046247408
@@ -2507,11 +2616,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-DENSE"
@@ -2522,7 +2631,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08560001151636243,
+              "latency_ms": 0.13270002091303468,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2536,25 +2645,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                    "doc_0e3790a853fd4d11:recursive_character:0:496": {
                       "lcs_score": 0.3333333333333333,
                       "token_containment": 0.3333333333333333
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                    "doc_0e3790a853fd4d11:recursive_character:1358:1702": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -2587,11 +2696,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784"
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -2601,7 +2710,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.1116999958176166,
+            "latency_ms": 0.985399994533509,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2623,36 +2732,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 12.701381157918885
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 2,
                 "score": 10.234927609381986
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 7.174466746185699
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 4,
                 "score": 6.906959824439579
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 5.284514676474948
@@ -2686,11 +2795,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-RRF"
@@ -2701,7 +2810,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08979998528957367,
+              "latency_ms": 0.08870000601746142,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2715,25 +2824,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                    "doc_0e3790a853fd4d11:recursive_character:1662:2066": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:1110:1581": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -2766,11 +2875,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -2780,7 +2889,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.4070000033825636,
+            "latency_ms": 0.7790999952703714,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2802,36 +2911,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 10.80200776151197
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 2,
                 "score": 6.008402770229837
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 4.291044915479415
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.042747569591112
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.512273916551477
@@ -2865,11 +2974,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:0:496"
+                "doc_0e3790a853fd4d11:recursive_character:2066:2564",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:0:496"
               ],
               "unreferenced_required_citations": [
                 "CIT-ARCH-CITE"
@@ -2880,7 +2989,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.1044000091496855,
+              "latency_ms": 0.07539999205619097,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2894,25 +3003,25 @@
               "aggregate_score": 1.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:2066:2564",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:0:496": {
+                    "doc_0e3790a853fd4d11:recursive_character:0:496": {
                       "lcs_score": 0.3333333333333333,
                       "token_containment": 0.3333333333333333
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:2066:2564": {
+                    "doc_0e3790a853fd4d11:recursive_character:2066:2564": {
                       "lcs_score": 0.6666666666666666,
                       "token_containment": 0.6666666666666666
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:1730:2090": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -2945,11 +3054,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:2066:2564",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:0:496"
+                "doc_0e3790a853fd4d11:recursive_character:2066:2564",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:0:496"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -2959,7 +3068,7 @@
               "unsupported_claims_count": 0
             },
             "judge_result": null,
-            "latency_ms": 1.7687999934423715,
+            "latency_ms": 0.7919000054243952,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2981,36 +3090,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:2066:2564",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:2066:2564",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 2,
                 "rank": 1,
                 "score": 17.595278048138702
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 4.9095044071710205
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 4.877934974463655
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 4,
                 "score": 3.4281383804830394
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:0:496",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:0:496",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.208239614516942
@@ -3044,11 +3153,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:484:904",
-                "doc_e151dadb04f14716:recursive_character:0:484"
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:484:904",
+                "doc_2e33747df04b4bbc:recursive_character:0:484"
               ],
               "unreferenced_required_citations": [
                 "CIT-BENCH-METRIC"
@@ -3059,7 +3168,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.17220000154338777,
+              "latency_ms": 0.0709999876562506,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3073,25 +3182,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:0:484": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_2e33747df04b4bbc:recursive_character:1110:1581": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                    "doc_2e33747df04b4bbc:recursive_character:484:904": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:484:904": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -3124,11 +3233,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:484:904",
-                "doc_e151dadb04f14716:recursive_character:0:484"
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:484:904",
+                "doc_2e33747df04b4bbc:recursive_character:0:484"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -3138,7 +3247,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.4887999859638512,
+            "latency_ms": 0.7739999855402857,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3160,36 +3269,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 1,
                 "score": 12.560597563757065
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 2,
                 "rank": 2,
                 "score": 9.34007760123996
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 8.102065754675374
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:484:904",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:484:904",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 4,
                 "score": 6.296893052223327
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 5,
                 "score": 6.20705833830123
@@ -3223,11 +3332,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1581:1989",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+                "doc_2e33747df04b4bbc:recursive_character:1581:1989",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480"
               ],
               "unreferenced_required_citations": [
                 "CIT-BENCH-LATENCY"
@@ -3238,7 +3347,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.07100001676008105,
+              "latency_ms": 0.08529998012818396,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3252,25 +3361,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_2e33747df04b4bbc:recursive_character:1110:1581": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                    "doc_2e33747df04b4bbc:recursive_character:1581:1989": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1110:1581": {
+                    "doc_d983c0dbd6214275:recursive_character:2090:2480": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1581:1989": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -3303,11 +3412,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1581:1989",
-                "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480"
+                "doc_2e33747df04b4bbc:recursive_character:1581:1989",
+                "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -3317,7 +3426,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.3485000235959888,
+            "latency_ms": 0.8200999873224646,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3339,36 +3448,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1581:1989",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1581:1989",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 1,
                 "score": 13.459623920988536
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1110:1581",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1110:1581",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 2,
                 "rank": 2,
                 "score": 11.40598335748102
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 8.345008658851162
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 6.255881244340117
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 5.257384493512385
@@ -3402,11 +3511,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090"
               ],
               "unreferenced_required_citations": [
                 "CIT-BENCH-LIMIT"
@@ -3417,7 +3526,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.14250000822357833,
+              "latency_ms": 0.06839999696239829,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3431,25 +3540,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_2e33747df04b4bbc:recursive_character:0:484": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:0:484": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:1730:2090": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -3482,11 +3591,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090"
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_d983c0dbd6214275:recursive_character:1730:2090"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -3496,7 +3605,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.545099978102371,
+            "latency_ms": 0.7775000121910125,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3518,36 +3627,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 2,
                 "rank": 1,
                 "score": 12.278333530144508
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:0:484",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:0:484",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 2,
                 "score": 11.08087633790789
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 10.4533226452509
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.819551593472399
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 2.843832408768333
@@ -3581,11 +3690,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+                "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702"
               ],
               "unreferenced_required_citations": [
                 "CIT-INC-ROOTCAUSE"
@@ -3596,7 +3705,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08100000559352338,
+              "latency_ms": 0.083099992480129,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3610,25 +3719,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:1358:1702",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:1358:1702": {
+                    "doc_0e3790a853fd4d11:recursive_character:1358:1702": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                    "doc_d983c0dbd6214275:recursive_character:0:258": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                    "doc_d983c0dbd6214275:recursive_character:233:703": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:609:1060": {
+                    "doc_d983c0dbd6214275:recursive_character:609:1060": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -3661,11 +3770,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_323cee5d40fe4b70:recursive_character:1358:1702"
+                "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_0e3790a853fd4d11:recursive_character:1358:1702"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -3675,7 +3784,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.266500010387972,
+            "latency_ms": 0.8870000019669533,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3697,36 +3806,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 1,
                 "score": 20.266552297077656
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 11.761624636161109
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 5.168947873528614
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:609:1060",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:609:1060",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 5.167239321206933
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1358:1702",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1358:1702",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 5,
                 "score": 4.329702712773675
@@ -3760,11 +3869,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:1935:2251"
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251"
               ],
               "unreferenced_required_citations": [
                 "CIT-INC-REMEDY"
@@ -3775,7 +3884,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.07389998063445091,
+              "latency_ms": 0.06570000550709665,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3789,25 +3898,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
+                  "best_chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
                   "candidate_scores": {
-                    "doc_423e1e9d71c442cb:recursive_character:0:258": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1060:1364": {
+                    "doc_d983c0dbd6214275:recursive_character:0:258": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1319:1784": {
+                    "doc_d983c0dbd6214275:recursive_character:1060:1364": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:1730:2090": {
+                    "doc_d983c0dbd6214275:recursive_character:1319:1784": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:1730:2090": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -3840,11 +3949,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_e151dadb04f14716:recursive_character:1935:2251"
+                "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -3854,7 +3963,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.0680000123102218,
+            "latency_ms": 0.6628999835811555,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3876,36 +3985,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1730:2090",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1730:2090",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 2,
                 "rank": 1,
                 "score": 11.312036651746695
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1319:1784",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1319:1784",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 8.942142608231043
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:0:258",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:0:258",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 3,
                 "score": 8.885740326028657
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:1060:1364",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:1060:1364",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 4,
                 "score": 4.904655437724436
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.5527660240509675
@@ -3939,11 +4048,11 @@
               "missing_evidence_citations": [],
               "parsed_citations": [],
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:233:703"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:233:703"
               ],
               "unreferenced_required_citations": [],
               "unresolved_citations": [],
@@ -3952,7 +4061,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.09839999256655574,
+              "latency_ms": 0.07499998901039362,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3966,25 +4075,25 @@
               "aggregate_score": 0.0,
               "claims": [
                 {
-                  "best_chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
+                  "best_chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
                   "candidate_scores": {
-                    "doc_323cee5d40fe4b70:recursive_character:1662:2066": {
+                    "doc_0e3790a853fd4d11:recursive_character:1662:2066": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_323cee5d40fe4b70:recursive_character:949:1358": {
+                    "doc_0e3790a853fd4d11:recursive_character:949:1358": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:2090:2480": {
+                    "doc_2e33747df04b4bbc:recursive_character:1935:2251": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_423e1e9d71c442cb:recursive_character:233:703": {
+                    "doc_d983c0dbd6214275:recursive_character:2090:2480": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     },
-                    "doc_e151dadb04f14716:recursive_character:1935:2251": {
+                    "doc_d983c0dbd6214275:recursive_character:233:703": {
                       "lcs_score": 0.0,
                       "token_containment": 0.0
                     }
@@ -4017,11 +4126,11 @@
               "has_claims": true,
               "no_evidence_claims_count": 0,
               "retrieved_chunk_ids": [
-                "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_423e1e9d71c442cb:recursive_character:233:703"
+                "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_d983c0dbd6214275:recursive_character:233:703"
               ],
               "thresholds": {
                 "containment_threshold": 0.5,
@@ -4031,7 +4140,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.1227999930270016,
+            "latency_ms": 1.094500010367483,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -4053,36 +4162,36 @@
             },
             "retrieved": [
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:1662:2066",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:1662:2066",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 1,
                 "score": 5.822979060423046
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:2090:2480",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:2090:2480",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 2,
                 "score": 4.001003223824176
               },
               {
-                "chunk_id": "doc_e151dadb04f14716:recursive_character:1935:2251",
-                "doc_id": "doc_e151dadb04f14716",
+                "chunk_id": "doc_2e33747df04b4bbc:recursive_character:1935:2251",
+                "doc_id": "doc_2e33747df04b4bbc",
                 "grade": 0,
                 "rank": 3,
                 "score": 3.954046063256794
               },
               {
-                "chunk_id": "doc_323cee5d40fe4b70:recursive_character:949:1358",
-                "doc_id": "doc_323cee5d40fe4b70",
+                "chunk_id": "doc_0e3790a853fd4d11:recursive_character:949:1358",
+                "doc_id": "doc_0e3790a853fd4d11",
                 "grade": 0,
                 "rank": 4,
                 "score": 3.396890964452577
               },
               {
-                "chunk_id": "doc_423e1e9d71c442cb:recursive_character:233:703",
-                "doc_id": "doc_423e1e9d71c442cb",
+                "chunk_id": "doc_d983c0dbd6214275:recursive_character:233:703",
+                "doc_id": "doc_d983c0dbd6214275",
                 "grade": 0,
                 "rank": 5,
                 "score": 3.1115307749533723
@@ -4093,16 +4202,16 @@
         ]
       },
       "repro_data": {
-        "run_id": "0267b6d8-c2e6-4751-9d41-c00b75dcff2c",
+        "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
         "experiment_name": "northstar_baseline_run_2",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
-        "dataset_id": "ds_8138dee2cb55",
+        "dataset_id": "ds_a25467494a36",
         "dataset_exists": true,
         "dataset_unchanged": true,
         "corpus_document_ids": [
-          "doc_423e1e9d71c442cb",
-          "doc_e151dadb04f14716",
-          "doc_323cee5d40fe4b70"
+          "doc_0e3790a853fd4d11",
+          "doc_2e33747df04b4bbc",
+          "doc_d983c0dbd6214275"
         ],
         "corpus_documents_exist": true,
         "corpus_unchanged": true,
@@ -4119,32 +4228,32 @@
         "metadata": {
           "corpus_chunk_count": 20,
           "corpus_fingerprints": {
-            "doc_323cee5d40fe4b70": {
+            "doc_0e3790a853fd4d11": {
               "chunk_count": 7,
-              "chunks_hash": "9ee8328b440be83f6dcaba29e03b7ff41e1a9b381a99fc338cf2ce41cfd61d0e",
+              "chunks_hash": "6da5c3a2f246449bca35a66fc8cf77e206f06c4409dcc32be648dcf7e55b2d48",
               "content_hash": "da3d92e3953f2813e93a4841d1adaa227ef99342e4b66441f587adeae0f863c3"
             },
-            "doc_423e1e9d71c442cb": {
-              "chunk_count": 7,
-              "chunks_hash": "77616b3e1e6f75c212ccddaca9fa138c3d6146f86e952e07757cc559ce4b121c",
-              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
-            },
-            "doc_e151dadb04f14716": {
+            "doc_2e33747df04b4bbc": {
               "chunk_count": 6,
-              "chunks_hash": "f75743afdaae59074941b2b543bf049e235cd84cbc0baf4b81dfb4cb932d9c9b",
+              "chunks_hash": "c1aeabca41128e1e4a53392d8a986c64a795823fcdf91d4e6610085ab692b3ec",
               "content_hash": "293b9b4680b2c683000b83ec0ad7a892f1ad14d6768d0da4767063b6240cc218"
+            },
+            "doc_d983c0dbd6214275": {
+              "chunk_count": 7,
+              "chunks_hash": "f7e50eb0ea9c197143ad3157d3ac86f46ce97b52e08a0b153ac13b1fee97ef4e",
+              "content_hash": "e134d07faf1770709a53aced94b4f4df620e91af0f3a698d1a4e616593654d65"
             }
           },
-          "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
-          "dataset_id": "ds_8138dee2cb55",
+          "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
+          "dataset_id": "ds_a25467494a36",
           "dataset_is_synthetic": true,
           "dataset_name": "Northstar Golden Benchmark",
           "document_ids": [
-            "doc_423e1e9d71c442cb",
-            "doc_e151dadb04f14716",
-            "doc_323cee5d40fe4b70"
+            "doc_0e3790a853fd4d11",
+            "doc_2e33747df04b4bbc",
+            "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:08:35.495242+00:00",
+          "execution_timestamp": "2026-11-15T19:59:32.079067+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",

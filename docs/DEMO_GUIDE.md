@@ -16,8 +16,10 @@ This guide provides end-to-end instructions to clone, configure, run, verify, an
   - **Clean-checkout tested**: `Python 3.10.11` (Windows 11 x86_64, isolated virtual environment).
   - **CI matrix verified**: `Python 3.11` and `Python 3.12` (GitHub Actions Ubuntu runners).
   - **Local development**: `Python 3.13.3` (used for development and type-checking, but not certified in CI).
-- **Node.js**: Required runtime: **`Node.js >= 22.12.0`** (Active LTS Node 22, verified with `Node.js v22.14.0` and `npm 10.9.2`).
-  - *Dependency requirement note*: Modern frontend dependencies (SvelteKit 3 / `@sveltejs/kit: ^3.0.0`, Vite 8 / `vite: ^8.3.0`, and Puppeteer 25 / `puppeteer: ^25.17.0`) strictly declare `node: ">=22.12.0"`. Node 18 (end-of-life) and older Node 20 releases (`< 22.12.0`) are not supported.
+- **Node.js**:
+  - **Minimum compatible runtime**: `Node.js >= 22.12.0` (strictly declared by `puppeteer: ^25.17.0`, `@sveltejs/kit: ^3.0.0`, and `vite: ^8.3.0` in `frontend/package.json`).
+  - **Clean-checkout tested**: `Node.js v24.13.0` (with `npm 11.6.2`) on Windows 11 x86_64; `npm ci`, Vitest (29/29 passed), `svelte-check` (0 errors, 0 warnings), and production build completed cleanly.
+  - **Recommended maintained LTS**: `Node.js 22 LTS` (`>= 22.12.0`) or `Node.js 24 Active` (`v24.13.0`). Older Node releases (Node 18 EOL or Node 20 < 22.12.0) are unsupported. Node 26 was not tested as it was not present in the verification environment.
 - **Git**: Modern git client.
 - **Optional Local LLM (Ollama)**: For 100% offline neural generation, install [Ollama](https://ollama.com). (The platform includes a built-in deterministic mock provider for zero-dependency hermetic testing).
 
@@ -272,20 +274,21 @@ STING provides two distinct operational modes: **User Mode** (default) and **Dev
 
 ## 7. Deterministic Benchmark Reproducibility Evidence
 
-To prove deterministic reproducibility, execute `scripts/record_demo_evaluation.py` against the clean-checkout platform. This script dispatches the `Northstar Golden Benchmark` (10 queries, dataset `ds_8138dee2cb55`) twice in succession using Okapi BM25 retrieval and the deterministic mock provider, verifies the exact dataset SHA-256 digest, checks for complete metric coverage, and outputs structured provenance into `docs/reproducibility_evidence.json`:
+To prove deterministic reproducibility, execute `scripts/record_demo_evaluation.py` against the clean-checkout platform. This script dispatches the `Northstar Golden Benchmark` (10 queries, dataset `ds_a25467494a36`) twice in succession using Okapi BM25 retrieval and the deterministic mock provider, independently validates both run manifests, verifies the exact dataset SHA-256 digest, checks for complete metric coverage, and outputs structured provenance into `docs/reproducibility_evidence.json`:
 
 ```bash
 python scripts/record_demo_evaluation.py
 ```
 
 ### Verified Dataset & Run Provenance
-- **Dataset Name**: `Northstar Golden Benchmark` (`ds_8138dee2cb55`)
-- **Verified Dataset SHA-256**: `88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e`
+- **Dataset Name**: `Northstar Golden Benchmark` (`ds_a25467494a36`)
+- **Verified Dataset SHA-256**: `ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524`
 - **Execution Config Hash**: `f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5`
 - **Retriever & Parameters**: `bm25` (top-K: 5, RSJ IDF, deterministic tie-breaking)
 - **Generator Provider / Model**: `mock` / `mock-pipeline` (Deterministic rule-based mock)
-- **Evaluation Scoped Corpus**: 3 documents (`architecture.md`, `benchmark_report.md`, `incident_report.md` — 20 chunks total)
-- **Reproducibility Tier**: `exact` (Run 1 and Run 2)
+- **Evaluation Scoped Corpus**: 3 documents (`architecture.md` [`doc_0e3790a853fd4d11`], `benchmark_report.md` [`doc_2e33747df04b4bbc`], `incident_report.md` [`doc_d983c0dbd6214275`] — 20 chunks total)
+- **Reproducibility Tier**: `exact` (Run 1 and Run 2 independently verified)
+- **Provenance Compatibility**: `True` (Zero cross-run hash or scope mismatches)
 
 ### Actual Measured Comparison: Run 1 vs. Run 2
 
@@ -302,7 +305,7 @@ python scripts/record_demo_evaluation.py
 | **Total Prompt Tokens** | `4,406` | `4,406` | **`0`** | Deterministic Tokenizer Count |
 | **Total Completion Tokens**| `30` | `30` | **`0`** | Deterministic Generator Count |
 | **Total Evaluated Queries** | `10` | `10` | **`0`** | Exact Dataset Size (10 queries) |
-| **Mean Latency (ms)** | `1.2886` | `1.3301` | `+0.0415` | Wall-clock execution (expected ~40µs CPU jitter) |
+| **Mean Latency (ms)** | `0.5826` | `0.8024` | `+0.2198` | Wall-clock execution (expected sub-millisecond CPU jitter) |
 | **Reproducibility Tier** | `exact` | `exact` | **Match** | Verified SHA-256 Provenance |
 
 > [!IMPORTANT]
@@ -320,7 +323,7 @@ python scripts/record_demo_evaluation.py
 | `ModuleNotFoundError: No module named 'pymupdf'` | Python virtual environment created without project dependencies installed | Activate venv and run `pip install -e ".[dev,web]"` or `pip install pymupdf`. |
 | `No module named 'faiss.swigfaiss_avx2'` | Informational warning emitted on CPUs without AVX2 extensions | Safe to ignore. The library automatically falls back to standard generic instructions (`Successfully loaded faiss`). |
 | `ERR_CONNECTION_REFUSED` on frontend startup | Backend FastAPI server is not running on port 8000 | Ensure Terminal 1 is running `uvicorn reliability_lab.api.main:app --port 8000`. |
-| `npm ci` fails with engine or lockfile mismatch | Node.js version is below modern SvelteKit/Puppeteer requirements | Install **Node.js >= 22.12.0** (Active LTS Node 22, e.g. v22.14.0) with npm 10+. Run `npm ci` without `--force`. |
+| `npm ci` fails with engine or lockfile mismatch | Node.js version is below modern SvelteKit/Puppeteer requirements | Install **Node.js >= 22.12.0** (e.g. Node 22 LTS or Node 24 Active, tested with v24.13.0) with npm 10+ or 11+. Run `npm ci` without `--force`. |
 | Ollama generation times out on CPU | Local LLM inference on CPU without GPU takes 15-25s per turn | Use the deterministic `mock` provider for rapid evaluations, or extend HTTP timeouts when running `llama3.2` on CPU. |
 | Missing Developer Mode options | User Mode is active (default) | Click the **Developer Mode** toggle switch in the application header. |
 

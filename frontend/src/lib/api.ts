@@ -9,10 +9,14 @@ import type {
   CreateDatasetRequest,
   CreateInvestigationRequest,
   CreateQueryRequest,
+  CreateSessionRequest,
   DatasetDetail,
   DatasetListResponse,
   DatasetSummary,
+  DocumentChunkListResponse,
+  DocumentDetailResponse,
   DocumentListResponse,
+  DocumentUploadResponse,
   EvaluationJob,
   EvaluationJobListResponse,
   HealthResponse,
@@ -21,11 +25,17 @@ import type {
   InvestigationListResponse,
   LaunchEvaluationRequest,
   MetricsMetaResponse,
+  QueryRequest,
+  QueryResponse,
   QueryResult,
   RegressionResult,
   RunDetail,
   RunListResponse,
-  RunReproducibilityResponse
+  RunReproducibilityResponse,
+  SessionDetailResponse,
+  SessionListResponse,
+  SessionQueryRequest,
+  SessionQueryResponse
 } from './types';
 
 export class ApiError extends Error {
@@ -184,7 +194,113 @@ export class ApiClient {
     if (params?.status) searchParams.set('status', params.status);
 
     const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
-    return this.request<DocumentListResponse>(`/api/documents${query}`);
+    const res = await this.request<DocumentListResponse>(`/api/documents${query}`);
+    const docs = res.documents ?? res.items ?? [];
+    return {
+      ...res,
+      total: res.total ?? docs.length,
+      documents: docs,
+      items: docs
+    };
+  }
+
+  async uploadDocument(file: File): Promise<DocumentUploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const url = `${this.baseUrl}/api/documents/upload`;
+    const response = await this.fetchFn(url, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Accept: 'application/json'
+      }
+    });
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const errBody = await response.json();
+        if (errBody && typeof errBody.detail === 'string') {
+          detail = errBody.detail;
+        } else if (errBody && errBody.detail) {
+          detail = JSON.stringify(errBody.detail);
+        }
+      } catch {
+        // Non-JSON response
+      }
+      throw new ApiError(response.status, detail);
+    }
+    return (await response.json()) as DocumentUploadResponse;
+  }
+
+  async getDocument(docId: string): Promise<DocumentDetailResponse> {
+    return this.request<DocumentDetailResponse>(`/api/documents/${encodeURIComponent(docId)}`);
+  }
+
+  async getDocumentChunks(
+    docId: string,
+    params?: { limit?: number; offset?: number }
+  ): Promise<DocumentChunkListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+    const qs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    return this.request<DocumentChunkListResponse>(
+      `/api/documents/${encodeURIComponent(docId)}/chunks${qs}`
+    );
+  }
+
+  async deleteDocument(docId: string): Promise<{ status: string; doc_id: string }> {
+    return this.request<{ status: string; doc_id: string }>(
+      `/api/documents/${encodeURIComponent(docId)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Document Query & Chat API
+  // ---------------------------------------------------------------------------
+
+  async executeQuery(req: QueryRequest): Promise<QueryResponse> {
+    return this.request<QueryResponse>('/api/query', {
+      method: 'POST',
+      body: JSON.stringify(req)
+    });
+  }
+
+  async createSession(req: CreateSessionRequest): Promise<SessionDetailResponse> {
+    return this.request<SessionDetailResponse>('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify(req)
+    });
+  }
+
+  async listSessions(params?: { limit?: number; offset?: number }): Promise<SessionListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+    const qs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    return this.request<SessionListResponse>(`/api/sessions${qs}`);
+  }
+
+  async getSession(sessionId: string): Promise<SessionDetailResponse> {
+    return this.request<SessionDetailResponse>(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  async querySession(sessionId: string, req: SessionQueryRequest): Promise<SessionQueryResponse> {
+    return this.request<SessionQueryResponse>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/query`,
+      {
+        method: 'POST',
+        body: JSON.stringify(req)
+      }
+    );
+  }
+
+  async deleteSession(sessionId: string): Promise<{ deleted: boolean; session_id: string }> {
+    return this.request<{ deleted: boolean; session_id: string }>(
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      { method: 'DELETE' }
+    );
   }
 
   // ---------------------------------------------------------------------------

@@ -12,16 +12,30 @@ This guide provides end-to-end instructions to clone, configure, run, verify, an
 - **CPU / GPU**: Standard multi-core x86_64 or ARM64 CPU. GPU acceleration is optional.
 
 ### Software Prerequisites
-- **Python**: Supported versions: `3.10`, `3.11`, `3.12`, or `3.13` (Python 3.10 and 3.11 verified in clean-checkout testing).
-- **Node.js**: Node 18+ or 20+ (Node v20.x or v24.x tested with `npm 10+` or `11+`).
+- **Python**: Supported versions: `Python >= 3.10` per `pyproject.toml`.
+  - **Clean-checkout tested**: `Python 3.10.11` (Windows 11 x86_64, isolated virtual environment).
+  - **CI matrix verified**: `Python 3.11` and `Python 3.12` (GitHub Actions Ubuntu runners).
+  - **Local development**: `Python 3.13.3` (used for development and type-checking, but not certified in CI).
+- **Node.js**: Required runtime: **`Node.js >= 22.12.0`** (Active LTS Node 22, verified with `Node.js v22.14.0` and `npm 10.9.2`).
+  - *Dependency requirement note*: Modern frontend dependencies (SvelteKit 3 / `@sveltejs/kit: ^3.0.0`, Vite 8 / `vite: ^8.3.0`, and Puppeteer 25 / `puppeteer: ^25.17.0`) strictly declare `node: ">=22.12.0"`. Node 18 (end-of-life) and older Node 20 releases (`< 22.12.0`) are not supported.
 - **Git**: Modern git client.
 - **Optional Local LLM (Ollama)**: For 100% offline neural generation, install [Ollama](https://ollama.com). (The platform includes a built-in deterministic mock provider for zero-dependency hermetic testing).
 
 ---
 
-## 2. Configuration & Environment Variables
+## 2. Configuration & Network Boundary Separation
 
-STING is designed with a **secure local-first default posture**. All core capabilities—document ingestion, BM25/FAISS retrieval, conversational document chat with citations, cross-document evidence investigations, and golden benchmark evaluations—run completely offline without external API keys or cloud credentials.
+STING enforces a **secure local-first posture**. To understand how STING operates, distinguish clearly between installation-time dependencies, credential-free execution, and offline runtime:
+
+1. **Installation-Time Network Access (One-Time Setup)**:
+   - Initial Python dependency installation (`pip install -e ".[dev,faiss,web]"`) and Node module fetching (`npm ci`) require internet access.
+   - The first invocation of dense neural indexing downloads Sentence Transformers embedding weights (`all-MiniLM-L6-v2`, ~80 MB from HuggingFace) into the local cache (`~/.cache/huggingface/hub/`).
+2. **Credential-Free Operation (Zero Cloud API Keys)**:
+   - STING never requires external API keys, user logins, credit cards, or cloud accounts for any core feature.
+   - Retrieval (BM25, FAISS, Hybrid RRF), document chat, cross-document investigations, and golden evaluations function fully without external credentials.
+3. **100% Offline Runtime (Air-Gapped Operation)**:
+   - Once packages and embedding weights are locally cached, STING runs entirely offline with zero external network egress.
+   - Local LLM inference runs via Ollama on `localhost:11434` or the hermetic deterministic mock provider.
 
 | Variable | Purpose | Required / Optional | Default Value | Safe Example Value |
 |---|---|---|---|---|
@@ -33,7 +47,7 @@ STING is designed with a **secure local-first default posture**. All core capabi
 | `PORT` | Local service port for backend | Optional | `8000` | `8000` |
 
 ### Credential-Free Capabilities
-The following features require **zero external API keys or network calls**:
+The following features require **zero external API keys or cloud credentials**:
 - Document ingestion and citation-aware chunking (PDF, Markdown, Plain Text).
 - Okapi BM25 and dense FAISS vector index generation (`all-MiniLM-L6-v2` / hermetic embedders).
 - User Mode document chat with citation parsing and Evidence Sources drawer.
@@ -258,29 +272,44 @@ STING provides two distinct operational modes: **User Mode** (default) and **Dev
 
 ## 7. Deterministic Benchmark Reproducibility Evidence
 
-To prove deterministic reproducibility, execute `scripts/record_demo_evaluation.py` against the clean-checkout platform. This script dispatches the `Northstar Golden Benchmark` (10 queries) twice in succession using Okapi BM25 retrieval and the deterministic mock provider:
+To prove deterministic reproducibility, execute `scripts/record_demo_evaluation.py` against the clean-checkout platform. This script dispatches the `Northstar Golden Benchmark` (10 queries, dataset `ds_8138dee2cb55`) twice in succession using Okapi BM25 retrieval and the deterministic mock provider, verifies the exact dataset SHA-256 digest, checks for complete metric coverage, and outputs structured provenance into `docs/reproducibility_evidence.json`:
 
 ```bash
 python scripts/record_demo_evaluation.py
 ```
 
+### Verified Dataset & Run Provenance
+- **Dataset Name**: `Northstar Golden Benchmark` (`ds_8138dee2cb55`)
+- **Verified Dataset SHA-256**: `88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e`
+- **Execution Config Hash**: `f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5`
+- **Retriever & Parameters**: `bm25` (top-K: 5, RSJ IDF, deterministic tie-breaking)
+- **Generator Provider / Model**: `mock` / `mock-pipeline` (Deterministic rule-based mock)
+- **Evaluation Scoped Corpus**: 3 documents (`architecture.md`, `benchmark_report.md`, `incident_report.md` — 20 chunks total)
+- **Reproducibility Tier**: `exact` (Run 1 and Run 2)
+
 ### Actual Measured Comparison: Run 1 vs. Run 2
 
-| Metric | Run 1 | Run 2 | Absolute Delta | Expected Determinism |
+| Metric | Run 1 | Run 2 | Absolute Delta | Metric Status / Interpretation |
 |:---|:---:|:---:|:---:|:---|
-| **Hit Rate@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric |
-| **Recall@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric |
-| **Precision@5** | `0.1600` | `0.1600` | **`0.0000`** | Deterministic IR Metric |
-| **MRR@5** | `0.7000` | `0.7000` | **`0.0000`** | Deterministic IR Metric |
-| **NDCG@5** | `0.7262` | `0.7262` | **`0.0000`** | Deterministic IR Metric |
-| **Lexical Groundedness** | `0.1000` | `0.1000` | **`0.0000`** | Deterministic Containment/LCS |
+| **Hit Rate@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **Recall@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **Precision@5** | `0.1600` | `0.1600` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **MRR@5** | `0.7000` | `0.7000` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **NDCG@5** | `0.7262` | `0.7262` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **Citation Precision** | `0.0000` | `0.0000` | **`0.0000`** | Failing: Mock generator emits no citations |
+| **Citation Recall** | `0.0000` | `0.0000` | **`0.0000`** | Failing: Mock generator emits no citations |
+| **Lexical Groundedness** | `0.1000` | `0.1000` | **`0.0000`** | Low: Synthetic template token overlap |
 | **Total Prompt Tokens** | `4,406` | `4,406` | **`0`** | Deterministic Tokenizer Count |
 | **Total Completion Tokens**| `30` | `30` | **`0`** | Deterministic Generator Count |
-| **Total Evaluated Queries** | `10` | `10` | **`0`** | Exact Dataset Size |
-| **Mean Latency (ms)** | `1.2886` | `1.3301` | `+0.0415` | Wall-clock execution (expected variance) |
+| **Total Evaluated Queries** | `10` | `10` | **`0`** | Exact Dataset Size (10 queries) |
+| **Mean Latency (ms)** | `1.2886` | `1.3301` | `+0.0415` | Wall-clock execution (expected ~40µs CPU jitter) |
 | **Reproducibility Tier** | `exact` | `exact` | **Match** | Verified SHA-256 Provenance |
 
-> **Evaluation Honesty Note**: Metrics and token counts are **100% identical across repeat executions (delta: 0.0000)**. Physical latency exhibits natural microsecond wall-clock variance (~1.28 ms vs ~1.33 ms, delta: ~0.04 ms). Synthetic mock output verifies pipeline contracts and metric computation; it does not claim to represent neural model reasoning quality.
+> [!IMPORTANT]
+> **Honest Evaluation Disclosure — Mock vs. Neural Generation**:
+> - **Deterministic Repeatability**: Ranking metrics (Hit Rate, MRR, NDCG, Recall, Precision) and token counts match **identically (0.0000 delta)** across runs. This proves algorithmic determinism and mathematical evaluation correctness under identical inputs.
+> - **Generative Quality Disclaimer**: Exact reproducibility does **not** establish high generative quality. Because the evaluation uses the deterministic `mock` provider (`mock-pipeline`), the generated answers are rule-based synthetic strings that contain no citation markers and minimal lexical overlap.
+> - **Transparent Failure Reporting**: Citation Precision (`0.0000`), Citation Recall (`0.0000`), and Lexical Groundedness (`0.1000`) reflect genuine generation failures for the mock provider. These metrics are intentionally preserved and disclosed, never zero-filled or disguised. To evaluate authentic neural citation placement and groundedness, configure local Ollama (`llama3.2`).
 
 ---
 
@@ -291,7 +320,7 @@ python scripts/record_demo_evaluation.py
 | `ModuleNotFoundError: No module named 'pymupdf'` | Python virtual environment created without project dependencies installed | Activate venv and run `pip install -e ".[dev,web]"` or `pip install pymupdf`. |
 | `No module named 'faiss.swigfaiss_avx2'` | Informational warning emitted on CPUs without AVX2 extensions | Safe to ignore. The library automatically falls back to standard generic instructions (`Successfully loaded faiss`). |
 | `ERR_CONNECTION_REFUSED` on frontend startup | Backend FastAPI server is not running on port 8000 | Ensure Terminal 1 is running `uvicorn reliability_lab.api.main:app --port 8000`. |
-| `npm ci` fails with lockfile mismatch | Node version or global npm environment mismatch | Use Node 20+ with npm 10+. Run `npm ci` without `--force`. |
+| `npm ci` fails with engine or lockfile mismatch | Node.js version is below modern SvelteKit/Puppeteer requirements | Install **Node.js >= 22.12.0** (Active LTS Node 22, e.g. v22.14.0) with npm 10+. Run `npm ci` without `--force`. |
 | Ollama generation times out on CPU | Local LLM inference on CPU without GPU takes 15-25s per turn | Use the deterministic `mock` provider for rapid evaluations, or extend HTTP timeouts when running `llama3.2` on CPU. |
 | Missing Developer Mode options | User Mode is active (default) | Click the **Developer Mode** toggle switch in the application header. |
 
@@ -310,12 +339,12 @@ pytest --cov=reliability_lab
 
 # Frontend Quality Checks
 cd frontend
-npm run test     # Vitest unit tests (29/29 passed)
+npm run test     # Vitest unit tests (29/29 passed across api.spec.ts and workspace.spec.ts)
 npm run check    # Svelte TypeScript & A11y diagnostics (0 errors, 0 warnings)
 npm run build    # Production build with @sveltejs/adapter-node
 cd ..
 
-# Hermetic Demo Integration Test
+# Hermetic Demo Integration Test (16/16 checkpoints)
 python scripts/verify_sting_demo.py
 ```
 

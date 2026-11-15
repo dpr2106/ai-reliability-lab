@@ -1,6 +1,37 @@
 {
   "timestamp": "2026-11-15T19:08:36.597821+00:00",
   "api_url": "http://127.0.0.1:8000",
+  "git_commit_sha": "04cf0cc18f3012c15eb195ceb55e44d60527fba1",
+  "dataset_content_hash": "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e",
+  "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
+  "retriever": "bm25",
+  "top_k": 5,
+  "provider": "mock",
+  "model": "mock-pipeline",
+  "query_count": 10,
+  "reproducibility_tier": "exact",
+  "evaluation_notes": "Exact reproducibility demonstrates pipeline determinism and metric repeatability under identical inputs, not answer quality. The deterministic mock provider emits rule-based test strings without citations or NLI grounding, yielding 0.0000 citation precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the mock provider output and do not represent the performance of authentic neural models such as Ollama llama3.2.",
+  "provenance": {
+    "git_commit_sha": "04cf0cc18f3012c15eb195ceb55e44d60527fba1",
+    "python_version": "3.13.3 (tags/v3.13.3:6280bb5, Apr  8 2025, 14:47:33) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "os_system": "Windows",
+    "os_release": "11",
+    "architecture": "AMD64",
+    "package_versions": {
+      "fastapi": "0.162.0",
+      "pydantic": "2.14.1",
+      "uvicorn": "0.54.0",
+      "httpx": "0.28.1",
+      "pymupdf": "1.28.2",
+      "faiss-cpu": "1.15.1",
+      "sentence-transformers": "6.2.0",
+      "torch": "2.15.0",
+      "ruff": "0.17.3",
+      "mypy": "2.4.0",
+      "pytest": "9.1.1"
+    }
+  },
   "dataset": {
     "dataset_id": "ds_8138dee2cb55",
     "name": "Northstar Golden Benchmark",
@@ -16,6 +47,180 @@
     "updated_at": "2026-11-15T19:05:27.066418+00:00",
     "metadata": {
       "corpus_id": "demo-northstar-v2"
+    }
+  },
+  "metrics_comparison": {
+    "is_comparable": true,
+    "missing_keys": [],
+    "metrics": {
+      "citation_precision": {
+        "run_1": 0.0,
+        "run_2": 0.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "citation_recall": {
+        "run_1": 0.0,
+        "run_2": 0.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "hit_rate@5": {
+        "run_1": 0.8,
+        "run_2": 0.8,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "latency_p50_ms": {
+        "run_1": 1.2378999963402748,
+        "run_2": 1.3075000169919804,
+        "delta": 0.0696,
+        "status": "diverged"
+      },
+      "latency_p90_ms": {
+        "run_1": 1.515640001161955,
+        "run_2": 1.567469979636371,
+        "delta": 0.05183,
+        "status": "diverged"
+      },
+      "latency_p95_ms": {
+        "run_1": 1.6782699953182596,
+        "run_2": 1.668134986539371,
+        "delta": -0.010135,
+        "status": "diverged"
+      },
+      "latency_p99_ms": {
+        "run_1": 1.8083739906433038,
+        "run_2": 1.7486669920617715,
+        "delta": -0.059707,
+        "status": "diverged"
+      },
+      "lexical_groundedness": {
+        "run_1": 0.1,
+        "run_2": 0.1,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "max_latency_ms": {
+        "run_1": 1.8408999894745648,
+        "run_2": 1.7687999934423715,
+        "delta": -0.0721,
+        "status": "diverged"
+      },
+      "mean_citation_precision": {
+        "run_1": 0.0,
+        "run_2": 0.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_citation_recall": {
+        "run_1": 0.0,
+        "run_2": 0.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_generation_latency_ms": {
+        "run_1": 0.09682000381872058,
+        "run_2": 0.1033900014590472,
+        "delta": 0.00657,
+        "status": "diverged"
+      },
+      "mean_hit_rate@5": {
+        "run_1": 0.8,
+        "run_2": 0.8,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_latency_ms": {
+        "run_1": 1.2886499986052513,
+        "run_2": 1.3301499973749742,
+        "delta": 0.0415,
+        "status": "diverged"
+      },
+      "mean_lexical_groundedness": {
+        "run_1": 0.1,
+        "run_2": 0.1,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_mrr@5": {
+        "run_1": 0.7,
+        "run_2": 0.7,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_ndcg@5": {
+        "run_1": 0.7261859507142916,
+        "run_2": 0.7261859507142916,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_precision@5": {
+        "run_1": 0.15999999999999998,
+        "run_2": 0.15999999999999998,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "mean_recall@5": {
+        "run_1": 0.8,
+        "run_2": 0.8,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "min_latency_ms": {
+        "run_1": 1.0399000020697713,
+        "run_2": 1.0680000123102218,
+        "delta": 0.0281,
+        "status": "diverged"
+      },
+      "mrr@5": {
+        "run_1": 0.7,
+        "run_2": 0.7,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "ndcg@5": {
+        "run_1": 0.7261859507142916,
+        "run_2": 0.7261859507142916,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "precision@5": {
+        "run_1": 0.15999999999999998,
+        "run_2": 0.15999999999999998,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "recall@5": {
+        "run_1": 0.8,
+        "run_2": 0.8,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "total_completion_tokens": {
+        "run_1": 30.0,
+        "run_2": 30.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "total_prompt_tokens": {
+        "run_1": 4406.0,
+        "run_2": 4406.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "total_queries": {
+        "run_1": 10.0,
+        "run_2": 10.0,
+        "delta": 0.0,
+        "status": "exact"
+      },
+      "total_tokens": {
+        "run_1": 4436.0,
+        "run_2": 4436.0,
+        "delta": 0.0,
+        "status": "exact"
+      }
     }
   },
   "runs": [
@@ -3971,147 +4176,5 @@
         }
       }
     }
-  ],
-  "metrics_comparison": {
-    "citation_precision": {
-      "run_1": 0.0,
-      "run_2": 0.0,
-      "delta": 0.0
-    },
-    "citation_recall": {
-      "run_1": 0.0,
-      "run_2": 0.0,
-      "delta": 0.0
-    },
-    "hit_rate@5": {
-      "run_1": 0.8,
-      "run_2": 0.8,
-      "delta": 0.0
-    },
-    "latency_p50_ms": {
-      "run_1": 1.2378999963402748,
-      "run_2": 1.3075000169919804,
-      "delta": 0.06960002065170556
-    },
-    "latency_p90_ms": {
-      "run_1": 1.515640001161955,
-      "run_2": 1.567469979636371,
-      "delta": 0.05182997847441584
-    },
-    "latency_p95_ms": {
-      "run_1": 1.6782699953182596,
-      "run_2": 1.668134986539371,
-      "delta": -0.01013500877888851
-    },
-    "latency_p99_ms": {
-      "run_1": 1.8083739906433038,
-      "run_2": 1.7486669920617715,
-      "delta": -0.05970699858153239
-    },
-    "lexical_groundedness": {
-      "run_1": 0.1,
-      "run_2": 0.1,
-      "delta": 0.0
-    },
-    "max_latency_ms": {
-      "run_1": 1.8408999894745648,
-      "run_2": 1.7687999934423715,
-      "delta": -0.0720999960321933
-    },
-    "mean_citation_precision": {
-      "run_1": 0.0,
-      "run_2": 0.0,
-      "delta": 0.0
-    },
-    "mean_citation_recall": {
-      "run_1": 0.0,
-      "run_2": 0.0,
-      "delta": 0.0
-    },
-    "mean_generation_latency_ms": {
-      "run_1": 0.09682000381872058,
-      "run_2": 0.1033900014590472,
-      "delta": 0.006569997640326619
-    },
-    "mean_hit_rate@5": {
-      "run_1": 0.8,
-      "run_2": 0.8,
-      "delta": 0.0
-    },
-    "mean_latency_ms": {
-      "run_1": 1.2886499986052513,
-      "run_2": 1.3301499973749742,
-      "delta": 0.04149999876972288
-    },
-    "mean_lexical_groundedness": {
-      "run_1": 0.1,
-      "run_2": 0.1,
-      "delta": 0.0
-    },
-    "mean_mrr@5": {
-      "run_1": 0.7,
-      "run_2": 0.7,
-      "delta": 0.0
-    },
-    "mean_ndcg@5": {
-      "run_1": 0.7261859507142916,
-      "run_2": 0.7261859507142916,
-      "delta": 0.0
-    },
-    "mean_precision@5": {
-      "run_1": 0.15999999999999998,
-      "run_2": 0.15999999999999998,
-      "delta": 0.0
-    },
-    "mean_recall@5": {
-      "run_1": 0.8,
-      "run_2": 0.8,
-      "delta": 0.0
-    },
-    "min_latency_ms": {
-      "run_1": 1.0399000020697713,
-      "run_2": 1.0680000123102218,
-      "delta": 0.0281000102404505
-    },
-    "mrr@5": {
-      "run_1": 0.7,
-      "run_2": 0.7,
-      "delta": 0.0
-    },
-    "ndcg@5": {
-      "run_1": 0.7261859507142916,
-      "run_2": 0.7261859507142916,
-      "delta": 0.0
-    },
-    "precision@5": {
-      "run_1": 0.15999999999999998,
-      "run_2": 0.15999999999999998,
-      "delta": 0.0
-    },
-    "recall@5": {
-      "run_1": 0.8,
-      "run_2": 0.8,
-      "delta": 0.0
-    },
-    "total_completion_tokens": {
-      "run_1": 30.0,
-      "run_2": 30.0,
-      "delta": 0.0
-    },
-    "total_prompt_tokens": {
-      "run_1": 4406.0,
-      "run_2": 4406.0,
-      "delta": 0.0
-    },
-    "total_queries": {
-      "run_1": 10.0,
-      "run_2": 10.0,
-      "delta": 0.0
-    },
-    "total_tokens": {
-      "run_1": 4436.0,
-      "run_2": 4436.0,
-      "delta": 0.0
-    }
-  }
+  ]
 }

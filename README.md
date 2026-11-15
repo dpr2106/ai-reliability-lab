@@ -25,7 +25,7 @@ STING provides two distinct interface modes:
    - Headline: *"Your documents. Understood."*
    - Drag-and-drop file ingestion supporting PDF (`.pdf`), Plain Text (`.txt`), and Markdown (`.md`) up to 50 MB.
    - Honest stage-based processing progression: `UPLOAD` → `EXTRACTION` → `CHUNKING` → `INDEXING` → `READY`.
-   - Conversational document workspace with verified inline citation tags (`[CHK-xxx]`), expandable evidence passages, and page coordinates.
+   - Conversational document workspace with verified inline citation tags (`[CIT-001]`), expandable evidence passages, and page coordinates.
 2. **Developer Mode (Optional)**: Toggled via the application header, revealing the complete RAG reliability and diagnostic workbench.
    - **Evaluation Studio**: Benchmark datasets, experiment launcher, and run comparisons.
    - **Failure Explorer**: Diagnostic classification of retrieval misses, hallucinated citations, and ungrounded generation.
@@ -190,6 +190,7 @@ uvicorn reliability_lab.api.main:app --reload --port 8000
 ```
 
 #### Terminal 2: SvelteKit Frontend
+*(Requires Node.js >= 22.12.0, e.g. Active LTS Node 22)*
 ```bash
 cd frontend
 npm ci
@@ -481,7 +482,7 @@ The platform enforces 100% test pass rates and strict quality gates on every com
 - **Historical Release Baseline (Milestone 11 / V1 Audit)**: **648 passed, 1 warning** across Python 3.11, 3.12, and 3.13 (93% line coverage).
 - **Current Comprehensive Backend Suite (V2-005 Merge)**: **1,028 passed unit tests, 0 failures, 6 warnings** (verified on `main` at commit `bb3057d`, 2026-11-08).
 - **Static Quality**: 0 errors on `ruff check .`, 100% formatted via `ruff format`, 0 issues on `mypy reliability_lab` (62 source files).
-- **Frontend Verification**: 0 errors on `svelte-check --tsconfig ./tsconfig.json`, 8/8 unit tests passed via Vitest (`src/lib/api.spec.ts`), clean production build via `@sveltejs/adapter-node`.
+- **Frontend Verification**: 0 errors on `svelte-check --tsconfig ./tsconfig.json`, 29/29 unit tests passed via Vitest (`src/lib/api.spec.ts` and `src/lib/workspace.spec.ts`), clean production build via `@sveltejs/adapter-node`.
 - **Hermetic CI**: Mandatory GitHub Actions matrix (`test-and-lint (3.11)` and `test-and-lint (3.12)`) gates every pull request and verifies `main` on every merge (Run [42499098507](https://github.com/dpr2106/ai-reliability-lab/actions/runs/42499098507)).
 
 ---

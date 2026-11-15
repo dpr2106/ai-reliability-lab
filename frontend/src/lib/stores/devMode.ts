@@ -2,13 +2,23 @@ import { writable } from 'svelte/store';
 
 const STORAGE_KEY = 'sting_dev_mode';
 
+function getStorage(): Storage | null {
+  try {
+    if (typeof localStorage !== 'undefined') return localStorage;
+    if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function createDevModeStore() {
-  const isBrowser = typeof window !== 'undefined';
+  const storage = getStorage();
   let initial = false;
 
-  if (isBrowser) {
+  if (storage) {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = storage.getItem(STORAGE_KEY);
       initial = stored === 'true';
     } catch {
       initial = false;
@@ -22,9 +32,10 @@ function createDevModeStore() {
     toggle: () => {
       update((curr) => {
         const next = !curr;
-        if (typeof window !== 'undefined') {
+        const s = getStorage();
+        if (s) {
           try {
-            localStorage.setItem(STORAGE_KEY, String(next));
+            s.setItem(STORAGE_KEY, String(next));
           } catch {
             // ignore localStorage quota errors
           }
@@ -33,9 +44,10 @@ function createDevModeStore() {
       });
     },
     set: (val: boolean) => {
-      if (typeof window !== 'undefined') {
+      const s = getStorage();
+      if (s) {
         try {
-          localStorage.setItem(STORAGE_KEY, String(val));
+          s.setItem(STORAGE_KEY, String(val));
         } catch {
           // ignore
         }
@@ -46,4 +58,5 @@ function createDevModeStore() {
 }
 
 export const devMode = createDevModeStore();
+export { createDevModeStore, STORAGE_KEY };
 

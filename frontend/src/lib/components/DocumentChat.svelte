@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { api } from '#lib/api';
   import { devMode } from '#lib/stores/devMode';
+  import { parseAnswerWithCitations, toggleCitationSelection } from '#lib/citations';
   import type {
     DocumentSummary,
     DocumentDetailResponse,
@@ -120,11 +121,7 @@
   function toggleCitation(msgIndex: number, marker: string) {
     const msg = messages[msgIndex];
     if (msg) {
-      if (msg.selectedCitationMarker === marker) {
-        msg.selectedCitationMarker = null;
-      } else {
-        msg.selectedCitationMarker = marker;
-      }
+      msg.selectedCitationMarker = toggleCitationSelection(msg.selectedCitationMarker, marker);
     }
   }
 
@@ -135,39 +132,6 @@
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  }
-
-  // Helper to split answer text into segments and citation tokens
-  function parseAnswerWithCitations(answer: string): { type: 'text' | 'citation'; content: string }[] {
-    if (!answer) return [];
-    // Match [CIT-X]
-    const regex = /(\[CIT-[A-Za-z0-9_-]+\])/g;
-    const parts: { type: 'text' | 'citation'; content: string }[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(answer)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push({
-          type: 'text',
-          content: answer.substring(lastIndex, match.index)
-        });
-      }
-      parts.push({
-        type: 'citation',
-        content: match[0]
-      });
-      lastIndex = match.index + match[0].length;
-    }
-
-    if (lastIndex < answer.length) {
-      parts.push({
-        type: 'text',
-        content: answer.substring(lastIndex)
-      });
-    }
-
-    return parts;
   }
 
   onMount(() => {
@@ -181,7 +145,7 @@
   <!-- Document Context Header -->
   <header class="doc-context-bar">
     <div class="dcb-left">
-      <button class="btn-back" onclick={onBack} title="Return to Document Library">
+      <button class="btn-back" onclick={onBack} aria-label="Return to Document Library" title="Return to Document Library">
         <svg class="back-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="19" y1="12" x2="5" y2="12"></line>
           <polyline points="12 19 5 12 12 5"></polyline>
@@ -205,6 +169,7 @@
         class="btn-sources-toggle"
         class:is-active={showSourcesDrawer}
         onclick={() => (showSourcesDrawer = !showSourcesDrawer)}
+        aria-label="Toggle retrieved evidence sources"
         title="Toggle retrieved evidence sources"
       >
         <svg class="sources-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -298,6 +263,7 @@
                           class="inline-cit-pill"
                           class:cit-selected={isSelected}
                           onclick={() => toggleCitation(msgIdx, segment.content)}
+                          aria-label="View citation {segment.content}"
                           title="Click to view verified evidence passage"
                         >
                           {segment.content}
@@ -382,7 +348,7 @@
         {#if queryError}
           <div class="input-error-alert">
             <span>{queryError}</span>
-            <button class="btn-clear-err" onclick={() => (queryError = null)}>✕</button>
+            <button class="btn-clear-err" onclick={() => (queryError = null)} aria-label="Dismiss error">✕</button>
           </div>
         {/if}
 
@@ -391,6 +357,7 @@
             bind:this={inputRef}
             class="composer-textarea"
             placeholder="Ask a question about {document.filename}... (Press Enter to send)"
+            aria-label="Ask a question about {document.filename}"
             bind:value={inputQuery}
             onkeydown={handleKeyDown}
             disabled={isQuerying}
@@ -401,6 +368,7 @@
             class="btn-send"
             onclick={() => handleSubmit()}
             disabled={isQuerying || !inputQuery.trim()}
+            aria-label="Send query"
             title="Send query"
           >
             {#if isQuerying}
@@ -426,7 +394,7 @@
         <div class="drawer-header">
           <div class="drawer-title-row">
             <h3 class="drawer-title">Document Evidence Sources</h3>
-            <button class="btn-close-drawer" onclick={() => (showSourcesDrawer = false)}>✕</button>
+            <button class="btn-close-drawer" onclick={() => (showSourcesDrawer = false)} aria-label="Close evidence drawer">✕</button>
           </div>
           <p class="drawer-sub">
             Inspecting grounded knowledge sources for <em>{document.filename}</em>.

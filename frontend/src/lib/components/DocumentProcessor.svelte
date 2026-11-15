@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '#lib/api';
+  import { PROCESSING_STAGES, getStageIndex, getProgressPercent } from '#lib/processing';
   import type { DocumentDetailResponse, DocumentSummary } from '#lib/types';
 
   interface Props {
@@ -14,15 +15,7 @@
 
   let { docId, initialFilename = '', initialFileSize = 0, onReady, onCancel, onError }: Props = $props();
 
-  type ProcessingStage = 'upload' | 'extraction' | 'chunking' | 'indexing' | 'ready';
-
-  const STAGES: { key: ProcessingStage; label: string; desc: string }[] = [
-    { key: 'upload', label: 'UPLOAD', desc: 'File received & validated' },
-    { key: 'extraction', label: 'EXTRACTION', desc: 'Parsing structure & text' },
-    { key: 'chunking', label: 'CHUNKING', desc: 'Citation-aware chunk boundaries' },
-    { key: 'indexing', label: 'INDEXING', desc: 'Dense vectors & BM25 generation' },
-    { key: 'ready', label: 'READY', desc: 'Index verified & ready' }
-  ];
+  const STAGES = PROCESSING_STAGES;
 
   let currentDoc = $state<DocumentDetailResponse | null>(null);
   let status = $state<string>('UPLOADED');
@@ -31,32 +24,10 @@
   let isCompleted = $state<boolean>(false);
 
   // Derived current stage index (0 to 4)
-  let currentStageIndex = $derived.by(() => {
-    const s = (status || '').toUpperCase();
-    if (s === 'READY') return 4;
-    if (s === 'INDEXING') return 3;
-    if (s === 'CHUNKING') return 2;
-    if (s === 'EXTRACTING') return 1;
-    return 0; // UPLOADED
-  });
+  let currentStageIndex = $derived.by(() => getStageIndex(status));
 
   // Honest progress percentage based on verified stage transitions
-  let progressPercent = $derived.by(() => {
-    switch (currentStageIndex) {
-      case 0:
-        return 20;
-      case 1:
-        return 42;
-      case 2:
-        return 68;
-      case 3:
-        return 88;
-      case 4:
-        return 100;
-      default:
-        return 20;
-    }
-  });
+  let progressPercent = $derived.by(() => getProgressPercent(currentStageIndex));
 
   function formatBytes(bytes: number): string {
     if (!bytes || bytes <= 0) return '0 B';
@@ -129,7 +100,7 @@
     </div>
 
     {#if !isCompleted && !errorMessage && onCancel}
-      <button class="btn-cancel" onclick={onCancel} title="Dismiss progress card">✕</button>
+      <button class="btn-cancel" onclick={onCancel} aria-label="Dismiss progress card" title="Dismiss progress card">✕</button>
     {/if}
   </div>
 
@@ -146,7 +117,14 @@
     </div>
   {:else}
     <!-- Stage Progression Bar -->
-    <div class="stages-track">
+    <div
+      class="stages-track"
+      role="progressbar"
+      aria-valuenow={progressPercent}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-label="Document ingestion progression"
+    >
       <div class="progress-bar-glow" style="width: {progressPercent}%"></div>
 
       <div class="stages-row">

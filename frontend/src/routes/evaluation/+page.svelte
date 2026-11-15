@@ -1335,19 +1335,30 @@
 
 <!-- MODAL: CREATE DATASET -->
 {#if showCreateDatasetModal}
-  <div class="modal-backdrop" onclick={() => (showCreateDatasetModal = false)}>
-    <div class="modal-card card" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-backdrop">
+    <button
+      type="button"
+      class="modal-scrim"
+      aria-label="Close dialog"
+      onclick={() => (showCreateDatasetModal = false)}
+    ></button>
+    <div
+      class="modal-card card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-ds-modal-title"
+    >
       <div class="modal-header">
-        <h3>Create Benchmark Dataset</h3>
-        <button class="btn-text" onclick={() => (showCreateDatasetModal = false)}>✕</button>
+        <h3 id="create-ds-modal-title">Create Benchmark Dataset</h3>
+        <button class="btn-text" aria-label="Close modal" onclick={() => (showCreateDatasetModal = false)}>✕</button>
       </div>
       <div class="form-group">
-        <label class="form-label">Dataset Name</label>
-        <input type="text" class="form-input" bind:value={newDatasetName} placeholder="e.g. Legal Q&A Benchmark" />
+        <label for="new-ds-name" class="form-label">Dataset Name</label>
+        <input id="new-ds-name" type="text" class="form-input" bind:value={newDatasetName} placeholder="e.g. Legal Q&A Benchmark" />
       </div>
       <div class="form-group">
-        <label class="form-label">Description</label>
-        <textarea class="form-textarea" bind:value={newDatasetDesc} placeholder="Describe evaluation objectives..."></textarea>
+        <label for="new-ds-desc" class="form-label">Description</label>
+        <textarea id="new-ds-desc" class="form-textarea" bind:value={newDatasetDesc} placeholder="Describe evaluation objectives..."></textarea>
       </div>
       <div class="modal-footer">
         <button class="btn-outline" onclick={() => (showCreateDatasetModal = false)}>Cancel</button>
@@ -1359,19 +1370,31 @@
 
 <!-- MODAL: IMPORT JSONL -->
 {#if showImportModal}
-  <div class="modal-backdrop" onclick={() => (showImportModal = false)}>
-    <div class="modal-card card" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-backdrop">
+    <button
+      type="button"
+      class="modal-scrim"
+      aria-label="Close dialog"
+      onclick={() => (showImportModal = false)}
+    ></button>
+    <div
+      class="modal-card card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="import-ds-modal-title"
+    >
       <div class="modal-header">
-        <h3>Import Benchmark Dataset (JSONL)</h3>
-        <button class="btn-text" onclick={() => (showImportModal = false)}>✕</button>
+        <h3 id="import-ds-modal-title">Import Benchmark Dataset (JSONL)</h3>
+        <button class="btn-text" aria-label="Close modal" onclick={() => (showImportModal = false)}>✕</button>
       </div>
       <div class="form-group">
-        <label class="form-label">Dataset Title</label>
-        <input type="text" class="form-input" bind:value={importName} placeholder="Imported Benchmark Title" />
+        <label for="import-ds-name" class="form-label">Dataset Title</label>
+        <input id="import-ds-name" type="text" class="form-input" bind:value={importName} placeholder="Imported Benchmark Title" />
       </div>
       <div class="form-group">
-        <label class="form-label">Raw JSONL Content</label>
+        <label for="import-ds-jsonl" class="form-label">Raw JSONL Content</label>
         <textarea
+          id="import-ds-jsonl"
           class="form-textarea code-area"
           bind:value={importJsonlContent}
           placeholder={`{"query_id": "Q-01", "query": "Example text", "relevance_judgments": [{"chunk_id": "c1", "grade": 2}]}`}
@@ -1387,31 +1410,42 @@
 
 <!-- MODAL: ADD QUERY -->
 {#if showAddQueryModal}
-  <div class="modal-backdrop" onclick={() => (showAddQueryModal = false)}>
-    <div class="modal-card card" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-backdrop">
+    <button
+      type="button"
+      class="modal-scrim"
+      aria-label="Close dialog"
+      onclick={() => (showAddQueryModal = false)}
+    ></button>
+    <div
+      class="modal-card card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-query-modal-title"
+    >
       <div class="modal-header">
-        <h3>Add Golden Evaluation Query</h3>
-        <button class="btn-text" onclick={() => (showAddQueryModal = false)}>✕</button>
+        <h3 id="add-query-modal-title">Add Golden Evaluation Query</h3>
+        <button class="btn-text" aria-label="Close modal" onclick={() => (showAddQueryModal = false)}>✕</button>
       </div>
       <div class="form-group">
-        <label class="form-label">Query ID</label>
-        <input type="text" class="form-input" bind:value={newQueryId} placeholder="e.g. Q-01" />
+        <label for="add-q-id" class="form-label">Query ID</label>
+        <input id="add-q-id" type="text" class="form-input" bind:value={newQueryId} placeholder="e.g. Q-01" />
       </div>
       <div class="form-group">
-        <label class="form-label">Question Text</label>
-        <input type="text" class="form-input" bind:value={newQueryText} placeholder="Enter evaluation question..." />
+        <label for="add-q-text" class="form-label">Question Text</label>
+        <input id="add-q-text" type="text" class="form-input" bind:value={newQueryText} placeholder="Enter evaluation question..." />
       </div>
       <div class="form-group">
-        <label class="form-label">Expected Reference Answer (Optional)</label>
-        <textarea class="form-textarea" bind:value={newQueryAnswer} placeholder="Ground truth answer text..."></textarea>
+        <label for="add-q-ans" class="form-label">Expected Reference Answer (Optional)</label>
+        <textarea id="add-q-ans" class="form-textarea" bind:value={newQueryAnswer} placeholder="Ground truth answer text..."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Relevant Chunk IDs (comma-separated)</label>
-        <input type="text" class="form-input" bind:value={newQueryChunks} placeholder="doc_1:chunk:0, doc_1:chunk:1" />
+        <label for="add-q-chunks" class="form-label">Relevant Chunk IDs (comma-separated)</label>
+        <input id="add-q-chunks" type="text" class="form-input" bind:value={newQueryChunks} placeholder="doc_1:chunk:0, doc_1:chunk:1" />
       </div>
       <div class="form-group">
-        <label class="form-label">Required Citation IDs (comma-separated, optional)</label>
-        <input type="text" class="form-input" bind:value={newQueryCitations} placeholder="CIT-01, CIT-02" />
+        <label for="add-q-cits" class="form-label">Required Citation IDs (comma-separated, optional)</label>
+        <input id="add-q-cits" type="text" class="form-input" bind:value={newQueryCitations} placeholder="CIT-01, CIT-02" />
       </div>
       <div class="modal-footer">
         <button class="btn-outline" onclick={() => (showAddQueryModal = false)}>Cancel</button>
@@ -1423,11 +1457,22 @@
 
 <!-- MODAL: REPRODUCIBILITY -->
 {#if showReproducibilityModal && selectedReproducibility}
-  <div class="modal-backdrop" onclick={() => (showReproducibilityModal = false)}>
-    <div class="modal-card card" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-backdrop">
+    <button
+      type="button"
+      class="modal-scrim"
+      aria-label="Close dialog"
+      onclick={() => (showReproducibilityModal = false)}
+    ></button>
+    <div
+      class="modal-card card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="repro-modal-title"
+    >
       <div class="modal-header">
-        <h3>Reproducibility Manifest</h3>
-        <button class="btn-text" onclick={() => (showReproducibilityModal = false)}>✕</button>
+        <h3 id="repro-modal-title">Reproducibility Manifest</h3>
+        <button class="btn-text" aria-label="Close modal" onclick={() => (showReproducibilityModal = false)}>✕</button>
       </div>
       <div class="repro-body">
         <div class="repro-row">
@@ -2152,7 +2197,21 @@
     z-index: 100;
   }
 
+  .modal-scrim {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
   .modal-card {
+    position: relative;
+    z-index: 1;
     width: 90%;
     max-width: 600px;
     max-height: 90vh;

@@ -279,6 +279,7 @@
                 bind:this={fileInputRef}
                 class="hidden-file-input"
                 accept=".pdf,.txt,.md,.markdown"
+                aria-label="Upload document file"
                 onchange={handleFileInputChange}
               />
               <button
@@ -304,7 +305,7 @@
         <div class="error-banner">
           <span class="error-icon">⚠️</span>
           <span>{errorMessage}</span>
-          <button class="btn-close-error" onclick={() => (errorMessage = null)}>✕</button>
+          <button class="btn-close-error" onclick={() => (errorMessage = null)} aria-label="Dismiss error message">✕</button>
         </div>
       {/if}
 
@@ -400,6 +401,7 @@
                     type="button"
                     class="btn-delete-doc"
                     onclick={() => handleDeleteDocument(doc.doc_id, doc.filename)}
+                    aria-label="Delete document {doc.filename}"
                     title="Delete document and index"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

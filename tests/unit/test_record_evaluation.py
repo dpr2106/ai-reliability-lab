@@ -1,48 +1,78 @@
-"""Focused unit tests for the demo evaluation recorder and reproducibility provenance (V2-006.2)."""
+"""Focused unit tests for evaluation recorder and provenance (V2-006.2.1)."""
 
 import re
+from typing import Any
 
 import httpx
 import pytest
 
 from scripts.record_demo_evaluation import (
     compare_run_metrics,
+    extract_config_hash,
     extract_dataset_content_hash,
     poll_evaluation_job,
     request_json,
     select_golden_dataset,
+    validate_and_compare_runs,
     validate_document_scope,
+    validate_sha256_digest,
 )
 
 SAMPLE_HASH = "88ee2c58555b5d86f789dd660f30365659acc59375809c6b5df528780280425e"
+SAMPLE_CONFIG_HASH = "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5"
 
 
-class TestDatasetHashExtraction:
-    """Test truthful dataset_content_hash extraction and fail-closed validation."""
+class TestHashValidationStrictness:
+    """Test strict 64-character hexadecimal SHA-256 digest validation."""
 
-    def test_extract_valid_dataset_content_hash_from_repro_data(self) -> None:
+    def test_valid_lowercase_hash(self) -> None:
+        val = validate_sha256_digest(SAMPLE_HASH, "test_hash")
+        assert val == SAMPLE_HASH
+
+    def test_valid_uppercase_hash_normalizes_to_lowercase(self) -> None:
+        upper_hash = SAMPLE_HASH.upper()
+        val = validate_sha256_digest(upper_hash, "test_hash")
+        assert val == SAMPLE_HASH
+
+    def test_short_hash_raises_value_error(self) -> None:
+        short_hash = SAMPLE_HASH[:60]
+        with pytest.raises(ValueError, match=re.escape("invalid length 60 (expected exactly 64")):
+            validate_sha256_digest(short_hash, "test_hash")
+
+    def test_long_hash_raises_value_error(self) -> None:
+        long_hash = SAMPLE_HASH + "abcd"
+        with pytest.raises(ValueError, match=re.escape("invalid length 68 (expected exactly 64")):
+            validate_sha256_digest(long_hash, "test_hash")
+
+    def test_non_hexadecimal_characters_raise_value_error(self) -> None:
+        # Replace first characters with non-hex 'zzzz'
+        non_hex = "zzzz" + SAMPLE_HASH[4:]
+        with pytest.raises(ValueError, match="contains non-hexadecimal characters"):
+            validate_sha256_digest(non_hex, "test_hash")
+
+    def test_missing_or_empty_hash_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="missing or empty"):
+            validate_sha256_digest(None, "test_hash")
+        with pytest.raises(ValueError, match="missing or empty"):
+            validate_sha256_digest("", "test_hash")
+        with pytest.raises(ValueError, match="missing or empty"):
+            validate_sha256_digest("   ", "test_hash")
+
+    def test_extract_dataset_content_hash_success(self) -> None:
         repro_data = {"metadata": {"dataset_content_hash": SAMPLE_HASH}}
         run_data = {"metadata": {}}
         hash_val = extract_dataset_content_hash(repro_data, run_data)
         assert hash_val == SAMPLE_HASH
 
-    def test_extract_valid_dataset_content_hash_from_run_data_fallback(self) -> None:
-        repro_data = {"metadata": {}}
-        run_data = {"metadata": {"dataset_content_hash": SAMPLE_HASH}}
-        hash_val = extract_dataset_content_hash(repro_data, run_data)
-        assert hash_val == SAMPLE_HASH
+    def test_extract_config_hash_success(self) -> None:
+        run_data = {"config_hash": SAMPLE_CONFIG_HASH}
+        hash_val = extract_config_hash(run_data)
+        assert hash_val == SAMPLE_CONFIG_HASH
 
-    def test_extract_dataset_content_hash_fails_closed_when_missing(self) -> None:
-        repro_data = {"metadata": {}}
-        run_data = {"run_id": "run_test_001", "metadata": {}}
-        with pytest.raises(ValueError, match="Verified dataset_content_hash is unavailable"):
-            extract_dataset_content_hash(repro_data, run_data)
-
-    def test_extract_dataset_content_hash_fails_closed_when_invalid_short_string(self) -> None:
-        repro_data = {"metadata": {"dataset_content_hash": "short_hash"}}
-        run_data = {"run_id": "run_test_002", "metadata": {}}
-        with pytest.raises(ValueError, match="Verified dataset_content_hash is unavailable"):
-            extract_dataset_content_hash(repro_data, run_data)
+    def test_extract_config_hash_fails_when_missing(self) -> None:
+        run_data = {}
+        with pytest.raises(ValueError, match="missing or empty"):
+            extract_config_hash(run_data)
 
 
 class TestMetricComparisonHonesty:
@@ -115,10 +145,10 @@ class TestDatasetSelectionAndAmbiguity:
             select_golden_dataset(datasets)
 
 
-class TestDocumentScopeValidation:
-    """Test validation of expected Northstar corpus documents and statuses."""
+class TestExactDocumentScopeValidation:
+    """Test strict validation of expected Northstar corpus documents and dataset scopes."""
 
-    def test_validate_document_scope_success(self) -> None:
+    def test_validate_exact_document_scope_success(self) -> None:
         target_ds = {"document_ids": ["doc_arch", "doc_bench", "doc_inc"]}
         all_docs = [
             {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
@@ -129,18 +159,72 @@ class TestDocumentScopeValidation:
         doc_ids = validate_document_scope(target_ds, all_docs)
         assert doc_ids == ["doc_arch", "doc_bench", "doc_inc"]
 
-    def test_validate_document_scope_fails_on_missing_doc(self) -> None:
-        target_ds = {}
+    def test_validate_document_scope_fails_on_missing_dataset_document_ids(self) -> None:
+        # Dataset declares only 2 of the 3 required Northstar documents
+        target_ds = {"document_ids": ["doc_arch", "doc_bench"]}
         all_docs = [
             {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
             {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
-            # missing incident_report.md
+            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
         ]
-        with pytest.raises(ValueError, match="missing from API"):
+        with pytest.raises(ValueError, match="missing expected Northstar document IDs"):
             validate_document_scope(target_ds, all_docs)
 
-    def test_validate_document_scope_fails_on_unready_doc(self) -> None:
-        target_ds = {}
+    def test_validate_document_scope_fails_on_unexpected_dataset_document_ids(self) -> None:
+        # Dataset contains extra/unexpected document ID
+        target_ds = {"document_ids": ["doc_arch", "doc_bench", "doc_inc", "doc_foreign_999"]}
+        all_docs = [
+            {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
+            {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
+            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
+        ]
+        with pytest.raises(ValueError, match="unexpected document IDs"):
+            validate_document_scope(target_ds, all_docs)
+
+    def test_validate_document_scope_fails_on_empty_dataset_scope(self) -> None:
+        target_ds = {"document_ids": []}
+        all_docs = [
+            {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
+            {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
+            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
+        ]
+        with pytest.raises(ValueError, match="empty, missing, or not a list"):
+            validate_document_scope(target_ds, all_docs)
+
+    def test_validate_document_scope_fails_on_duplicate_dataset_document_ids(self) -> None:
+        target_ds = {"document_ids": ["doc_arch", "doc_bench", "doc_inc", "doc_arch"]}
+        all_docs = [
+            {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
+            {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
+            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
+        ]
+        with pytest.raises(ValueError, match="duplicate document IDs"):
+            validate_document_scope(target_ds, all_docs)
+
+    def test_validate_document_scope_fails_on_duplicate_filenames_in_repository(self) -> None:
+        target_ds = {"document_ids": ["doc_arch", "doc_bench", "doc_inc"]}
+        all_docs = [
+            {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
+            {"doc_id": "doc_arch_dup", "filename": "architecture.md", "status": "READY"},
+            {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
+            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
+        ]
+        with pytest.raises(ValueError, match="Duplicate document filename detected"):
+            validate_document_scope(target_ds, all_docs)
+
+    def test_validate_document_scope_fails_on_duplicate_doc_ids_in_repository(self) -> None:
+        target_ds = {"document_ids": ["doc_arch", "doc_bench", "doc_inc"]}
+        all_docs = [
+            {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
+            {"doc_id": "doc_arch", "filename": "other.md", "status": "READY"},
+            {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
+            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
+        ]
+        with pytest.raises(ValueError, match="Duplicate document ID detected in repository"):
+            validate_document_scope(target_ds, all_docs)
+
+    def test_validate_document_scope_fails_on_unready_document(self) -> None:
+        target_ds = {"document_ids": ["doc_arch", "doc_bench", "doc_inc"]}
         all_docs = [
             {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
             {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "INDEXING"},
@@ -149,15 +233,125 @@ class TestDocumentScopeValidation:
         with pytest.raises(ValueError, match="is not READY"):
             validate_document_scope(target_ds, all_docs)
 
-    def test_validate_document_scope_fails_on_mismatched_dataset_ids(self) -> None:
-        target_ds = {"document_ids": ["doc_foreign_123"]}
-        all_docs = [
-            {"doc_id": "doc_arch", "filename": "architecture.md", "status": "READY"},
-            {"doc_id": "doc_bench", "filename": "benchmark_report.md", "status": "READY"},
-            {"doc_id": "doc_inc", "filename": "incident_report.md", "status": "READY"},
-        ]
-        with pytest.raises(ValueError, match="unexpected document IDs"):
-            validate_document_scope(target_ds, all_docs)
+
+class TestIndependentCrossRunValidation:
+    """Test independent extraction and cross-run validation across both evaluation runs."""
+
+    @pytest.fixture
+    def valid_run_entries(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        metrics = {"hit_rate@5": 0.8, "mrr@5": 0.7, "ndcg@5": 0.7262}
+        r1 = {
+            "run_data": {
+                "run_id": "run_001",
+                "experiment_name": "northstar_baseline_run_1",
+                "config_hash": SAMPLE_CONFIG_HASH,
+                "config": {
+                    "retriever": "bm25",
+                    "top_k": 5,
+                    "generator_provider": "mock",
+                    "generator_model": "mock-pipeline",
+                },
+                "metadata": {
+                    "dataset_content_hash": SAMPLE_HASH,
+                    "document_ids": ["doc_1", "doc_2", "doc_3"],
+                },
+                "metrics": metrics,
+                "query_count": 10,
+            },
+            "repro_data": {
+                "dataset_id": "ds_8138dee2cb55",
+                "reproducibility_tier": "exact",
+                "can_reproduce": True,
+                "corpus_document_ids": ["doc_1", "doc_2", "doc_3"],
+                "metadata": {"dataset_content_hash": SAMPLE_HASH},
+            },
+        }
+        r2 = {
+            "run_data": {
+                "run_id": "run_002",
+                "experiment_name": "northstar_baseline_run_2",
+                "config_hash": SAMPLE_CONFIG_HASH,
+                "config": {
+                    "retriever": "bm25",
+                    "top_k": 5,
+                    "generator_provider": "mock",
+                    "generator_model": "mock-pipeline",
+                },
+                "metadata": {
+                    "dataset_content_hash": SAMPLE_HASH,
+                    "document_ids": ["doc_1", "doc_2", "doc_3"],
+                },
+                "metrics": metrics,
+                "query_count": 10,
+            },
+            "repro_data": {
+                "dataset_id": "ds_8138dee2cb55",
+                "reproducibility_tier": "exact",
+                "can_reproduce": True,
+                "corpus_document_ids": ["doc_1", "doc_2", "doc_3"],
+                "metadata": {"dataset_content_hash": SAMPLE_HASH},
+            },
+        }
+        return r1, r2
+
+    def test_identical_runs_pass_validation_with_exact_tier(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        val = validate_and_compare_runs(r1, r2)
+
+        assert val["is_comparable"] is True
+        assert val["provenance_compatible"] is True
+        assert val["incompatibilities"] == []
+        assert val["overall_reproducibility_tier"] == "exact"
+
+    def test_conflicting_dataset_hashes_fails_cross_run_compatibility(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        # Modify Run 2 dataset hash
+        alt_hash = "1111111111111111111111111111111111111111111111111111111111111111"
+        r2["run_data"]["metadata"]["dataset_content_hash"] = alt_hash
+        r2["repro_data"]["metadata"]["dataset_content_hash"] = alt_hash
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert any("Dataset content hash mismatch" in s for s in val["incompatibilities"])
+
+    def test_conflicting_config_hashes_fails_cross_run_compatibility(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        alt_cfg = "2222222222222222222222222222222222222222222222222222222222222222"
+        r2["run_data"]["config_hash"] = alt_cfg
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert any("Config hash mismatch" in s for s in val["incompatibilities"])
+
+    def test_conflicting_document_scopes_fails_cross_run_compatibility(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r2["repro_data"]["corpus_document_ids"] = ["doc_1", "doc_2", "doc_diff"]
+        r2["run_data"]["metadata"]["document_ids"] = ["doc_1", "doc_2", "doc_diff"]
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert any("Document scope mismatch" in s for s in val["incompatibilities"])
+
+    def test_non_exact_tier_downgrades_overall_reproducibility(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r2["repro_data"]["reproducibility_tier"] = "partial"
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["overall_reproducibility_tier"] == "partial"
+        assert any("tier is not exact" in s for s in val["incompatibilities"])
 
 
 class TestHttpAndPollingBehavior:

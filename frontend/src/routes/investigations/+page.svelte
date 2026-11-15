@@ -39,7 +39,8 @@
         api.listDocuments({ limit: 100 })
       ]);
       investigations = invRes.investigations;
-      availableDocs = docRes.items.filter((d) => d.status === 'ready' && d.chunk_count > 0);
+      const docs = docRes?.documents ?? docRes?.items ?? [];
+      availableDocs = docs.filter((d) => (d?.status ?? '').toLowerCase() === 'ready' && (d?.chunk_count ?? 0) > 0);
     } catch (err: unknown) {
       errorMessage = err instanceof Error ? err.message : String(err);
     } finally {

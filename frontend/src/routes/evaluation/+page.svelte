@@ -120,9 +120,10 @@
         api.listRuns({ limit: 50 }),
         api.getMetricsMeta()
       ]);
-      availableDatasets = dsRes.datasets;
-      availableDocs = docRes.items.filter((d) => d.status === 'ready');
-      availableRuns = runRes.runs;
+      availableDatasets = dsRes?.datasets ?? [];
+      const docs = docRes?.documents ?? docRes?.items ?? [];
+      availableDocs = docs.filter((d) => (d?.status ?? '').toLowerCase() === 'ready');
+      availableRuns = runRes?.runs ?? [];
       metricsCatalog = metaRes;
 
       if (availableDatasets.length > 0 && !launcherDatasetId) {
@@ -535,57 +536,83 @@
 
           <div class="form-group">
             <label for="dataset-select" class="form-label">Benchmark Evaluation Dataset</label>
-            <select id="dataset-select" class="form-select" bind:value={launcherDatasetId}>
-              {#each availableDatasets as ds}
-                <option value={ds.dataset_id}>
-                  {ds.name} ({ds.query_count} queries){ds.is_synthetic ? ' [SYNTHETIC]' : ''}
-                </option>
-              {/each}
-            </select>
-            <span class="form-hint">
-              Ground-truth answers and relevance labels are strictly isolated and never leak into generation prompts.
-            </span>
+            {#if availableDatasets.length === 0}
+              <div class="empty-field-box">
+                <span class="empty-field-icon">&#9432;</span>
+                <div class="empty-field-text">
+                  <strong>No benchmark datasets found</strong>
+                  <p>Create or import a benchmark dataset with golden Q&amp;A queries to evaluate retrieval performance.</p>
+                </div>
+                <button type="button" class="btn-sm btn-outline" onclick={() => (activeTab = 'datasets')}>
+                  Go to Dataset Studio &rarr;
+                </button>
+              </div>
+            {:else}
+              <select id="dataset-select" class="form-select" bind:value={launcherDatasetId}>
+                {#each availableDatasets as ds}
+                  <option value={ds.dataset_id}>
+                    {ds.name} ({ds.query_count} queries){ds.is_synthetic ? ' [SYNTHETIC]' : ''}
+                  </option>
+                {/each}
+              </select>
+              <span class="form-hint">
+                Ground-truth answers and relevance labels are strictly isolated and never leak into generation prompts.
+              </span>
+            {/if}
           </div>
 
           <div class="form-group">
             <span class="form-label">
               Document Corpus Scope ({availableDocs.length} ready documents)
             </span>
-            <div class="doc-checklist">
-              {#each availableDocs as doc}
-                <label class="doc-check-item">
-                  <input
-                    type="checkbox"
-                    checked={launcherSelectedDocIds.includes(doc.doc_id)}
-                    onchange={() => {
-                      if (launcherSelectedDocIds.includes(doc.doc_id)) {
-                        launcherSelectedDocIds = launcherSelectedDocIds.filter((id) => id !== doc.doc_id);
-                      } else {
-                        launcherSelectedDocIds = [...launcherSelectedDocIds, doc.doc_id];
-                      }
-                    }}
-                  />
-                  <span class="doc-title">{doc.filename}</span>
-                  <span class="doc-meta">{doc.chunk_count} chunks</span>
-                </label>
-              {/each}
-            </div>
-            <div class="check-actions">
-              <button
-                type="button"
-                class="btn-text"
-                onclick={() => (launcherSelectedDocIds = availableDocs.map((d) => d.doc_id))}
-              >
-                Select All
-              </button>
-              <button
-                type="button"
-                class="btn-text"
-                onclick={() => (launcherSelectedDocIds = [])}
-              >
-                Clear (Evaluate Entire Repository)
-              </button>
-            </div>
+            {#if availableDocs.length === 0}
+              <div class="empty-field-box">
+                <span class="empty-field-icon">&#128196;</span>
+                <div class="empty-field-text">
+                  <strong>No ready documents in corpus library</strong>
+                  <p>Upload and index documents in the workspace to evaluate retrieval accuracy against your corpus.</p>
+                </div>
+                <a href="/" class="btn-sm btn-outline">
+                  Open Document Workspace &rarr;
+                </a>
+              </div>
+            {:else}
+              <div class="doc-checklist">
+                {#each availableDocs as doc}
+                  <label class="doc-check-item">
+                    <input
+                      type="checkbox"
+                      checked={launcherSelectedDocIds.includes(doc.doc_id)}
+                      onchange={() => {
+                        if (launcherSelectedDocIds.includes(doc.doc_id)) {
+                          launcherSelectedDocIds = launcherSelectedDocIds.filter((id) => id !== doc.doc_id);
+                        } else {
+                          launcherSelectedDocIds = [...launcherSelectedDocIds, doc.doc_id];
+                        }
+                      }}
+                    />
+                    <span class="doc-title">{doc.filename}</span>
+                    <span class="doc-meta">{doc.chunk_count} chunks</span>
+                  </label>
+                {/each}
+              </div>
+              <div class="check-actions">
+                <button
+                  type="button"
+                  class="btn-text"
+                  onclick={() => (launcherSelectedDocIds = availableDocs.map((d) => d.doc_id))}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  class="btn-text"
+                  onclick={() => (launcherSelectedDocIds = [])}
+                >
+                  Clear (Evaluate Entire Repository)
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
 
@@ -781,6 +808,14 @@
           </div>
 
           <div class="dataset-list">
+            {#if availableDatasets.length === 0}
+              <div class="empty-list-notice">
+                <p>No benchmark datasets found.</p>
+                <button type="button" class="btn-sm btn-outline" style="margin-top: 0.5rem;" onclick={() => (showCreateDatasetModal = true)}>
+                  + New Dataset
+                </button>
+              </div>
+            {/if}
             {#each availableDatasets as ds}
               <button
                 class="dataset-item-btn"
@@ -895,7 +930,13 @@
               {/if}
             </div>
           {:else}
-            <div class="empty-state">Select a benchmark dataset to inspect its golden queries.</div>
+            <div class="empty-state-card card">
+              <span style="font-size: 2rem; margin-bottom: 0.5rem;">📊</span>
+              <h3>No Benchmark Dataset Selected</h3>
+              <p style="color: var(--text-muted); max-width: 480px; margin-top: 0.25rem;">
+                Select a benchmark dataset from the left panel, or create a new benchmark to define evaluation queries and ground-truth evidence.
+              </p>
+            </div>
           {/if}
         </main>
       </div>
@@ -2130,6 +2171,57 @@
     justify-content: flex-end;
     gap: 0.75rem;
     margin-top: 1.5rem;
+  }
+
+  /* Empty state helpers */
+  .empty-field-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background: rgba(31, 41, 61, 0.35);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+  }
+
+  .empty-field-icon {
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .empty-field-text {
+    flex: 1;
+    font-size: 0.825rem;
+  }
+
+  .empty-field-text strong {
+    display: block;
+    color: var(--text-main);
+    margin-bottom: 0.15rem;
+  }
+
+  .empty-field-text p {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin: 0;
+  }
+
+  .empty-list-notice {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .empty-state-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    text-align: center;
   }
 </style>
 

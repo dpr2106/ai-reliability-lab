@@ -176,12 +176,16 @@ export interface DocumentSummary {
   doc_id: string;
   filename: string;
   file_type: string;
-  file_size_bytes: number;
+  file_size?: number;
+  file_size_bytes?: number;
+  content_hash?: string;
   status: string;
+  indexing_status?: string;
   chunk_count: number;
   page_count: number | null;
   created_at: string;
-  processed_at: string | null;
+  updated_at?: string;
+  processed_at?: string | null;
   error_message: string | null;
 }
 
@@ -189,7 +193,188 @@ export interface DocumentListResponse {
   total: number;
   limit: number;
   offset: number;
-  items: DocumentSummary[];
+  documents: DocumentSummary[];
+  items?: DocumentSummary[];
+}
+
+export interface DocumentUploadResponse {
+  doc_id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  content_hash: string;
+  status: string;
+  indexing_status: string;
+  created_at: string;
+  message: string;
+}
+
+export interface DocumentDetailResponse {
+  doc_id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  content_hash: string;
+  status: string;
+  page_count: number | null;
+  chunk_count: number;
+  indexing_status: string;
+  error_message: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentChunk {
+  chunk_id: string;
+  doc_id: string;
+  index_in_doc: number;
+  text: string;
+  page_number: number | null;
+  char_start: number | null;
+  char_end: number | null;
+  token_count: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface DocumentChunkListResponse {
+  doc_id: string;
+  total: number;
+  limit: number;
+  offset: number;
+  chunks: DocumentChunk[];
+}
+
+export interface ResolvedCitation {
+  marker: string;
+  alias: string;
+  chunk_id: string;
+  doc_id: string;
+  filename: string;
+  page_number?: number | null;
+  char_start?: number | null;
+  char_end?: number | null;
+  snippet: string;
+  is_valid?: boolean;
+}
+
+export interface UnresolvedCitation {
+  marker: string;
+  alias: string;
+  is_valid: boolean;
+  reason: string;
+}
+
+export interface MalformedCitation {
+  raw_text: string;
+  span: number[];
+  is_valid: boolean;
+  reason: string;
+}
+
+export interface QueryRequest {
+  query: string;
+  document_ids: string[];
+  strategy?: 'bm25' | 'dense' | 'hybrid';
+  top_k?: number;
+  candidate_depth?: number;
+  min_dense_score?: number | null;
+}
+
+export interface QueryResponse {
+  answer: string;
+  query_text: string;
+  selected_doc_ids: string[];
+  strategy: string;
+  effective_strategy: string;
+  fallback_reason: string | null;
+  abstained: boolean;
+  retrieval_abstained: boolean;
+  generation_abstained: boolean;
+  abstention_reason: string | null;
+  resolved_citations: ResolvedCitation[];
+  unresolved_citations: UnresolvedCitation[];
+  malformed_citations: MalformedCitation[];
+  trace: Record<string, unknown>;
+  latency_ms: number;
+}
+
+export interface SessionSummary {
+  session_id: string;
+  title: string | null;
+  created_at: string;
+  last_activity_at: string;
+  selected_doc_id: string | null;
+  message_count: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface SessionListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  sessions: SessionSummary[];
+}
+
+export interface SessionMessage {
+  message_id: string;
+  session_id: string;
+  role: 'user' | 'assistant' | string;
+  content: string;
+  created_at: string;
+  resolved_citations?: ResolvedCitation[];
+  unresolved_citations?: UnresolvedCitation[];
+  malformed_citations?: MalformedCitation[];
+  query_trace?: Record<string, unknown> | null;
+  total_latency_ms?: number | null;
+}
+
+export interface SessionDetailResponse {
+  session_id: string;
+  title: string | null;
+  created_at: string;
+  last_activity_at: string;
+  selected_doc_id: string | null;
+  metadata: Record<string, unknown>;
+  message_count: number;
+  messages: SessionMessage[];
+}
+
+export interface CreateSessionRequest {
+  title?: string;
+  selected_doc_id?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SessionQueryRequest {
+  query: string;
+  document_ids?: string[];
+  strategy?: 'bm25' | 'dense' | 'hybrid';
+  top_k?: number;
+  candidate_depth?: number;
+  min_dense_score?: number | null;
+  max_history_messages?: number;
+}
+
+export interface SessionQueryResponse {
+  session_id: string;
+  user_message_id: string;
+  assistant_message_id: string;
+  answer: string;
+  query_text: string;
+  selected_doc_ids: string[];
+  strategy: string;
+  effective_strategy: string;
+  fallback_reason: string | null;
+  abstained: boolean;
+  retrieval_abstained: boolean;
+  generation_abstained: boolean;
+  abstention_reason: string | null;
+  resolved_citations: ResolvedCitation[];
+  unresolved_citations: UnresolvedCitation[];
+  malformed_citations: MalformedCitation[];
+  trace: Record<string, unknown>;
+  latency_ms: number;
 }
 
 // -----------------------------------------------------------------------------

@@ -28,6 +28,27 @@ API_URL = os.environ.get("STING_API_URL", "http://127.0.0.1:8000")
 NORTHSTAR_FILENAMES = ("architecture.md", "benchmark_report.md", "incident_report.md")
 NORTHSTAR_DATASET_NAME = "Northstar Golden Benchmark"
 SHA256_HEX_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+GIT_SHA_HEX_PATTERN = re.compile(r"^[0-9a-f]{40}$|^[0-9a-f]{64}$")
+
+
+def validate_git_commit_sha(raw_sha: Any) -> str:
+    """Validate and return normalized lowercase git commit SHA (40 or 64 hex characters).
+
+    Rejects empty, non-string, whitespace-padded, or non-hex values fail-closed.
+    """
+    if raw_sha is None or not isinstance(raw_sha, str) or not raw_sha:
+        raise ValueError("Git commit SHA is missing or empty.")
+
+    if raw_sha != raw_sha.strip() or any(c.isspace() for c in raw_sha):
+        raise ValueError(f"Git commit SHA contains whitespace characters: {raw_sha!r}")
+
+    normalized = raw_sha.lower()
+    if not GIT_SHA_HEX_PATTERN.match(normalized):
+        raise ValueError(
+            f"Git commit SHA must be a 40- or 64-character hexadecimal string, "
+            f"got ({len(raw_sha)} chars): {raw_sha!r}"
+        )
+    return normalized
 
 
 def request_json(client: httpx.Client, method: str, url: str, **kwargs: Any) -> Any:
@@ -311,16 +332,22 @@ def extract_run_provenance_record(
     if not isinstance(raw_doc_scope, list) or len(raw_doc_scope) == 0:
         raise ValueError(f"document_scope in run '{run_id}' is missing, empty, or not a list")
 
+    norm_doc_scope: list[str] = []
     for did in raw_doc_scope:
-        if not did or not isinstance(did, str) or not did.strip():
+        if not isinstance(did, str):
             raise ValueError(
-                f"document_scope in run '{run_id}' contains invalid non-string or empty ID: {did!r}"
+                f"document_scope in run '{run_id}' contains invalid non-string ID: {did!r}"
             )
-    if len(raw_doc_scope) != len(set(raw_doc_scope)):
+        stripped = did.strip()
+        if not stripped:
+            raise ValueError(f"document_scope in run '{run_id}' contains empty ID: {did!r}")
+        norm_doc_scope.append(stripped)
+
+    if len(norm_doc_scope) != len(set(norm_doc_scope)):
         raise ValueError(
-            f"document_scope in run '{run_id}' contains duplicate IDs: {raw_doc_scope}"
+            f"document_scope in run '{run_id}' contains duplicate IDs: {norm_doc_scope}"
         )
-    doc_scope = sorted(did.strip() for did in raw_doc_scope)
+    doc_scope = sorted(norm_doc_scope)
 
     # 6. Positive integer query count; reject booleans and zero
     raw_q_count = (
@@ -437,7 +464,9 @@ def extract_run_provenance_record(
 
 
 def validate_and_compare_runs(
-    run1_entry: dict[str, Any], run2_entry: dict[str, Any]
+    run1_entry: dict[str, Any],
+    run2_entry: dict[str, Any],
+    expected_query_count: int | None = 10,
 ) -> dict[str, Any]:
     """Validate both evaluation runs independently and assert cross-run provenance compatibility."""
     incompatibilities: list[str] = []
@@ -470,6 +499,13 @@ def validate_and_compare_runs(
             "metrics_comparison": metric_cmp,
         }
 
+    # 0. Reject duplicate run IDs (both runs must be independent)
+    if p1["run_id"] == p2["run_id"]:
+        incompatibilities.append(
+            f"Duplicate run ID detected: both runs have run_id '{p1['run_id']}'. "
+            "Dual evaluation runs must be genuinely independent."
+        )
+
     # 1. Dataset hashes match and are identical
     if p1["dataset_content_hash"] != p2["dataset_content_hash"]:
         incompatibilities.append(
@@ -497,12 +533,24 @@ def validate_and_compare_runs(
             f"Run 2 has {p2['document_scope']}."
         )
 
-    # 5. Query counts match
+    # 5. Query counts match and equal expected benchmark query count if specified
     if p1["query_count"] != p2["query_count"]:
         incompatibilities.append(
             f"Query count mismatch: Run 1 evaluated {p1['query_count']}, "
             f"Run 2 evaluated {p2['query_count']}."
         )
+    if expected_query_count is not None:
+        if p1["query_count"] != expected_query_count or p2["query_count"] != expected_query_count:
+            if p1["query_count"] == p2["query_count"]:
+                incompatibilities.append(
+                    f"Query count mismatch with expected benchmark size ({expected_query_count}): "
+                    f"both runs evaluated {p1['query_count']}."
+                )
+            else:
+                incompatibilities.append(
+                    f"Query count mismatch with expected benchmark size ({expected_query_count}): "
+                    f"Run 1 evaluated {p1['query_count']}, Run 2 evaluated {p2['query_count']}."
+                )
 
     # 6. Both reproducibility manifests report exact
     if p1["reproducibility_tier"] != "exact" or p2["reproducibility_tier"] != "exact":
@@ -564,7 +612,6 @@ def validate_and_compare_runs(
 
 def get_environment_provenance() -> dict[str, Any]:
     """Capture authentic environment and package metadata without hardcoding."""
-    git_sha = "unknown"
     try:
         res = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -573,9 +620,16 @@ def get_environment_provenance() -> dict[str, Any]:
             check=True,
             timeout=5.0,
         )
-        git_sha = res.stdout.strip()
     except Exception as exc:
-        git_sha = f"unknown ({type(exc).__name__}: {exc})"
+        raise RuntimeError(
+            f"Failed to capture git commit SHA via 'git rev-parse HEAD': {exc}"
+        ) from exc
+
+    raw_sha = res.stdout.strip()
+    try:
+        git_sha = validate_git_commit_sha(raw_sha)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid git commit SHA captured from environment: {exc}") from exc
 
     pkgs = [
         "fastapi",
@@ -606,6 +660,147 @@ def get_environment_provenance() -> dict[str, Any]:
         "architecture": platform.machine(),
         "package_versions": pkg_versions,
     }
+
+
+def process_evaluation_runs(
+    runs: list[dict[str, Any]],
+    demo_ds: dict[str, Any],
+    env_prov: dict[str, Any],
+    expected_query_count: int | None = 10,
+    evidence_path: str = "docs/reproducibility_evidence.json",
+    diagnostic_path: str = "docs/incompatible_reproducibility_diagnostic.json",
+    api_url: str = API_URL,
+) -> dict[str, Any]:
+    """Process evaluation runs, perform cross-run validation, and output artifacts.
+
+    If runs are incompatible, writes a diagnostic failure artifact and raises RuntimeError.
+    If runs are compatible, prints comparison summary, writes reproducibility evidence,
+    and returns it.
+    """
+    if len(runs) < 2:
+        raise ValueError(
+            f"At least two runs are required for cross-run validation, got {len(runs)}"
+        )
+
+    validation = validate_and_compare_runs(
+        runs[0], runs[1], expected_query_count=expected_query_count
+    )
+    p1 = validation.get("run_1_provenance")
+    p2 = validation.get("run_2_provenance")
+    metric_cmp = validation.get("metrics_comparison", {})
+
+    if (
+        not validation.get("provenance_compatible")
+        or not p1
+        or not p2
+        or not validation.get("is_comparable")
+    ):
+        diagnostic_output = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": "incompatible",
+            "api_url": api_url,
+            "git_commit_sha": env_prov.get("git_commit_sha"),
+            "incompatibilities": validation.get("incompatibilities", []),
+            "cross_run_validation": validation,
+            "provenance": env_prov,
+            "dataset": demo_ds,
+            "runs": runs,
+        }
+        if os.path.dirname(diagnostic_path):
+            os.makedirs(os.path.dirname(diagnostic_path), exist_ok=True)
+        with open(diagnostic_path, "w", encoding="utf-8") as f:
+            json.dump(diagnostic_output, f, indent=2)
+
+        print("\nERROR: Cross-run validation failed! Incompatibilities:")
+        for inc in validation.get("incompatibilities", []):
+            print(f"  - {inc}")
+        print(f"Wrote diagnostic failure artifact to '{diagnostic_path}'.")
+        raise RuntimeError(
+            f"Cross-run evaluation validation failed: {validation.get('incompatibilities')}"
+        )
+
+    print("\n======================================================================")
+    print("  REPRODUCIBILITY EVALUATION COMPARISON: RUN 1 vs RUN 2")
+    print("======================================================================")
+    print(f"Dataset Name:                 {demo_ds.get('name')}")
+    print(f"Dataset ID:                   {demo_ds.get('dataset_id')}")
+    print(f"Query Count:                  {demo_ds.get('query_count')}")
+    print(f"Dataset SHA-256 (Run 1):      {p1['dataset_content_hash']}")
+    print(f"Dataset SHA-256 (Run 2):      {p2['dataset_content_hash']}")
+    print(f"Config Hash (Run 1):          {p1['config_hash']}")
+    print(f"Config Hash (Run 2):          {p2['config_hash']}")
+    print("Retriever:                    bm25 (top_k=5)")
+    print("Provider / Model:             mock / mock-pipeline (Deterministic Rule-Based Mock)")
+    print(f"Reproducibility Tier (R1):    {p1['reproducibility_tier']}")
+    print(f"Reproducibility Tier (R2):    {p2['reproducibility_tier']}")
+    print(f"Overall Reproducibility Tier: {validation['overall_reproducibility_tier']}")
+    print(f"Provenance Compatible:        {validation['provenance_compatible']}")
+    print(f"Is Comparable:                {validation['is_comparable']}")
+    if validation.get("incompatibilities"):
+        print(f"Incompatibilities:            {validation['incompatibilities']}")
+    if metric_cmp.get("missing_keys"):
+        print(f"Missing Metric Keys:          {metric_cmp['missing_keys']}")
+    print("----------------------------------------------------------------------")
+    print(f"{'Metric':<32} | {'Run 1':<12} | {'Run 2':<12} | {'Delta':<10}")
+    print("----------------------------------------------------------------------")
+
+    for k, info in metric_cmp.get("metrics", {}).items():
+        v1_str = f"{info['run_1']:.4f}" if info["run_1"] is not None else "N/A"
+        v2_str = f"{info['run_2']:.4f}" if info["run_2"] is not None else "N/A"
+        delta_str = f"{info['delta']:+.4f}" if info["delta"] is not None else "N/A"
+        print(f"{k:<32} | {v1_str:<12} | {v2_str:<12} | {delta_str:<10}")
+
+    print("----------------------------------------------------------------------")
+    print(f"Failure Modes Run 1:  {p1['failure_counts']}")
+    print(f"Failure Modes Run 2:  {p2['failure_counts']}")
+    print("======================================================================")
+    print("Note on Mock Provider Evaluation:")
+    print("  Exact reproducibility demonstrates pipeline determinism and metric repeatability")
+    print("  under identical inputs, not answer quality. The deterministic mock provider emits")
+    print("  rule-based test strings without citations or NLI grounding, yielding 0.0000 citation")
+    print("  precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the")
+    print(
+        "  mock provider output and do not represent authentic neural models "
+        "(e.g. Ollama llama3.2)."
+    )
+    print("======================================================================")
+
+    evidence_output = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "api_url": api_url,
+        "git_commit_sha": env_prov.get("git_commit_sha"),
+        "dataset_content_hash": p1["dataset_content_hash"],
+        "config_hash": p1["config_hash"],
+        "retriever": p1["retriever"],
+        "top_k": p1["top_k"],
+        "provider": p1["provider"],
+        "model": p1["model"],
+        "query_count": p1["query_count"],
+        "reproducibility_tier": validation["overall_reproducibility_tier"],
+        "is_comparable": validation["is_comparable"],
+        "provenance_compatible": validation["provenance_compatible"],
+        "incompatibilities": validation["incompatibilities"],
+        "evaluation_notes": (
+            "Exact reproducibility demonstrates pipeline determinism and metric repeatability "
+            "under identical inputs, not answer quality. The deterministic mock provider emits "
+            "rule-based test strings without citations or NLI grounding, yielding 0.0000 citation "
+            "precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the "
+            "mock provider output and do not represent the performance of authentic neural models "
+            "such as Ollama llama3.2."
+        ),
+        "provenance": env_prov,
+        "dataset": demo_ds,
+        "cross_run_validation": validation,
+        "runs": runs,
+    }
+
+    if os.path.dirname(evidence_path):
+        os.makedirs(os.path.dirname(evidence_path), exist_ok=True)
+    with open(evidence_path, "w", encoding="utf-8") as f:
+        json.dump(evidence_output, f, indent=2)
+    print(f"Wrote evidence artifact to '{evidence_path}'.")
+
+    return evidence_output
 
 
 def run() -> None:
@@ -667,99 +862,17 @@ def run() -> None:
             }
         )
 
-    # Cross-run independent validation and metric comparison
-    validation = validate_and_compare_runs(runs[0], runs[1])
+    # Cross-run independent validation, metric comparison, and artifact generation
     env_prov = get_environment_provenance()
-
-    p1 = validation["run_1_provenance"]
-    p2 = validation["run_2_provenance"]
-    metric_cmp = validation["metrics_comparison"]
-
-    if not validation["provenance_compatible"] or not p1 or not p2:
-        print("\nERROR: Cross-run validation failed! Incompatibilities:")
-        for inc in validation["incompatibilities"]:
-            print(f"  - {inc}")
-        if not p1 or not p2:
-            raise RuntimeError(f"Provenance extraction failed: {validation['incompatibilities']}")
-
-    print("\n======================================================================")
-    print("  REPRODUCIBILITY EVALUATION COMPARISON: RUN 1 vs RUN 2")
-    print("======================================================================")
-    print(f"Dataset Name:                 {demo_ds['name']}")
-    print(f"Dataset ID:                   {dataset_id}")
-    print(f"Query Count:                  {demo_ds['query_count']}")
-    print(f"Dataset SHA-256 (Run 1):      {p1['dataset_content_hash']}")
-    print(f"Dataset SHA-256 (Run 2):      {p2['dataset_content_hash']}")
-    print(f"Config Hash (Run 1):          {p1['config_hash']}")
-    print(f"Config Hash (Run 2):          {p2['config_hash']}")
-    print("Retriever:                    bm25 (top_k=5)")
-    print("Provider / Model:             mock / mock-pipeline (Deterministic Rule-Based Mock)")
-    print(f"Reproducibility Tier (R1):    {p1['reproducibility_tier']}")
-    print(f"Reproducibility Tier (R2):    {p2['reproducibility_tier']}")
-    print(f"Overall Reproducibility Tier: {validation['overall_reproducibility_tier']}")
-    print(f"Provenance Compatible:        {validation['provenance_compatible']}")
-    print(f"Is Comparable:                {validation['is_comparable']}")
-    if validation["incompatibilities"]:
-        print(f"Incompatibilities:            {validation['incompatibilities']}")
-    if metric_cmp["missing_keys"]:
-        print(f"Missing Metric Keys:          {metric_cmp['missing_keys']}")
-    print("----------------------------------------------------------------------")
-    print(f"{'Metric':<32} | {'Run 1':<12} | {'Run 2':<12} | {'Delta':<10}")
-    print("----------------------------------------------------------------------")
-
-    for k, info in metric_cmp["metrics"].items():
-        v1_str = f"{info['run_1']:.4f}" if info["run_1"] is not None else "N/A"
-        v2_str = f"{info['run_2']:.4f}" if info["run_2"] is not None else "N/A"
-        delta_str = f"{info['delta']:+.4f}" if info["delta"] is not None else "N/A"
-        print(f"{k:<32} | {v1_str:<12} | {v2_str:<12} | {delta_str:<10}")
-
-    print("----------------------------------------------------------------------")
-    print(f"Failure Modes Run 1:  {p1['failure_counts']}")
-    print(f"Failure Modes Run 2:  {p2['failure_counts']}")
-    print("======================================================================")
-    print("Note on Mock Provider Evaluation:")
-    print("  Exact reproducibility demonstrates pipeline determinism and metric repeatability")
-    print("  under identical inputs, not answer quality. The deterministic mock provider emits")
-    print("  rule-based test strings without citations or NLI grounding, yielding 0.0000 citation")
-    print("  precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the")
-    print(
-        "  mock provider output and do not represent authentic neural models "
-        "(e.g. Ollama llama3.2)."
+    process_evaluation_runs(
+        runs=runs,
+        demo_ds=demo_ds,
+        env_prov=env_prov,
+        expected_query_count=demo_ds.get("query_count", 10),
+        evidence_path="docs/reproducibility_evidence.json",
+        diagnostic_path="docs/incompatible_reproducibility_diagnostic.json",
+        api_url=API_URL,
     )
-    print("======================================================================")
-
-    evidence_output = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "api_url": API_URL,
-        "git_commit_sha": env_prov["git_commit_sha"],
-        "dataset_content_hash": p1["dataset_content_hash"],
-        "config_hash": p1["config_hash"],
-        "retriever": p1["retriever"],
-        "top_k": p1["top_k"],
-        "provider": p1["provider"],
-        "model": p1["model"],
-        "query_count": p1["query_count"],
-        "reproducibility_tier": validation["overall_reproducibility_tier"],
-        "is_comparable": validation["is_comparable"],
-        "provenance_compatible": validation["provenance_compatible"],
-        "incompatibilities": validation["incompatibilities"],
-        "evaluation_notes": (
-            "Exact reproducibility demonstrates pipeline determinism and metric repeatability "
-            "under identical inputs, not answer quality. The deterministic mock provider emits "
-            "rule-based test strings without citations or NLI grounding, yielding 0.0000 citation "
-            "precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the "
-            "mock provider output and do not represent the performance of authentic neural models "
-            "such as Ollama llama3.2."
-        ),
-        "provenance": env_prov,
-        "dataset": demo_ds,
-        "cross_run_validation": validation,
-        "runs": runs,
-    }
-
-    with open("docs/reproducibility_evidence.json", "w", encoding="utf-8") as f:
-        json.dump(evidence_output, f, indent=2)
-    print("Wrote evidence artifact to 'docs/reproducibility_evidence.json'.")
 
 
 if __name__ == "__main__":

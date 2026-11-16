@@ -1,6 +1,9 @@
 """Focused unit tests for evaluation recorder and provenance (V2-006.2.1)."""
 
+import json
+import os
 import re
+import subprocess
 from typing import Any
 
 import httpx
@@ -11,11 +14,14 @@ from scripts.record_demo_evaluation import (
     extract_config_hash,
     extract_dataset_content_hash,
     extract_run_provenance_record,
+    get_environment_provenance,
     poll_evaluation_job,
+    process_evaluation_runs,
     request_json,
     select_golden_dataset,
     validate_and_compare_runs,
     validate_document_scope,
+    validate_git_commit_sha,
     validate_sha256_digest,
 )
 
@@ -259,65 +265,66 @@ class TestExactDocumentScopeValidation:
             validate_document_scope(target_ds, all_docs)
 
 
+@pytest.fixture
+def valid_run_entries() -> tuple[dict[str, Any], dict[str, Any]]:
+    metrics = {"hit_rate@5": 0.8, "mrr@5": 0.7, "ndcg@5": 0.7262}
+    r1 = {
+        "run_data": {
+            "run_id": "run_001",
+            "experiment_name": "northstar_baseline_run_1",
+            "config_hash": SAMPLE_CONFIG_HASH,
+            "config": {
+                "retriever": "bm25",
+                "top_k": 5,
+                "generator_provider": "mock",
+                "generator_model": "mock-pipeline",
+            },
+            "metadata": {
+                "dataset_content_hash": SAMPLE_HASH,
+                "document_ids": ["doc_1", "doc_2", "doc_3"],
+            },
+            "metrics": metrics,
+            "query_count": 10,
+        },
+        "repro_data": {
+            "dataset_id": "ds_8138dee2cb55",
+            "reproducibility_tier": "exact",
+            "can_reproduce": True,
+            "corpus_document_ids": ["doc_1", "doc_2", "doc_3"],
+            "metadata": {"dataset_content_hash": SAMPLE_HASH},
+        },
+    }
+    r2 = {
+        "run_data": {
+            "run_id": "run_002",
+            "experiment_name": "northstar_baseline_run_2",
+            "config_hash": SAMPLE_CONFIG_HASH,
+            "config": {
+                "retriever": "bm25",
+                "top_k": 5,
+                "generator_provider": "mock",
+                "generator_model": "mock-pipeline",
+            },
+            "metadata": {
+                "dataset_content_hash": SAMPLE_HASH,
+                "document_ids": ["doc_1", "doc_2", "doc_3"],
+            },
+            "metrics": metrics,
+            "query_count": 10,
+        },
+        "repro_data": {
+            "dataset_id": "ds_8138dee2cb55",
+            "reproducibility_tier": "exact",
+            "can_reproduce": True,
+            "corpus_document_ids": ["doc_1", "doc_2", "doc_3"],
+            "metadata": {"dataset_content_hash": SAMPLE_HASH},
+        },
+    }
+    return r1, r2
+
+
 class TestIndependentCrossRunValidation:
     """Test independent extraction and cross-run validation across both evaluation runs."""
-
-    @pytest.fixture
-    def valid_run_entries(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        metrics = {"hit_rate@5": 0.8, "mrr@5": 0.7, "ndcg@5": 0.7262}
-        r1 = {
-            "run_data": {
-                "run_id": "run_001",
-                "experiment_name": "northstar_baseline_run_1",
-                "config_hash": SAMPLE_CONFIG_HASH,
-                "config": {
-                    "retriever": "bm25",
-                    "top_k": 5,
-                    "generator_provider": "mock",
-                    "generator_model": "mock-pipeline",
-                },
-                "metadata": {
-                    "dataset_content_hash": SAMPLE_HASH,
-                    "document_ids": ["doc_1", "doc_2", "doc_3"],
-                },
-                "metrics": metrics,
-                "query_count": 10,
-            },
-            "repro_data": {
-                "dataset_id": "ds_8138dee2cb55",
-                "reproducibility_tier": "exact",
-                "can_reproduce": True,
-                "corpus_document_ids": ["doc_1", "doc_2", "doc_3"],
-                "metadata": {"dataset_content_hash": SAMPLE_HASH},
-            },
-        }
-        r2 = {
-            "run_data": {
-                "run_id": "run_002",
-                "experiment_name": "northstar_baseline_run_2",
-                "config_hash": SAMPLE_CONFIG_HASH,
-                "config": {
-                    "retriever": "bm25",
-                    "top_k": 5,
-                    "generator_provider": "mock",
-                    "generator_model": "mock-pipeline",
-                },
-                "metadata": {
-                    "dataset_content_hash": SAMPLE_HASH,
-                    "document_ids": ["doc_1", "doc_2", "doc_3"],
-                },
-                "metrics": metrics,
-                "query_count": 10,
-            },
-            "repro_data": {
-                "dataset_id": "ds_8138dee2cb55",
-                "reproducibility_tier": "exact",
-                "can_reproduce": True,
-                "corpus_document_ids": ["doc_1", "doc_2", "doc_3"],
-                "metadata": {"dataset_content_hash": SAMPLE_HASH},
-            },
-        }
-        return r1, r2
 
     def test_identical_runs_pass_validation_with_exact_tier(
         self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
@@ -499,6 +506,32 @@ class TestIndependentCrossRunValidation:
         assert val["overall_reproducibility_tier"] != "exact"
         assert any("top_k" in s for s in val["incompatibilities"])
 
+    def test_duplicate_run_ids_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r2["run_data"]["run_id"] = r1["run_data"]["run_id"]
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert any("Duplicate run ID detected" in s for s in val["incompatibilities"])
+
+    def test_query_count_mismatch_with_expected_benchmark_size_fails(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"]["query_count"] = 5
+        r2["run_data"]["query_count"] = 5
+
+        val = validate_and_compare_runs(r1, r2, expected_query_count=10)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert any(
+            "Query count mismatch with expected benchmark size (10)" in s
+            for s in val["incompatibilities"]
+        )
+
 
 class TestRunProvenanceExtractionFailClosed:
     """Test individual run extraction fails closed on missing or invalid metadata."""
@@ -556,6 +589,30 @@ class TestRunProvenanceExtractionFailClosed:
         single_valid_run["repro_data"]["corpus_document_ids"] = ["doc_1", "doc_1"]
         with pytest.raises(ValueError, match="contains duplicate IDs"):
             extract_run_provenance_record(single_valid_run)
+
+    def test_document_scope_whitespace_normalized_duplicates_fail(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["repro_data"]["corpus_document_ids"] = ["doc_1", " doc_1 "]
+        single_valid_run["run_data"]["metadata"]["document_ids"] = ["doc_1", " doc_1 "]
+        with pytest.raises(ValueError, match="contains duplicate IDs"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_document_scope_empty_normalized_value_fails(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["repro_data"]["corpus_document_ids"] = ["doc_1", "   "]
+        single_valid_run["run_data"]["metadata"]["document_ids"] = ["doc_1", "   "]
+        with pytest.raises(ValueError, match="contains empty ID"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_document_scope_valid_normalized_unique_passes(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["repro_data"]["corpus_document_ids"] = ["  doc_2  ", "doc_1 "]
+        single_valid_run["run_data"]["metadata"]["document_ids"] = ["  doc_2  ", "doc_1 "]
+        rec = extract_run_provenance_record(single_valid_run)
+        assert rec["document_scope"] == ["doc_1", "doc_2"]
 
     def test_query_count_zero_or_boolean_raises_value_error(
         self, single_valid_run: dict[str, Any]
@@ -683,3 +740,170 @@ class TestHttpAndPollingBehavior:
 
         with pytest.raises(TimeoutError, match=re.escape("timed out after 0.05 seconds")):
             poll_evaluation_job(client, "job_slow", timeout_seconds=0.05, poll_interval=0.01)
+
+
+class TestGitCommitShaValidation:
+    """Test git commit SHA 40- and 64-character hex validation."""
+
+    def test_valid_40_hex_commit_sha(self) -> None:
+        sha_40 = "a" * 40
+        assert validate_git_commit_sha(sha_40) == sha_40
+
+    def test_valid_64_hex_commit_sha(self) -> None:
+        sha_64 = "b" * 64
+        assert validate_git_commit_sha(sha_64) == sha_64
+
+    def test_uppercase_hex_normalizes_to_lowercase(self) -> None:
+        upper_sha = ("1a2b3c4d" * 5).upper()
+        assert validate_git_commit_sha(upper_sha) == upper_sha.lower()
+
+    def test_empty_or_none_sha_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="missing or empty"):
+            validate_git_commit_sha(None)
+        with pytest.raises(ValueError, match="missing or empty"):
+            validate_git_commit_sha("")
+
+    def test_whitespace_padded_sha_raises_value_error(self) -> None:
+        sha_40 = "a" * 40
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_git_commit_sha(f" {sha_40}")
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_git_commit_sha(f"{sha_40} ")
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_git_commit_sha(f"{sha_40}\n")
+
+    def test_invalid_length_sha_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match=r"must be a 40- or 64-character"):
+            validate_git_commit_sha("a" * 39)
+        with pytest.raises(ValueError, match=r"must be a 40- or 64-character"):
+            validate_git_commit_sha("a" * 41)
+        with pytest.raises(ValueError, match=r"must be a 40- or 64-character"):
+            validate_git_commit_sha("a" * 65)
+
+    def test_non_hex_sha_raises_value_error(self) -> None:
+        non_hex = "g" + ("a" * 39)
+        with pytest.raises(ValueError, match=r"must be a 40- or 64-character"):
+            validate_git_commit_sha(non_hex)
+
+
+class TestEnvironmentProvenance:
+    """Test authentic git SHA and environment provenance capture."""
+
+    def test_get_environment_provenance_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeCompletedProcess:
+            stdout = ("c" * 40) + "\n"
+
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: FakeCompletedProcess())
+        prov = get_environment_provenance()
+        assert prov["git_commit_sha"] == "c" * 40
+        assert "python_version" in prov
+        assert "package_versions" in prov
+
+    def test_get_environment_provenance_git_failure_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def raise_subprocess(*args: Any, **kwargs: Any) -> Any:
+            raise subprocess.CalledProcessError(1, ["git", "rev-parse", "HEAD"])
+
+        monkeypatch.setattr(subprocess, "run", raise_subprocess)
+        with pytest.raises(RuntimeError, match="Failed to capture git commit SHA"):
+            get_environment_provenance()
+
+    def test_get_environment_provenance_invalid_sha_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class FakeCompletedProcess:
+            stdout = "not_a_valid_git_sha\n"
+
+        monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: FakeCompletedProcess())
+        with pytest.raises(RuntimeError, match="Invalid git commit SHA captured from environment"):
+            get_environment_provenance()
+
+
+class TestProcessEvaluationRuns:
+    """Test process_evaluation_runs artifact emission and failure handling."""
+
+    def test_process_evaluation_runs_incompatible_writes_diagnostic_and_raises(
+        self,
+        tmp_path: Any,
+        valid_run_entries: tuple[dict[str, Any], dict[str, Any]],
+    ) -> None:
+        r1, r2 = valid_run_entries
+        # Make runs incompatible (e.g., duplicate run IDs)
+        r2["run_data"]["run_id"] = r1["run_data"]["run_id"]
+
+        runs = [
+            {
+                "run_index": 1,
+                "run_id": r1["run_data"]["run_id"],
+                "run_data": r1["run_data"],
+                "repro_data": r1["repro_data"],
+            },
+            {
+                "run_index": 2,
+                "run_id": r2["run_data"]["run_id"],
+                "run_data": r2["run_data"],
+                "repro_data": r2["repro_data"],
+            },
+        ]
+        demo_ds = {"name": "Test DS", "dataset_id": "ds_8138dee2cb55", "query_count": 10}
+        env_prov = {"git_commit_sha": "d" * 40}
+        evidence_file = str(tmp_path / "evidence.json")
+        diag_file = str(tmp_path / "incompatible_reproducibility_diagnostic.json")
+
+        with pytest.raises(RuntimeError, match="Cross-run evaluation validation failed"):
+            process_evaluation_runs(
+                runs=runs,
+                demo_ds=demo_ds,
+                env_prov=env_prov,
+                expected_query_count=10,
+                evidence_path=evidence_file,
+                diagnostic_path=diag_file,
+            )
+
+        assert not os.path.exists(evidence_file)
+        assert os.path.exists(diag_file)
+        with open(diag_file, encoding="utf-8") as f:
+            diag_data = json.load(f)
+        assert diag_data["status"] == "incompatible"
+        assert any("Duplicate run ID detected" in s for s in diag_data["incompatibilities"])
+
+    def test_process_evaluation_runs_compatible_writes_evidence_and_succeeds(
+        self,
+        tmp_path: Any,
+        valid_run_entries: tuple[dict[str, Any], dict[str, Any]],
+    ) -> None:
+        r1, r2 = valid_run_entries
+        runs = [
+            {
+                "run_index": 1,
+                "run_id": "run_001",
+                "run_data": r1["run_data"],
+                "repro_data": r1["repro_data"],
+            },
+            {
+                "run_index": 2,
+                "run_id": "run_002",
+                "run_data": r2["run_data"],
+                "repro_data": r2["repro_data"],
+            },
+        ]
+        demo_ds = {"name": "Test DS", "dataset_id": "ds_8138dee2cb55", "query_count": 10}
+        env_prov = {"git_commit_sha": "e" * 40}
+        evidence_file = str(tmp_path / "evidence.json")
+        diag_file = str(tmp_path / "incompatible_reproducibility_diagnostic.json")
+
+        output = process_evaluation_runs(
+            runs=runs,
+            demo_ds=demo_ds,
+            env_prov=env_prov,
+            expected_query_count=10,
+            evidence_path=evidence_file,
+            diagnostic_path=diag_file,
+        )
+
+        assert os.path.exists(evidence_file)
+        assert not os.path.exists(diag_file)
+        assert output["provenance_compatible"] is True
+        assert output["is_comparable"] is True
+        assert output["reproducibility_tier"] == "exact"

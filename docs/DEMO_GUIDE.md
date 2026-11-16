@@ -296,6 +296,11 @@ python scripts/record_demo_evaluation.py
 
 ### Actual Measured Comparison: Run 1 vs. Run 2
 
+Across the 28 recorded metrics in `docs/reproducibility_evidence.json`:
+- **20 Deterministic Metrics (`exact`)**: 100% identical (`0.0000` delta across runs), including all IR ranking metrics, token counts, and deterministic mock evaluation outputs.
+- **8 Non-Deterministic Latency Metrics (`diverged`)**: Wall-clock timings (`mean_latency_ms`, `min_latency_ms`, `max_latency_ms`, `mean_generation_latency_ms`, and P50/P90/P95/P99 percentiles) exhibit natural sub-millisecond CPU scheduling variations.
+- **Reproducibility Tier Definition**: The `exact` tier certifies provenance verification (identical dataset SHA-256, identical config hash, identical document scope) and algorithmic determinism under identical inputs, rather than invariant wall-clock execution times.
+
 | Metric | Run 1 | Run 2 | Absolute Delta | Metric Status / Interpretation |
 |:---|:---:|:---:|:---:|:---|
 | **Hit Rate@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric (exact match) |
@@ -310,11 +315,12 @@ python scripts/record_demo_evaluation.py
 | **Total Completion Tokens**| `30` | `30` | **`0`** | Deterministic Generator Count |
 | **Total Evaluated Queries** | `10` | `10` | **`0`** | Exact Dataset Size (10 queries) |
 | **Mean Latency (ms)** | `0.5099` | `0.7902` | `+0.2803` | Wall-clock execution (expected sub-millisecond CPU jitter) |
-| **Reproducibility Tier** | `exact` | `exact` | **Match** | Verified SHA-256 Provenance |
+| **Reproducibility Tier** | `exact` | `exact` | **Match** | Verified SHA-256 Provenance & Algorithmic Determinism |
 
 > [!IMPORTANT]
-> **Honest Evaluation Disclosure — Mock vs. Neural Generation**:
-> - **Deterministic Repeatability**: Ranking metrics (Hit Rate, MRR, NDCG, Recall, Precision) and token counts match **identically (0.0000 delta)** across runs. This proves algorithmic determinism and mathematical evaluation correctness under identical inputs.
+> **Honest Evaluation Disclosure — Mock vs. Neural Generation & Latency Variance**:
+> - **Deterministic Repeatability (20 Exact Metrics)**: Ranking metrics (Hit Rate, MRR, NDCG, Recall, Precision and their mean counterparts), query count, and token counts match **identically (0.0000 delta)** across runs. This proves algorithmic determinism and mathematical evaluation correctness under identical inputs.
+> - **Wall-Clock Latency (8 Diverged Metrics)**: Operating systems exhibit minor timing variations across consecutive executions. All 8 divergent metrics in the evaluation manifest are latency measurements (P50, P90, P95, P99, min, max, mean). STING transparently classifies them as `diverged` while verifying `exact` provenance reproducibility.
 > - **Generative Quality Disclaimer**: Exact reproducibility does **not** establish high generative quality. Because the evaluation uses the deterministic `mock` provider (`mock-pipeline`), the generated answers are rule-based synthetic strings that contain no citation markers and minimal lexical overlap.
 > - **Transparent Failure Reporting**: Citation Precision (`0.0000`), Citation Recall (`0.0000`), and Lexical Groundedness (`0.1000`) reflect genuine generation failures for the mock provider. These metrics are intentionally preserved and disclosed, never zero-filled or disguised. To evaluate authentic neural citation placement and groundedness, configure local Ollama (`llama3.2`).
 

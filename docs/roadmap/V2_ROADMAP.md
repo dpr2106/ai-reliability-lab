@@ -147,7 +147,7 @@ The ingestion layer supports PDF, TXT, and Markdown, citation-aware chunks, sour
 - Environment variable matrix documentation and credential-free local capability specification in `docs/DEMO_GUIDE.md`.
 - Verified demo pack ingestion in both `--local` and `--api-url` modes, including idempotency without duplicate documents or datasets.
 - End-to-end browser workflows verified in User Mode and Developer Mode with refreshed high-resolution screenshots in `docs/screenshots/`.
-- Deterministic evaluation comparison across consecutive runs recorded in `docs/reproducibility_evidence.json` (`exact` reproducibility tier, 0.0000 metric deltas).
+- Deterministic evaluation comparison across consecutive runs recorded in `docs/reproducibility_evidence.json` (`exact` reproducibility tier: 20 deterministic retrieval, token count, citation, and groundedness metrics matching identically with 0.0000 delta; 8 wall-clock latency metrics honestly recorded as diverged due to OS CPU scheduling jitter).
 - Comprehensive end-to-end guide in `docs/DEMO_GUIDE.md` and reconciled `README.md`.
 
 **Acceptance criteria:** A reviewer can clone the repository to a clean directory, follow `docs/DEMO_GUIDE.md`, ingest the demo pack, inspect citations in the User Workspace, toggle Developer Mode, execute reproducible evaluations, and verify that reported metrics match exact repository records.

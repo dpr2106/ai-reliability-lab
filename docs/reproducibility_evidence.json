@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-11-15T19:59:33.437523+00:00",
+  "timestamp": "2026-11-16T06:03:51.659748+00:00",
   "api_url": "http://127.0.0.1:8000",
-  "git_commit_sha": "98adc37932173fa86d9e5867b23dadc0adccb57d",
+  "git_commit_sha": "56806ca8f82dcee09bbddb101e9e90936a49286f",
   "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
   "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
   "retriever": "bm25",
@@ -15,7 +15,7 @@
   "incompatibilities": [],
   "evaluation_notes": "Exact reproducibility demonstrates pipeline determinism and metric repeatability under identical inputs, not answer quality. The deterministic mock provider emits rule-based test strings without citations or NLI grounding, yielding 0.0000 citation precision/recall and 0.1000 lexical groundedness. These metrics honestly reflect the mock provider output and do not represent the performance of authentic neural models such as Ollama llama3.2.",
   "provenance": {
-    "git_commit_sha": "98adc37932173fa86d9e5867b23dadc0adccb57d",
+    "git_commit_sha": "56806ca8f82dcee09bbddb101e9e90936a49286f",
     "python_version": "3.13.3 (tags/v3.13.3:6280bb5, Apr  8 2025, 14:47:33) [MSC v.1943 64 bit (AMD64)]",
     "platform": "Windows-11-10.0.26300-SP0",
     "os_system": "Windows",
@@ -54,7 +54,7 @@
   },
   "cross_run_validation": {
     "run_1_provenance": {
-      "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
+      "run_id": "ccef3f16-ac3b-46e5-b803-26d7adf4dcfb",
       "experiment_name": "northstar_baseline_run_1",
       "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
       "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
@@ -75,23 +75,23 @@
         "citation_precision": 0.0,
         "citation_recall": 0.0,
         "hit_rate@5": 0.8,
-        "latency_p50_ms": 0.5976999964332208,
-        "latency_p90_ms": 0.8664600143674761,
-        "latency_p95_ms": 0.8860800066031516,
-        "latency_p99_ms": 0.9017760003916919,
+        "latency_p50_ms": 0.45450000015989644,
+        "latency_p90_ms": 0.6323500007056281,
+        "latency_p95_ms": 0.831925000329647,
+        "latency_p99_ms": 0.9915850000288629,
         "lexical_groundedness": 0.1,
-        "max_latency_ms": 0.905699998838827,
+        "max_latency_ms": 1.0314999999536667,
         "mean_citation_precision": 0.0,
         "mean_citation_recall": 0.0,
-        "mean_generation_latency_ms": 0.06375000230036676,
+        "mean_generation_latency_ms": 0.08270000034826808,
         "mean_hit_rate@5": 0.8,
-        "mean_latency_ms": 0.5826499982504174,
+        "mean_latency_ms": 0.5099400003018673,
         "mean_lexical_groundedness": 0.1,
         "mean_mrr@5": 0.7,
         "mean_ndcg@5": 0.7261859507142915,
         "mean_precision@5": 0.16,
         "mean_recall@5": 0.8,
-        "min_latency_ms": 0.35669998032972217,
+        "min_latency_ms": 0.37990000055287965,
         "mrr@5": 0.7,
         "ndcg@5": 0.7261859507142915,
         "precision@5": 0.16,
@@ -104,7 +104,7 @@
       "failure_counts": {}
     },
     "run_2_provenance": {
-      "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
+      "run_id": "52430204-ac71-4a9f-90fe-063b058702a5",
       "experiment_name": "northstar_baseline_run_2",
       "dataset_content_hash": "ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524",
       "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
@@ -125,23 +125,23 @@
         "citation_precision": 0.0,
         "citation_recall": 0.0,
         "hit_rate@5": 0.8,
-        "latency_p50_ms": 0.7855000003473833,
-        "latency_p90_ms": 0.9963099961169064,
-        "latency_p95_ms": 1.0454050032421944,
-        "latency_p99_ms": 1.0846810089424253,
+        "latency_p50_ms": 0.7821500003046822,
+        "latency_p90_ms": 0.8544200001779245,
+        "latency_p95_ms": 0.8927600007154978,
+        "latency_p99_ms": 0.9234320011455566,
         "lexical_groundedness": 0.1,
-        "max_latency_ms": 1.094500010367483,
+        "max_latency_ms": 0.9311000012530712,
         "mean_citation_precision": 0.0,
         "mean_citation_recall": 0.0,
-        "mean_generation_latency_ms": 0.08041999535635114,
+        "mean_generation_latency_ms": 0.0844300004246179,
         "mean_hit_rate@5": 0.8,
-        "mean_latency_ms": 0.8024499984458089,
+        "mean_latency_ms": 0.7902100001956569,
         "mean_lexical_groundedness": 0.1,
         "mean_mrr@5": 0.7,
         "mean_ndcg@5": 0.7261859507142915,
         "mean_precision@5": 0.16,
         "mean_recall@5": 0.8,
-        "min_latency_ms": 0.4521000082604587,
+        "min_latency_ms": 0.7315000002563465,
         "mrr@5": 0.7,
         "ndcg@5": 0.7261859507142915,
         "precision@5": 0.16,
@@ -180,27 +180,27 @@
           "status": "exact"
         },
         "latency_p50_ms": {
-          "run_1": 0.5976999964332208,
-          "run_2": 0.7855000003473833,
-          "delta": 0.1878,
+          "run_1": 0.45450000015989644,
+          "run_2": 0.7821500003046822,
+          "delta": 0.32765,
           "status": "diverged"
         },
         "latency_p90_ms": {
-          "run_1": 0.8664600143674761,
-          "run_2": 0.9963099961169064,
-          "delta": 0.12985,
+          "run_1": 0.6323500007056281,
+          "run_2": 0.8544200001779245,
+          "delta": 0.22207,
           "status": "diverged"
         },
         "latency_p95_ms": {
-          "run_1": 0.8860800066031516,
-          "run_2": 1.0454050032421944,
-          "delta": 0.159325,
+          "run_1": 0.831925000329647,
+          "run_2": 0.8927600007154978,
+          "delta": 0.060835,
           "status": "diverged"
         },
         "latency_p99_ms": {
-          "run_1": 0.9017760003916919,
-          "run_2": 1.0846810089424253,
-          "delta": 0.182905,
+          "run_1": 0.9915850000288629,
+          "run_2": 0.9234320011455566,
+          "delta": -0.068153,
           "status": "diverged"
         },
         "lexical_groundedness": {
@@ -210,9 +210,9 @@
           "status": "exact"
         },
         "max_latency_ms": {
-          "run_1": 0.905699998838827,
-          "run_2": 1.094500010367483,
-          "delta": 0.1888,
+          "run_1": 1.0314999999536667,
+          "run_2": 0.9311000012530712,
+          "delta": -0.1004,
           "status": "diverged"
         },
         "mean_citation_precision": {
@@ -228,9 +228,9 @@
           "status": "exact"
         },
         "mean_generation_latency_ms": {
-          "run_1": 0.06375000230036676,
-          "run_2": 0.08041999535635114,
-          "delta": 0.01667,
+          "run_1": 0.08270000034826808,
+          "run_2": 0.0844300004246179,
+          "delta": 0.00173,
           "status": "diverged"
         },
         "mean_hit_rate@5": {
@@ -240,9 +240,9 @@
           "status": "exact"
         },
         "mean_latency_ms": {
-          "run_1": 0.5826499982504174,
-          "run_2": 0.8024499984458089,
-          "delta": 0.2198,
+          "run_1": 0.5099400003018673,
+          "run_2": 0.7902100001956569,
+          "delta": 0.28027,
           "status": "diverged"
         },
         "mean_lexical_groundedness": {
@@ -276,9 +276,9 @@
           "status": "exact"
         },
         "min_latency_ms": {
-          "run_1": 0.35669998032972217,
-          "run_2": 0.4521000082604587,
-          "delta": 0.0954,
+          "run_1": 0.37990000055287965,
+          "run_2": 0.7315000002563465,
+          "delta": 0.3516,
           "status": "diverged"
         },
         "mrr@5": {
@@ -335,13 +335,13 @@
   "runs": [
     {
       "run_index": 1,
-      "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
+      "run_id": "ccef3f16-ac3b-46e5-b803-26d7adf4dcfb",
       "experiment_name": "northstar_baseline_run_1",
-      "job_id": "job_77f3657284f7",
+      "job_id": "job_adf478d9609a",
       "run_data": {
-        "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
+        "run_id": "ccef3f16-ac3b-46e5-b803-26d7adf4dcfb",
         "experiment_name": "northstar_baseline_run_1",
-        "run_timestamp": "2026-11-15T19:59:30.945361+00:00",
+        "run_timestamp": "2026-11-16T06:03:49.070817+00:00",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
         "config": {
           "citations_enabled": true,
@@ -390,7 +390,7 @@
             "doc_2e33747df04b4bbc",
             "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:59:30.936799+00:00",
+          "execution_timestamp": "2026-11-16T06:03:49.063655+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",
@@ -402,28 +402,28 @@
           "retriever_params": {},
           "retriever_type": "bm25"
         },
-        "created_at": "2026-11-15T19:59:30.945532+00:00",
+        "created_at": "2026-11-16T06:03:49.071021+00:00",
         "metrics": {
           "citation_precision": 0.0,
           "citation_recall": 0.0,
           "hit_rate@5": 0.8,
-          "latency_p50_ms": 0.5976999964332208,
-          "latency_p90_ms": 0.8664600143674761,
-          "latency_p95_ms": 0.8860800066031516,
-          "latency_p99_ms": 0.9017760003916919,
+          "latency_p50_ms": 0.45450000015989644,
+          "latency_p90_ms": 0.6323500007056281,
+          "latency_p95_ms": 0.831925000329647,
+          "latency_p99_ms": 0.9915850000288629,
           "lexical_groundedness": 0.1,
-          "max_latency_ms": 0.905699998838827,
+          "max_latency_ms": 1.0314999999536667,
           "mean_citation_precision": 0.0,
           "mean_citation_recall": 0.0,
-          "mean_generation_latency_ms": 0.06375000230036676,
+          "mean_generation_latency_ms": 0.08270000034826808,
           "mean_hit_rate@5": 0.8,
-          "mean_latency_ms": 0.5826499982504174,
+          "mean_latency_ms": 0.5099400003018673,
           "mean_lexical_groundedness": 0.1,
           "mean_mrr@5": 0.7,
           "mean_ndcg@5": 0.7261859507142915,
           "mean_precision@5": 0.16,
           "mean_recall@5": 0.8,
-          "min_latency_ms": 0.35669998032972217,
+          "min_latency_ms": 0.37990000055287965,
           "mrr@5": 0.7,
           "ndcg@5": 0.7261859507142915,
           "precision@5": 0.16,
@@ -476,7 +476,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08620001608505845,
+              "latency_ms": 0.438300001405878,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -555,7 +555,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.6076999998185784,
+            "latency_ms": 1.0314999999536667,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -655,7 +655,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.05490001058205962,
+              "latency_ms": 0.05370000144466758,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -734,7 +734,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.44720000005327165,
+            "latency_ms": 0.44549999984155875,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -834,7 +834,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.0549999822396785,
+              "latency_ms": 0.04670000089390669,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -913,7 +913,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.5876999930478632,
+            "latency_ms": 0.5309999996825354,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1013,7 +1013,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.066100008552894,
+              "latency_ms": 0.039599999581696466,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1092,7 +1092,7 @@
               "unsupported_claims_count": 0
             },
             "judge_result": null,
-            "latency_ms": 0.6096000142861158,
+            "latency_ms": 0.5880000007891795,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1192,7 +1192,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.06260001100599766,
+              "latency_ms": 0.04930000068270601,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1271,7 +1271,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.905699998838827,
+            "latency_ms": 0.4760000010719523,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1371,7 +1371,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.10699999984353781,
+              "latency_ms": 0.04149999949731864,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1450,7 +1450,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.8621000160928816,
+            "latency_ms": 0.39769999966665637,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1550,7 +1550,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.07320000440813601,
+              "latency_ms": 0.03530000140017364,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1629,7 +1629,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.68299999111332,
+            "latency_ms": 0.40500000068277586,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1729,7 +1729,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.044199987314641476,
+              "latency_ms": 0.03389999983482994,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1808,7 +1808,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.40499999886378646,
+            "latency_ms": 0.37990000055287965,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -1908,7 +1908,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.03229998401366174,
+              "latency_ms": 0.03219999962311704,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -1987,7 +1987,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.35669998032972217,
+            "latency_ms": 0.38130000029923394,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2085,7 +2085,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.05600001895800233,
+              "latency_ms": 0.05649999911838677,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2164,7 +2164,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.3617999900598079,
+            "latency_ms": 0.46350000047823414,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2226,7 +2226,7 @@
         ]
       },
       "repro_data": {
-        "run_id": "4eddae15-8efa-4384-9d19-8f2e9cd288bc",
+        "run_id": "ccef3f16-ac3b-46e5-b803-26d7adf4dcfb",
         "experiment_name": "northstar_baseline_run_1",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
         "dataset_id": "ds_a25467494a36",
@@ -2277,7 +2277,7 @@
             "doc_2e33747df04b4bbc",
             "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:59:30.936799+00:00",
+          "execution_timestamp": "2026-11-16T06:03:49.063655+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",
@@ -2311,13 +2311,13 @@
     },
     {
       "run_index": 2,
-      "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
+      "run_id": "52430204-ac71-4a9f-90fe-063b058702a5",
       "experiment_name": "northstar_baseline_run_2",
-      "job_id": "job_ab85f0f8757b",
+      "job_id": "job_4be948653dc3",
       "run_data": {
-        "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
+        "run_id": "52430204-ac71-4a9f-90fe-063b058702a5",
         "experiment_name": "northstar_baseline_run_2",
-        "run_timestamp": "2026-11-15T19:59:32.088594+00:00",
+        "run_timestamp": "2026-11-16T06:03:50.255945+00:00",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
         "config": {
           "citations_enabled": true,
@@ -2366,7 +2366,7 @@
             "doc_2e33747df04b4bbc",
             "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:59:32.079067+00:00",
+          "execution_timestamp": "2026-11-16T06:03:50.245313+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",
@@ -2378,28 +2378,28 @@
           "retriever_params": {},
           "retriever_type": "bm25"
         },
-        "created_at": "2026-11-15T19:59:32.088900+00:00",
+        "created_at": "2026-11-16T06:03:50.256234+00:00",
         "metrics": {
           "citation_precision": 0.0,
           "citation_recall": 0.0,
           "hit_rate@5": 0.8,
-          "latency_p50_ms": 0.7855000003473833,
-          "latency_p90_ms": 0.9963099961169064,
-          "latency_p95_ms": 1.0454050032421944,
-          "latency_p99_ms": 1.0846810089424253,
+          "latency_p50_ms": 0.7821500003046822,
+          "latency_p90_ms": 0.8544200001779245,
+          "latency_p95_ms": 0.8927600007154978,
+          "latency_p99_ms": 0.9234320011455566,
           "lexical_groundedness": 0.1,
-          "max_latency_ms": 1.094500010367483,
+          "max_latency_ms": 0.9311000012530712,
           "mean_citation_precision": 0.0,
           "mean_citation_recall": 0.0,
-          "mean_generation_latency_ms": 0.08041999535635114,
+          "mean_generation_latency_ms": 0.0844300004246179,
           "mean_hit_rate@5": 0.8,
-          "mean_latency_ms": 0.8024499984458089,
+          "mean_latency_ms": 0.7902100001956569,
           "mean_lexical_groundedness": 0.1,
           "mean_mrr@5": 0.7,
           "mean_ndcg@5": 0.7261859507142915,
           "mean_precision@5": 0.16,
           "mean_recall@5": 0.8,
-          "min_latency_ms": 0.4521000082604587,
+          "min_latency_ms": 0.7315000002563465,
           "mrr@5": 0.7,
           "ndcg@5": 0.7261859507142915,
           "precision@5": 0.16,
@@ -2452,7 +2452,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.05889998283237219,
+              "latency_ms": 0.11140000060549937,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2531,7 +2531,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.4521000082604587,
+            "latency_ms": 0.9311000012530712,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2631,7 +2631,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.13270002091303468,
+              "latency_ms": 0.11339999946358148,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2710,7 +2710,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.985399994533509,
+            "latency_ms": 0.8459000000584638,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2810,7 +2810,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08870000601746142,
+              "latency_ms": 0.09020000106829684,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -2889,7 +2889,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.7790999952703714,
+            "latency_ms": 0.7970999995450256,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -2989,7 +2989,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.07539999205619097,
+              "latency_ms": 0.07120000009308569,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3068,7 +3068,7 @@
               "unsupported_claims_count": 0
             },
             "judge_result": null,
-            "latency_ms": 0.7919000054243952,
+            "latency_ms": 0.7685000000492437,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3168,7 +3168,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.0709999876562506,
+              "latency_ms": 0.08650000017951243,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3247,7 +3247,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.7739999855402857,
+            "latency_ms": 0.8172999987436924,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3347,7 +3347,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.08529998012818396,
+              "latency_ms": 0.0777000004745787,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3426,7 +3426,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.8200999873224646,
+            "latency_ms": 0.7958000005601207,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3526,7 +3526,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.06839999696239829,
+              "latency_ms": 0.06620000021939632,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3605,7 +3605,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.7775000121910125,
+            "latency_ms": 0.737600001230021,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3705,7 +3705,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.083099992480129,
+              "latency_ms": 0.07230000119307078,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3784,7 +3784,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.8870000019669533,
+            "latency_ms": 0.7451000001310604,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -3884,7 +3884,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.06570000550709665,
+              "latency_ms": 0.06609999945794698,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -3963,7 +3963,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 0.6628999835811555,
+            "latency_ms": 0.7315000002563465,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -4061,7 +4061,7 @@
             "generated_answer": "Mock generation response",
             "generation_provenance": {
               "is_mock": true,
-              "latency_ms": 0.07499998901039362,
+              "latency_ms": 0.08930000149121042,
               "model": "mock-pipeline",
               "prompt_version": "v1",
               "provider": "mock",
@@ -4140,7 +4140,7 @@
               "unsupported_claims_count": 1
             },
             "judge_result": null,
-            "latency_ms": 1.094500010367483,
+            "latency_ms": 0.7322000001295237,
             "metrics": {
               "citation_precision": 0.0,
               "citation_recall": 0.0,
@@ -4202,7 +4202,7 @@
         ]
       },
       "repro_data": {
-        "run_id": "be761389-6b81-4e8c-8b28-07b1678b21f2",
+        "run_id": "52430204-ac71-4a9f-90fe-063b058702a5",
         "experiment_name": "northstar_baseline_run_2",
         "config_hash": "f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5",
         "dataset_id": "ds_a25467494a36",
@@ -4253,7 +4253,7 @@
             "doc_2e33747df04b4bbc",
             "doc_d983c0dbd6214275"
           ],
-          "execution_timestamp": "2026-11-15T19:59:32.079067+00:00",
+          "execution_timestamp": "2026-11-16T06:03:50.245313+00:00",
           "generator_model": "mock-pipeline",
           "is_mock": true,
           "llm_provider": "mock",

@@ -18,8 +18,12 @@ This guide provides end-to-end instructions to clone, configure, run, verify, an
   - **Local development**: `Python 3.13.3` (used for development and type-checking, but not certified in CI).
 - **Node.js**:
   - **Minimum compatible runtime**: `Node.js >= 22.12.0` (strictly declared by `puppeteer: ^25.17.0`, `@sveltejs/kit: ^3.0.0`, and `vite: ^8.3.0` in `frontend/package.json`).
-  - **Clean-checkout tested**: `Node.js v24.13.0` (with `npm 11.6.2`) on Windows 11 x86_64; `npm ci`, Vitest (29/29 passed), `svelte-check` (0 errors, 0 warnings), and production build completed cleanly.
-  - **Recommended maintained LTS**: `Node.js 22 LTS` (`>= 22.12.0`) or `Node.js 24 Active` (`v24.13.0`). Older Node releases (Node 18 EOL or Node 20 < 22.12.0) are unsupported. Node 26 was not tested as it was not present in the verification environment.
+  - **Clean-checkout tested**: `Node.js v24.13.0` (with `npm 11.6.2`) on Windows 11 x86_64; `npm ci`, Vitest (29/29 passed), `svelte-check` (0 errors, 0 warnings), and production build completed cleanly. (Note: `v24.13.0` is a verified test result from this environment, not the latest patched release).
+  - **Current maintained LTS release recommendations** (as of November 16, 2026):
+    - `Node.js 26.13.1` — LTS (untested in this verification environment, as only system Node `v24.13.0` is installed).
+    - `Node.js 24.22.3` — LTS (latest patch of Node 24 line; clean-checkout verified on `v24.13.0`).
+    - `Node.js 22.23.5` — LTS (latest patch of Node 22 line; compatible via `>= 22.12.0`).
+    - Older Node releases (Node 18 EOL or Node 20 `< 22.12.0`) are unsupported.
 - **Git**: Modern git client.
 - **Optional Local LLM (Ollama)**: For 100% offline neural generation, install [Ollama](https://ollama.com). (The platform includes a built-in deterministic mock provider for zero-dependency hermetic testing).
 
@@ -305,7 +309,7 @@ python scripts/record_demo_evaluation.py
 | **Total Prompt Tokens** | `4,406` | `4,406` | **`0`** | Deterministic Tokenizer Count |
 | **Total Completion Tokens**| `30` | `30` | **`0`** | Deterministic Generator Count |
 | **Total Evaluated Queries** | `10` | `10` | **`0`** | Exact Dataset Size (10 queries) |
-| **Mean Latency (ms)** | `0.5826` | `0.8024` | `+0.2198` | Wall-clock execution (expected sub-millisecond CPU jitter) |
+| **Mean Latency (ms)** | `0.5099` | `0.7902` | `+0.2803` | Wall-clock execution (expected sub-millisecond CPU jitter) |
 | **Reproducibility Tier** | `exact` | `exact` | **Match** | Verified SHA-256 Provenance |
 
 > [!IMPORTANT]
@@ -323,7 +327,7 @@ python scripts/record_demo_evaluation.py
 | `ModuleNotFoundError: No module named 'pymupdf'` | Python virtual environment created without project dependencies installed | Activate venv and run `pip install -e ".[dev,web]"` or `pip install pymupdf`. |
 | `No module named 'faiss.swigfaiss_avx2'` | Informational warning emitted on CPUs without AVX2 extensions | Safe to ignore. The library automatically falls back to standard generic instructions (`Successfully loaded faiss`). |
 | `ERR_CONNECTION_REFUSED` on frontend startup | Backend FastAPI server is not running on port 8000 | Ensure Terminal 1 is running `uvicorn reliability_lab.api.main:app --port 8000`. |
-| `npm ci` fails with engine or lockfile mismatch | Node.js version is below modern SvelteKit/Puppeteer requirements | Install **Node.js >= 22.12.0** (e.g. Node 22 LTS or Node 24 Active, tested with v24.13.0) with npm 10+ or 11+. Run `npm ci` without `--force`. |
+| `npm ci` fails with engine or lockfile mismatch | Node.js version is below modern SvelteKit/Puppeteer requirements | Install **Node.js >= 22.12.0** (Node 22, 24, or 26 LTS; tested with `v24.13.0`) with npm 10+ or 11+. Run `npm ci` without `--force`. |
 | Ollama generation times out on CPU | Local LLM inference on CPU without GPU takes 15-25s per turn | Use the deterministic `mock` provider for rapid evaluations, or extend HTTP timeouts when running `llama3.2` on CPU. |
 | Missing Developer Mode options | User Mode is active (default) | Click the **Developer Mode** toggle switch in the application header. |
 

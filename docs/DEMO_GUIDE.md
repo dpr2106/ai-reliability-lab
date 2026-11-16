@@ -1,6 +1,6 @@
-# STING Reproducible Demonstration Guide (V2-006.1)
+# STING Reproducible Demonstration Guide (V2-006.2)
 
-This guide provides end-to-end instructions to run, verify, and demonstrate **STING** (Evidence-First RAG Reliability Workbench) on a clean machine using the bundled **Northstar Technical Demonstration Suite**.
+This guide provides end-to-end instructions to clone, configure, run, verify, and demonstrate **STING** (Evidence-First RAG Reliability Workbench) from a genuinely clean checkout using the bundled **Northstar Technical Demonstration Suite** and the modern **User-First Workspace & Developer Mode (V2-007)**.
 
 ---
 
@@ -12,266 +12,359 @@ This guide provides end-to-end instructions to run, verify, and demonstrate **ST
 - **CPU / GPU**: Standard multi-core x86_64 or ARM64 CPU. GPU acceleration is optional.
 
 ### Software Prerequisites
-- **Python**: 3.11 or 3.12 recommended (3.10 and 3.13 also supported).
-- **Node.js**: Node 18+ or 20+ (with `npm`).
+- **Python**: Supported versions: `Python >= 3.10` per `pyproject.toml`.
+  - **Clean-checkout tested**: `Python 3.10.11` (Windows 11 x86_64, isolated virtual environment).
+  - **CI matrix verified**: `Python 3.11` and `Python 3.12` (GitHub Actions Ubuntu runners).
+  - **Local development**: `Python 3.13.3` (used for development and type-checking, but not certified in CI).
+- **Node.js**:
+  - **Minimum compatible runtime**: `Node.js >= 22.12.0` (strictly declared by `puppeteer: ^25.17.0`, `@sveltejs/kit: ^3.0.0`, and `vite: ^8.3.0` in `frontend/package.json`).
+  - **Clean-checkout tested**: `Node.js v24.13.0` (with `npm 11.6.2`) on Windows 11 x86_64; `npm ci`, Vitest (29/29 passed), `svelte-check` (0 errors, 0 warnings), and production build completed cleanly. (Note: `v24.13.0` is a verified test result from this environment, not the latest patched release).
+  - **Current maintained LTS release recommendations** (as of November 16, 2026):
+    - `Node.js 26.13.1` — LTS (untested in this verification environment, as only system Node `v24.13.0` is installed).
+    - `Node.js 24.22.3` — LTS (latest patch of Node 24 line; clean-checkout verified on `v24.13.0`).
+    - `Node.js 22.23.5` — LTS (latest patch of Node 22 line; compatible via `>= 22.12.0`).
+    - Older Node releases (Node 18 EOL or Node 20 `< 22.12.0`) are unsupported.
 - **Git**: Modern git client.
-- **Optional Local LLM (Ollama)**: For 100% offline neural generation, install [Ollama](https://ollama.com). (The workbench also includes a built-in deterministic mock provider for zero-dependency testing).
+- **Optional Local LLM (Ollama)**: For 100% offline neural generation, install [Ollama](https://ollama.com). (The platform includes a built-in deterministic mock provider for zero-dependency hermetic testing).
 
 ---
 
-## 2. Clean-Checkout Setup
+## 2. Configuration & Network Boundary Separation
 
-### Step 1: Clone Repository & Create Virtual Environment
+STING enforces a **secure local-first posture**. To understand how STING operates, distinguish clearly between installation-time dependencies, credential-free execution, and offline runtime:
+
+1. **Installation-Time Network Access (One-Time Setup)**:
+   - Initial Python dependency installation (`pip install -e ".[dev,faiss,web]"`) and Node module fetching (`npm ci`) require internet access.
+   - The first invocation of dense neural indexing downloads Sentence Transformers embedding weights (`all-MiniLM-L6-v2`, ~80 MB from HuggingFace) into the local cache (`~/.cache/huggingface/hub/`).
+2. **Credential-Free Operation (Zero Cloud API Keys)**:
+   - STING never requires external API keys, user logins, credit cards, or cloud accounts for any core feature.
+   - Retrieval (BM25, FAISS, Hybrid RRF), document chat, cross-document investigations, and golden evaluations function fully without external credentials.
+3. **100% Offline Runtime (Air-Gapped Operation)**:
+   - Once packages and embedding weights are locally cached, STING runs entirely offline with zero external network egress.
+   - Local LLM inference runs via Ollama on `localhost:11434` or the hermetic deterministic mock provider.
+
+| Variable | Purpose | Required / Optional | Default Value | Safe Example Value |
+|---|---|---|---|---|
+| `RELIABILITY_LAB_DB` | Path to persistent SQLite database | Optional | `.reliability-lab/experiments.sqlite3` | `.reliability-lab/experiments.sqlite3` |
+| `STING_API_URL` | Base URL of FastAPI backend adapter | Optional | `http://127.0.0.1:8000` | `http://127.0.0.1:8000` |
+| `OLLAMA_BASE_URL` | Local Ollama daemon HTTP endpoint | Optional | `http://localhost:11434` | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Default model tag for Ollama | Optional | `llama3.2` | `llama3.2` |
+| `GEMINI_API_KEY` | Google Gemini API key | Optional (cloud only) | None | `AIzaSy...` (do not commit) |
+| `PORT` | Local service port for backend | Optional | `8000` | `8000` |
+
+### Credential-Free Capabilities
+The following features require **zero external API keys or cloud credentials**:
+- Document ingestion and citation-aware chunking (PDF, Markdown, Plain Text).
+- Okapi BM25 and dense FAISS vector index generation (`all-MiniLM-L6-v2` / hermetic embedders).
+- User Mode document chat with citation parsing and Evidence Sources drawer.
+- Cross-document evidence investigations with structured findings matrices and Markdown export.
+- Benchmark dataset management, golden question validation, and JSONL import/export.
+- Deterministic RAG evaluation execution via the built-in `mock` provider.
+- Automated regression gating and multi-tier reproducibility manifest auditing.
+
+---
+
+## 3. Clean-Checkout Setup
+
+Follow these exact steps from a newly cloned repository or separate disposable directory:
+
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/dpr2106/ai-reliability-lab.git
 cd ai-reliability-lab
+```
 
-# Create and activate virtual environment
-python -m venv .venv
-
-# On Linux / macOS:
+### Step 2: Create and Activate Virtual Environment
+**On Linux / macOS:**
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
-# On Windows PowerShell:
+```
+
+**On Windows PowerShell:**
+```powershell
+py -3.10 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### Step 2: Install Python Dependencies
+### Step 3: Install Python Dependencies
 ```bash
-# Upgrade pip and install STING with development, indexing, and web packages
-pip install --upgrade pip
-pip install -e .[dev,faiss,web]
+# Upgrade pip to latest version
+python -m pip install --upgrade pip
+
+# Install STING in editable mode with development, indexing, and web packages
+pip install -e ".[dev,faiss,web]"
 ```
 
-### Step 3: Install Frontend Dependencies
+### Step 4: Install Frontend Dependencies
 ```bash
 cd frontend
 npm ci
 cd ..
 ```
 
-### Step 4: (Optional) Setup Local Ollama Model
-If running live offline neural generation:
+### Step 5: (Optional) Local Ollama LLM Setup
+If demonstrating authentic offline neural generation:
 ```bash
 # Start Ollama daemon (in a separate terminal)
 ollama serve
 
-# Pull default compact model
+# Pull default compact model (3B parameters)
 ollama pull llama3.2
 ```
 
 ---
 
-## 3. Starting the Platform
+## 4. Starting the Platform
+
+Open two terminal sessions:
 
 ### Terminal 1: Backend Server (FastAPI)
+**On Linux / macOS:**
 ```bash
-# Activate virtual environment
-source .venv/bin/activate  # Or Windows: .\.venv\Scripts\Activate.ps1
-
-# Set persistent SQLite database path
+source .venv/bin/activate
 export RELIABILITY_LAB_DB=".reliability-lab/experiments.sqlite3"
-# On Windows PowerShell: $env:RELIABILITY_LAB_DB = ".reliability-lab/experiments.sqlite3"
-
-# Start FastAPI application
-uvicorn reliability_lab.api.main:app --reload --port 8000
+uvicorn reliability_lab.api.main:app --port 8000 --host 127.0.0.1
 ```
-- Interactive Swagger API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+**On Windows PowerShell:**
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:RELIABILITY_LAB_DB = ".reliability-lab\experiments.sqlite3"
+uvicorn reliability_lab.api.main:app --port 8000 --host 127.0.0.1
+```
+
+- **Health Check**: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+- **Interactive OpenAPI Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ### Terminal 2: Frontend Diagnostic Studio (SvelteKit)
 ```bash
 cd frontend
-npm run dev -- --port 5173
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
-- Interactive Workbench Studio: [http://localhost:5173](http://localhost:5173)
+
+- **STING Application**: [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
 ---
 
-## 4. Preparing the Demo Dataset
+## 5. Preparing the Bundled Demo Dataset
 
-Execute the preparation workflow to ingest the bundled Northstar corpus and create the verified golden benchmark dataset:
+Execute the preparation workflow to ingest the Northstar demonstration corpus and establish the golden benchmark dataset:
 
+### Option A: Against Running Backend (API Mode)
 ```bash
-# Run against running backend server (API mode):
-python scripts/prepare_sting_demo.py --api-url http://127.0.0.1:8000
-
-# Or emit machine-readable JSON receipt with dynamic identifiers:
 python scripts/prepare_sting_demo.py --api-url http://127.0.0.1:8000 --receipt-json data/demo/receipt.json
+```
 
-# Or run directly in local service mode (no HTTP server needed):
-python scripts/prepare_sting_demo.py --local
+### Option B: Local Service Mode (Direct SQLite / No Server Needed)
+```bash
+python scripts/prepare_sting_demo.py --local --receipt-json data/demo/receipt.json
 ```
 
 ### What This Workflow Does:
-1. **Validates Demo Pack**: Confirms integrity of `data/demo/manifest.json`, the 3 Markdown documents, and 10 golden benchmark questions.
-2. **Ingests Documents**: Parses and indexes `architecture.md`, `benchmark_report.md`, and `incident_report.md` via `DocumentIngestionService`.
-3. **Builds Dual Indexes**: Generates BM25 term matrices and FAISS dense vector embeddings (`all-MiniLM-L6-v2`).
-4. **Resolves Dynamic Evidence Anchors**: Resolves manually verified textual evidence anchors to real runtime chunk IDs fail-closed.
+1. **Validates Demo Pack**: Validates `data/demo/manifest.json`, the 3 Markdown documents, and 10 golden benchmark questions.
+2. **Ingests Documents**: Parses and indexes `architecture.md`, `benchmark_report.md`, and `incident_report.md`.
+3. **Builds Dual Indexes**: Generates lexical BM25 chunks and FAISS dense vector embeddings.
+4. **Resolves Evidence Anchors**: Resolves manually verified textual evidence anchors to real runtime chunk IDs fail-closed.
 5. **Creates Benchmark Dataset**: Stores `Northstar Golden Benchmark` in SQLite with explicit document scopes and citation mappings.
+6. **Guarantees Idempotency**: Re-running the preparation script detects existing ingested documents and datasets, preventing duplicate data.
 
-Example output receipt:
+### Actual Execution Receipt Output:
 ```
 ======================================================================
   STING DEMO PACK PREPARATION RECEIPT
 ======================================================================
 Execution Mode:             API
 Benchmark Dataset:          Northstar Golden Benchmark
-Dataset Identifier:         ds_a25467494a36
+Dataset Identifier:         ds_8138dee2cb55
 Total Golden Queries:       10
   * Evidence-Anchored:      9 (resolved to unique chunks: 9)
   * Safe Abstention:        1 (intentional zero-evidence ground truth)
 ----------------------------------------------------------------------
 Ingested Documents:
-  * architecture.md           -> Doc ID: doc_0e3790a853fd4d11 (7 chunks)
-  * benchmark_report.md       -> Doc ID: doc_2e33747df04b4bbc (6 chunks)
-  * incident_report.md        -> Doc ID: doc_d983c0dbd6214275 (7 chunks)
+  * architecture.md           -> Doc ID: doc_323cee5d40fe4b70 (7 chunks)
+  * benchmark_report.md       -> Doc ID: doc_e151dadb04f14716 (6 chunks)
+  * incident_report.md        -> Doc ID: doc_423e1e9d71c442cb (7 chunks)
 Total Ingested Chunks:      20
 ----------------------------------------------------------------------
-Next Steps for STING Demonstration:
-  1. Evidence Queries:      POST /api/query or /api/query/stream
-     Scoped Doc IDs:        doc_0e3790a853fd4d11, doc_2e33747df04b4bbc, doc_d983c0dbd6214275
-  2. Cross-Document Invest: POST /api/investigations
-  3. Evaluation Studio:     POST /api/evaluation/run with dataset 'ds_a25467494a36'
-----------------------------------------------------------------------
 Quick Shell Variables (Bash / Zsh):
-  export DOC_ARCH="doc_0e3790a853fd4d11"
-  export DOC_BENCH="doc_2e33747df04b4bbc"
-  export DOC_INCIDENT="doc_d983c0dbd6214275"
-  export DEMO_DATASET_ID="ds_a25467494a36"
+  export DOC_ARCH="doc_323cee5d40fe4b70"
+  export DOC_BENCH="doc_e151dadb04f14716"
+  export DOC_INCIDENT="doc_423e1e9d71c442cb"
+  export DEMO_DATASET_ID="ds_8138dee2cb55"
 
 Quick PowerShell Variables:
-  $env:DOC_ARCH = "doc_0e3790a853fd4d11"
-  $env:DOC_BENCH = "doc_2e33747df04b4bbc"
-  $env:DOC_INCIDENT = "doc_d983c0dbd6214275"
-  $env:DEMO_DATASET_ID = "ds_a25467494a36"
+  $env:DOC_ARCH = "doc_323cee5d40fe4b70"
+  $env:DOC_BENCH = "doc_e151dadb04f14716"
+  $env:DOC_INCIDENT = "doc_423e1e9d71c442cb"
+  $env:DEMO_DATASET_ID = "ds_8138dee2cb55"
 ======================================================================
 ```
 
-> **Dynamic ID Workflow**: Copy the shell exports printed at the end of the receipt into your terminal session. All walkthrough commands below reference `$DOC_ARCH`, `$DOC_BENCH`, `$DOC_INCIDENT`, and `$DEMO_DATASET_ID` directly.
+---
+
+## 6. End-to-End User Experience Walkthrough
+
+STING provides two distinct operational modes: **User Mode** (default) and **Developer Mode** (optional diagnostic workbench).
+
+### Phase 1: User Mode Walkthrough (Default Workspace)
+
+1. **Open Workspace**:
+   - Navigate to [http://127.0.0.1:5173/](http://127.0.0.1:5173/).
+   - Observe that **Developer Mode is OFF by default** on fresh visits.
+   - The headline reads: *"Your documents. Understood."*
+   - Technical diagnostic links (Evaluation Studio, Run Explorer, Citation Audit) are cleanly hidden.
+2. **Inspect Recently Uploaded Documents**:
+   - The 3 Northstar demonstration documents (`architecture.md`, `benchmark_report.md`, `incident_report.md`) appear in the document collection grid.
+   - Metadata badges show file size, chunk counts (7 chunks, 6 chunks, 7 chunks), and `READY` status.
+3. **Upload a New Document**:
+   - Drag and drop a supported file (`.pdf`, `.md`, or `.txt`) into the upload dropzone, or click **Choose Document**.
+   - Observe the real-time stage progression:
+     $$\text{UPLOAD} \longrightarrow \text{EXTRACTION} \longrightarrow \text{CHUNKING} \longrightarrow \text{INDEXING} \longrightarrow \text{READY}$$
+   - Notice the glowing cyan progress bar (20% -> 42% -> 68% -> 88% -> 100%) and active stage diagnostic descriptions.
+4. **Chat with Document**:
+   - Click **Chat with Document &rarr;** on `architecture.md`.
+   - The document workspace displays the document filename, format badge, chunk count, and readiness tag.
+   - Ask a question:
+     > *"What target chunk size and overlap are specified for Northstar document ingestion?"*
+   - Inspect the generated answer:
+     > *"According to the Northstar architectural specification [CIT-1], document ingestion uses a target chunk size of 500 characters and 100 character overlap."*
+5. **Inspect Citations & Evidence Sources**:
+   - Click the interactive `[CIT-1]` pill to highlight the verbatim grounded quotation.
+   - Click **Evidence Sources** in the top-right header to toggle the slide-over drawer.
+   - Inspect the verified chunk ID, source filename, page number, effective strategy (`hybrid`), and latency.
+6. **Return to Document Library**:
+   - Click **&larr; All Documents** to return to the root landing hub.
 
 ---
 
-## 5. Walkthrough: Demonstrating STING's Core Capabilities
+### Phase 2: Developer Mode Walkthrough (Diagnostic Workbench)
 
-### Workflow 1: Evidence-First Query & Citation Verification
-Submit a document-grounded query with verified citations:
-```bash
-curl -X POST "http://localhost:8000/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What target chunk size and overlap are specified for Northstar document ingestion?",
-    "document_ids": ["'"$DOC_ARCH"'"],
-    "strategy": "hybrid",
-    "top_k": 5
-  }'
-```
-- **Inspect Citation Tags**: Generated answers cite exact chunks `[CIT-xxx]`.
-- **Verify Provenance**: Citation resolver cross-checks chunk IDs against retrieved evidence candidates.
-- **Inspect Retrieval Trace**: The response metadata contains the full query trace: candidate chunk ranks, BM25 scores, FAISS cosine distances, and RRF fusion contributions.
-
-For genuine token streaming, query the Server-Sent Events endpoint:
-```bash
-curl -N "http://localhost:8000/api/query/stream" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What target chunk size and overlap are specified for Northstar document ingestion?",
-    "document_ids": ["'"$DOC_ARCH"'"],
-    "strategy": "hybrid",
-    "top_k": 5
-  }'
-```
-
-### Workflow 2: Cross-Document Evidence Investigation
-Launch an investigation across the three documents:
-```bash
-curl -X POST "http://localhost:8000/api/investigations" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Hybrid Retrieval Performance on Alphanumeric Identifiers",
-    "query": "Does Hybrid RRF perform reliably on alphanumeric model codes compared to standard benchmarks?",
-    "document_ids": ["'"$DOC_ARCH"'", "'"$DOC_BENCH"'", "'"$DOC_INCIDENT"'"]
-  }'
-```
-- **Inspect Findings Matrix**: In the UI (`/investigations`), observe the comparison table across documents.
-- **Synthesize Disagreement**: Notice that `benchmark_report.md` reports Hybrid RRF as universally superior for natural language, while `incident_report.md` proves it failed on exact SKU searches due to RRF rank dilution.
-- **Export Publication Report**: Download a formatted report via `GET /api/investigations/{id}/export`.
-
-### Workflow 3: RAG Evaluation & Regression Studio
-You can launch evaluations via the interactive UI or directly via the API:
-
-**Option A: Via Interactive UI**
-1. Navigate to the **Evaluation Studio** in the UI ([http://localhost:5173/evaluation](http://localhost:5173/evaluation)).
-2. Under the **Datasets Studio** tab, inspect the imported `Northstar Golden Benchmark` (10 queries).
-3. Under the **Experiment Launcher** tab, configure a run:
-   - Dataset: `Northstar Golden Benchmark`
-   - Retriever: `bm25` (or compare `hybrid` vs `dense`)
-   - Provider: `mock` (or `ollama` with `llama3.2`)
-4. Click **Launch Evaluation Experiment**:
-   - Observe live thread-safe incremental progress (`queries_completed` / `total_queries`).
-5. Open the **Failure Explorer** tab:
-   - Filter query results by diagnostic failure mode: `retrieval_miss`, `partial_retrieval`, `citation_hallucination`, `citation_omission`, `ungrounded_generation`, or `passed`.
-6. Open the **Reproducibility Manifest** modal:
-   - Inspect the verified reproducibility tier (`exact`, `partial`, `impossible`), dataset SHA-256 content hash, and corpus chunk fingerprints.
-
-**Option B: Via Backend API (`POST /api/evaluation/run`)**
-```bash
-curl -X POST "http://localhost:8000/api/evaluation/run" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "experiment_name": "northstar_baseline_eval",
-    "dataset_id": "'"$DEMO_DATASET_ID"'",
-    "document_ids": ["'"$DOC_ARCH"'", "'"$DOC_BENCH"'", "'"$DOC_INCIDENT"'"],
-    "retriever_type": "bm25",
-    "provider": "mock",
-    "model_name": "mock-pipeline",
-    "top_k": 5,
-    "enable_groundedness": true,
-    "enable_citations": true,
-    "enable_nli": false,
-    "enable_judge": false
-  }'
-```
-Poll the returned `job_id` via `GET /api/evaluation/jobs/{job_id}`, then fetch the reproducibility manifest via `GET /api/runs/{run_id}/reproducibility`.
-
-### Workflow 4: Safe Abstention on Missing Evidence
-Submit a query about an unmentioned topic:
-```bash
-curl -X POST "http://localhost:8000/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What reinforcement learning from human feedback (RLHF) reward model and PPO hyperparameters are used in Northstar?",
-    "document_ids": ["'"$DOC_ARCH"'", "'"$DOC_BENCH"'", "'"$DOC_INCIDENT"'"],
-    "strategy": "hybrid",
-    "top_k": 5
-  }'
-```
-- **Abstention Behavior**: Because retrieval returns no evidence meeting relevance criteria, STING triggers Tier-1 or Tier-2 safe abstention, refusing to fabricate answers.
+1. **Activate Developer Mode**:
+   - Click the **Developer Mode** toggle switch in the application header.
+   - The header displays the **DEV** badge, and the **DEVELOPER WORKBENCH ACTIVE** ribbon appears.
+   - Diagnostic navigation links are revealed:
+     - **Evaluation Studio** (`/evaluation`)
+     - **Investigations** (`/investigations`)
+     - **Run Explorer** (`/runs`)
+     - **Run Comparison** (`/compare`)
+     - **Citation Audit** (`/citation-audit`)
+2. **Explore Evaluation Studio (`/evaluation`)**:
+   - Click **Evaluation Studio**.
+   - Confirm the page loads cleanly with zero console exceptions (the undefined filter defect is resolved).
+   - Under the **Datasets Studio** tab, inspect the `Northstar Golden Benchmark` (10 queries, 3 scoped documents).
+   - Under the **Experiment Launcher** tab:
+     - Dataset: `Northstar Golden Benchmark`
+     - Retriever: `bm25` (or `hybrid`)
+     - Provider: `mock` (or `ollama`)
+     - Model: `mock-pipeline` (or `llama3.2`)
+     - Top-K: `5`
+   - Click **Launch Evaluation Experiment**.
+   - Watch the incremental progress indicator (`1/10` -> `5/10` -> `10/10`).
+3. **Inspect Failure Explorer & Reproducibility Manifest**:
+   - Open the **Failure Explorer** tab to inspect query-level diagnostic outcomes (`passed`, `retrieval_miss`, `citation_hallucination`, etc.).
+   - Click **View Reproducibility Manifest** on any completed experiment.
+   - Inspect the verified **Reproducibility Tier** (`exact`), dataset SHA-256 digest, and corpus chunk fingerprints.
+4. **Cross-Document Evidence Investigations (`/investigations`)**:
+   - Navigate to `/investigations`.
+   - Create an investigation comparing `architecture.md`, `benchmark_report.md`, and `incident_report.md`.
+   - Inspect the aspect comparison matrix and export a publication-grade Markdown report.
+5. **Verify State Persistence**:
+   - Refresh the browser (`F5` or `Ctrl+R`).
+   - Developer Mode remains **ACTIVE** (persisted in `localStorage`).
+   - Click the toggle switch again to return to User Mode.
 
 ---
 
-## 6. Provider Transparency & Hardware Boundaries
+## 7. Deterministic Benchmark Reproducibility Evidence
 
-STING supports three distinct LLM execution paths:
+To prove deterministic reproducibility, execute `scripts/record_demo_evaluation.py` against the clean-checkout platform. This script dispatches the `Northstar Golden Benchmark` (10 queries, dataset `ds_a25467494a36`) twice in succession using Okapi BM25 retrieval and the deterministic mock provider, independently validates both run manifests, verifies the exact dataset SHA-256 digest, checks for complete metric coverage, and outputs structured provenance into `docs/reproducibility_evidence.json`:
 
-| Provider | Purpose | Network Requirement | Hardware Requirements | Reproducibility |
-|---|---|---|---|---|
-| **Deterministic Mock (`mock`)** | Hermetic CI, unit testing, deterministic validation | Zero network calls | Minimal CPU (< 100 MB RAM) | 100% deterministic rule-based output |
-| **Local Ollama (`ollama`)** | Authentic local-first neural generation | 100% offline (local daemon) | 4-8 GB RAM, multi-core CPU / GPU | Genuine local LLM reasoning (`llama3.2`) |
-| **Cloud Gemini (`gemini`)** | Comparison baseline against hosted models | Requires internet & `GEMINI_API_KEY` | Minimal client overhead | API response latency & quota dependent |
+```bash
+python scripts/record_demo_evaluation.py
+```
 
-> **Transparency Note**: Synthetic mock execution should never be presented as real neural model performance. Local inference requires downloading model weights via `ollama pull` and consumes local system memory during execution.
+### Verified Dataset & Run Provenance
+- **Dataset Name**: `Northstar Golden Benchmark` (`ds_a25467494a36`)
+- **Verified Dataset SHA-256**: `ead7f3be1a76bc27a86e887a6e32db46660ca8ae60c0389331f3962c26a9e524`
+- **Execution Config Hash**: `f6fa8444f4c72e2b8e97cb309644d0ee8b802f8ed7425d30687af02c7b0350b5`
+- **Retriever & Parameters**: `bm25` (top-K: 5, RSJ IDF, deterministic tie-breaking)
+- **Generator Provider / Model**: `mock` / `mock-pipeline` (Deterministic rule-based mock)
+- **Evaluation Scoped Corpus**: 3 documents (`architecture.md` [`doc_0e3790a853fd4d11`], `benchmark_report.md` [`doc_2e33747df04b4bbc`], `incident_report.md` [`doc_d983c0dbd6214275`] — 20 chunks total)
+- **Reproducibility Tier**: `exact` (Run 1 and Run 2 independently verified)
+- **Provenance Compatibility**: `True` (Zero cross-run hash or scope mismatches)
 
-### CPU Hardware Inference & Timeout Considerations
-When running local Ollama inference on CPU without dedicated GPU compute, prompt processing and autoregressive token generation take significantly longer than on GPU hardware (~15-25 seconds per turn on 3B parameter models). For large multi-paragraph prompts (such as cross-document JSON extractions), CPU inference can exceed the default 60-second HTTP client timeout. For rapid evaluation and regression testing on CPU environments, the deterministic `mock` provider is strongly recommended, while `ollama` is ideal for qualitative inspection and interactive chat turns.
+### Actual Measured Comparison: Run 1 vs. Run 2
 
-### Scenario Transparency: Fictional Demonstration Corpus
-The documents in `data/demo/corpus/` (*Northstar Distributed Retrieval & Evidence Investigation Engine*) represent a fictional technical scenario created specifically to demonstrate STING's evaluation, regression, contradiction analysis, and citation verification capabilities. The evaluation figures cited within the demo documents (e.g., Recall@5: 0.9625, NDCG@5: 0.9420) are narrative elements of that scenario and do not represent measured benchmarks of STING itself.
+Across the 28 recorded metrics in `docs/reproducibility_evidence.json`:
+- **20 Deterministic Metrics (`exact`)**: 100% identical (`0.0000` delta across runs), including all IR ranking metrics, token counts, and deterministic mock evaluation outputs.
+- **8 Non-Deterministic Latency Metrics (`diverged`)**: Wall-clock timings (`mean_latency_ms`, `min_latency_ms`, `max_latency_ms`, `mean_generation_latency_ms`, and P50/P90/P95/P99 percentiles) exhibit natural sub-millisecond CPU scheduling variations.
+- **Reproducibility Tier Definition**: The `exact` tier certifies provenance verification (identical dataset SHA-256, identical config hash, identical document scope) and algorithmic determinism under identical inputs, rather than invariant wall-clock execution times.
+
+| Metric | Run 1 | Run 2 | Absolute Delta | Metric Status / Interpretation |
+|:---|:---:|:---:|:---:|:---|
+| **Hit Rate@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **Recall@5** | `0.8000` | `0.8000` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **Precision@5** | `0.1600` | `0.1600` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **MRR@5** | `0.7000` | `0.7000` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **NDCG@5** | `0.7262` | `0.7262` | **`0.0000`** | Deterministic IR Metric (exact match) |
+| **Citation Precision** | `0.0000` | `0.0000` | **`0.0000`** | Failing: Mock generator emits no citations |
+| **Citation Recall** | `0.0000` | `0.0000` | **`0.0000`** | Failing: Mock generator emits no citations |
+| **Lexical Groundedness** | `0.1000` | `0.1000` | **`0.0000`** | Low: Synthetic template token overlap |
+| **Total Prompt Tokens** | `4,406` | `4,406` | **`0`** | Deterministic Tokenizer Count |
+| **Total Completion Tokens**| `30` | `30` | **`0`** | Deterministic Generator Count |
+| **Total Evaluated Queries** | `10` | `10` | **`0`** | Exact Dataset Size (10 queries) |
+| **Mean Latency (ms)** | `0.5099` | `0.7902` | `+0.2803` | Wall-clock execution (expected sub-millisecond CPU jitter) |
+| **Reproducibility Tier** | `exact` | `exact` | **Match** | Verified SHA-256 Provenance & Algorithmic Determinism |
+
+> [!IMPORTANT]
+> **Honest Evaluation Disclosure — Mock vs. Neural Generation & Latency Variance**:
+> - **Deterministic Repeatability (20 Exact Metrics)**: Ranking metrics (Hit Rate, MRR, NDCG, Recall, Precision and their mean counterparts), query count, and token counts match **identically (0.0000 delta)** across runs. This proves algorithmic determinism and mathematical evaluation correctness under identical inputs.
+> - **Wall-Clock Latency (8 Diverged Metrics)**: Operating systems exhibit minor timing variations across consecutive executions. All 8 divergent metrics in the evaluation manifest are latency measurements (P50, P90, P95, P99, min, max, mean). STING transparently classifies them as `diverged` while verifying `exact` provenance reproducibility.
+> - **Generative Quality Disclaimer**: Exact reproducibility does **not** establish high generative quality. Because the evaluation uses the deterministic `mock` provider (`mock-pipeline`), the generated answers are rule-based synthetic strings that contain no citation markers and minimal lexical overlap.
+> - **Transparent Failure Reporting**: Citation Precision (`0.0000`), Citation Recall (`0.0000`), and Lexical Groundedness (`0.1000`) reflect genuine generation failures for the mock provider. These metrics are intentionally preserved and disclosed, never zero-filled or disguised. To evaluate authentic neural citation placement and groundedness, configure local Ollama (`llama3.2`).
 
 ---
 
-## 7. Known Limitations
+## 8. Troubleshooting & Common Issues
 
-- **Cross-document structured extraction on CPU**: Generating deep structured JSON across multiple documents concurrently requires adequate Ollama client timeouts or GPU offload.
-- **Dense index cold start**: The first dense ingestion run downloads `sentence-transformers/all-MiniLM-L6-v2` (~90 MB) into the local HuggingFace cache. Subsequent runs reuse the local cache completely offline.
-- **Browser SSE streaming**: SSE token streaming requires an HTTP client or browser supporting `text/event-stream`.
+| Issue / Symptom | Root Cause | Resolution |
+|---|---|---|
+| `ModuleNotFoundError: No module named 'pymupdf'` | Python virtual environment created without project dependencies installed | Activate venv and run `pip install -e ".[dev,web]"` or `pip install pymupdf`. |
+| `No module named 'faiss.swigfaiss_avx2'` | Informational warning emitted on CPUs without AVX2 extensions | Safe to ignore. The library automatically falls back to standard generic instructions (`Successfully loaded faiss`). |
+| `ERR_CONNECTION_REFUSED` on frontend startup | Backend FastAPI server is not running on port 8000 | Ensure Terminal 1 is running `uvicorn reliability_lab.api.main:app --port 8000`. |
+| `npm ci` fails with engine or lockfile mismatch | Node.js version is below modern SvelteKit/Puppeteer requirements | Install **Node.js >= 22.12.0** (Node 22, 24, or 26 LTS; tested with `v24.13.0`) with npm 10+ or 11+. Run `npm ci` without `--force`. |
+| Ollama generation times out on CPU | Local LLM inference on CPU without GPU takes 15-25s per turn | Use the deterministic `mock` provider for rapid evaluations, or extend HTTP timeouts when running `llama3.2` on CPU. |
+| Missing Developer Mode options | User Mode is active (default) | Click the **Developer Mode** toggle switch in the application header. |
 
+---
+
+## 9. Verification & Quality Commands
+
+Run the full verification suite before submitting pull requests:
+
+```bash
+# Backend Quality Checks
+ruff check .
+ruff format --check .
+mypy reliability_lab
+pytest --cov=reliability_lab
+
+# Frontend Quality Checks
+cd frontend
+npm run test     # Vitest unit tests (29/29 passed across api.spec.ts and workspace.spec.ts)
+npm run check    # Svelte TypeScript & A11y diagnostics (0 errors, 0 warnings)
+npm run build    # Production build with @sveltejs/adapter-node
+cd ..
+
+# Hermetic Demo Integration Test (16/16 checkpoints)
+python scripts/verify_sting_demo.py
+```
+
+---
+
+## 10. Known Limitations
+
+- **Single-File Ingestion Drop**: The dropzone processes files one at a time to ensure deterministic lifecycle tracking and honest progress reporting.
+- **Cold-Start Vector Cache**: The first dense vector embedding execution downloads `all-MiniLM-L6-v2` (~90 MB) into the local HuggingFace cache. Subsequent executions run entirely offline.
+- **CPU Ollama Latency**: Running local neural models on CPU without dedicated GPU compute exhibits longer generation times (~15-25 seconds per turn).

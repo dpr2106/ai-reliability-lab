@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import re
@@ -45,16 +46,20 @@ def validate_sha256_digest(raw_val: Any, field_name: str, entity_id: str = "") -
     """Validate that raw_val is an authentic 64-character hexadecimal SHA-256 digest."""
     prefix = f"{field_name} for '{entity_id}'" if entity_id else field_name
 
-    if raw_val is None or not isinstance(raw_val, str) or not raw_val.strip():
+    if raw_val is None or not isinstance(raw_val, str) or not raw_val:
         raise ValueError(f"{prefix} is missing or empty.")
 
-    norm = raw_val.strip().lower()
+    # Reject leading or trailing whitespace and internal whitespace fail-closed
+    if raw_val != raw_val.strip() or any(c.isspace() for c in raw_val):
+        raise ValueError(f"{prefix} contains whitespace characters: {raw_val!r}.")
 
-    if len(norm) != 64:
+    if len(raw_val) != 64:
         raise ValueError(
-            f"{prefix} has invalid length {len(norm)} "
+            f"{prefix} has invalid length {len(raw_val)} "
             f"(expected exactly 64 hex characters): '{raw_val}'."
         )
+
+    norm = raw_val.lower()
 
     if not SHA256_HEX_PATTERN.match(norm):
         raise ValueError(f"{prefix} contains non-hexadecimal characters: '{raw_val}'.")
@@ -263,38 +268,154 @@ def poll_evaluation_job(
 def extract_run_provenance_record(
     run_entry: dict[str, Any],
 ) -> dict[str, Any]:
-    """Independently extract and validate all provenance fields for a single run."""
-    run_data = run_entry["run_data"]
-    repro_data = run_entry["repro_data"]
+    """Independently extract and validate all provenance fields for a single run.
 
-    run_id = run_data.get("run_id", "unknown")
+    Fails explicitly with descriptive ValueError if any required provenance field
+    is missing, malformed, or invalid. Never silently defaults missing fields.
+    """
+    if not isinstance(run_entry, dict):
+        raise ValueError(f"run_entry must be a dictionary, got: {type(run_entry).__name__}")
+
+    run_data = run_entry.get("run_data")
+    if not isinstance(run_data, dict):
+        raise ValueError("run_entry['run_data'] is missing or not a dictionary")
+
+    repro_data = run_entry.get("repro_data")
+    if not isinstance(repro_data, dict):
+        raise ValueError("run_entry['repro_data'] is missing or not a dictionary")
+
+    # 1. Non-empty run ID
+    run_id = run_data.get("run_id") or repro_data.get("run_id")
+    if not run_id or not isinstance(run_id, str) or not run_id.strip():
+        raise ValueError("run_id is missing or empty in run data")
+    run_id = run_id.strip()
+
+    # 2. Non-empty dataset ID
+    ds_id = repro_data.get("dataset_id") or run_data.get("dataset_reference")
+    if not ds_id or not isinstance(ds_id, str) or not ds_id.strip():
+        raise ValueError(f"dataset_id is missing or empty in run '{run_id}'")
+    ds_id = ds_id.strip()
+
+    # 3. Valid 64-character dataset content SHA-256
     ds_hash = extract_dataset_content_hash(repro_data, run_data)
+
+    # 4. Valid 64-character configuration SHA-256
     cfg_hash = extract_config_hash(run_data, repro_data)
 
-    tier = str(repro_data.get("reproducibility_tier", "unknown")).lower()
-    can_reproduce = bool(repro_data.get("can_reproduce", False))
-
-    ds_id = repro_data.get("dataset_id") or run_data.get("dataset_reference") or ""
-    doc_scope = sorted(
+    # 5. Non-empty document scope containing valid, non-empty string IDs, with no duplicates
+    raw_doc_scope = (
         repro_data.get("corpus_document_ids")
-        or run_data.get("metadata", {}).get("document_ids")
-        or []
+        if repro_data.get("corpus_document_ids") is not None
+        else run_data.get("metadata", {}).get("document_ids")
     )
+    if not isinstance(raw_doc_scope, list) or len(raw_doc_scope) == 0:
+        raise ValueError(f"document_scope in run '{run_id}' is missing, empty, or not a list")
 
-    q_count = (
+    for did in raw_doc_scope:
+        if not did or not isinstance(did, str) or not did.strip():
+            raise ValueError(
+                f"document_scope in run '{run_id}' contains invalid non-string or empty ID: {did!r}"
+            )
+    if len(raw_doc_scope) != len(set(raw_doc_scope)):
+        raise ValueError(
+            f"document_scope in run '{run_id}' contains duplicate IDs: {raw_doc_scope}"
+        )
+    doc_scope = sorted(did.strip() for did in raw_doc_scope)
+
+    # 6. Positive integer query count; reject booleans and zero
+    raw_q_count = (
         run_data.get("query_count")
-        or len(run_data.get("per_query_results") or [])
-        or run_data.get("config", {}).get("query_count")
-        or 0
+        if run_data.get("query_count") is not None
+        else (
+            len(run_data.get("per_query_results"))
+            if run_data.get("per_query_results") is not None
+            else (
+                run_data.get("config", {}).get("query_count")
+                if isinstance(run_data.get("config"), dict)
+                and run_data.get("config", {}).get("query_count") is not None
+                else None
+            )
+        )
     )
+    if (
+        raw_q_count is None
+        or isinstance(raw_q_count, bool)
+        or not isinstance(raw_q_count, int)
+        or raw_q_count <= 0
+    ):
+        raise ValueError(
+            f"query_count in run '{run_id}' must be a positive integer, got: {raw_q_count!r}"
+        )
+    q_count = raw_q_count
 
-    cfg = run_data.get("config") or {}
-    meta = run_data.get("metadata") or {}
+    cfg = run_data.get("config") if isinstance(run_data.get("config"), dict) else {}
+    meta = run_data.get("metadata") if isinstance(run_data.get("metadata"), dict) else {}
 
-    retriever = str(cfg.get("retriever") or meta.get("retriever_type") or "").lower()
-    top_k = int(cfg.get("top_k") or 5)
-    provider = str(cfg.get("generator_provider") or meta.get("provider") or "").lower()
-    model = str(cfg.get("generator_model") or meta.get("model_name") or "")
+    # 7. Non-empty retriever identifier
+    raw_retriever = cfg.get("retriever") or meta.get("retriever_type")
+    if not raw_retriever or not isinstance(raw_retriever, str) or not raw_retriever.strip():
+        raise ValueError(f"retriever identifier is missing or empty in run '{run_id}'")
+    retriever = raw_retriever.strip().lower()
+
+    # 8. An explicitly supplied positive integer top_k; do not silently default to 5
+    raw_top_k = (
+        cfg.get("top_k") if "top_k" in cfg else (meta.get("top_k") if "top_k" in meta else None)
+    )
+    if (
+        raw_top_k is None
+        or isinstance(raw_top_k, bool)
+        or not isinstance(raw_top_k, int)
+        or raw_top_k <= 0
+    ):
+        raise ValueError(
+            f"top_k in run '{run_id}' must be an explicitly supplied positive integer, "
+            f"got: {raw_top_k!r}"
+        )
+    top_k = raw_top_k
+
+    # 9. Non-empty provider identifier
+    raw_provider = cfg.get("generator_provider") or meta.get("provider")
+    if not raw_provider or not isinstance(raw_provider, str) or not raw_provider.strip():
+        raise ValueError(f"provider identifier is missing or empty in run '{run_id}'")
+    provider = raw_provider.strip().lower()
+
+    # 10. Non-empty model identifier
+    raw_model = cfg.get("generator_model") or meta.get("model_name")
+    if not raw_model or not isinstance(raw_model, str) or not raw_model.strip():
+        raise ValueError(f"model identifier is missing or empty in run '{run_id}'")
+    model = raw_model.strip()
+
+    # 11. Valid reproducibility tier
+    raw_tier = repro_data.get("reproducibility_tier")
+    if not raw_tier or not isinstance(raw_tier, str) or not raw_tier.strip():
+        raise ValueError(f"reproducibility_tier is missing or empty in run '{run_id}'")
+    tier = raw_tier.strip().lower()
+    if tier not in ("exact", "partial", "unverifiable", "impossible"):
+        raise ValueError(f"reproducibility_tier in run '{run_id}' is invalid: {raw_tier!r}")
+
+    # 12. Actual boolean can_reproduce value; do not coerce arbitrary values using bool()
+    raw_can_reproduce = repro_data.get("can_reproduce")
+    if raw_can_reproduce is None or not isinstance(raw_can_reproduce, bool):
+        raise ValueError(
+            f"can_reproduce in run '{run_id}' must be an actual boolean (True/False), "
+            f"got: {raw_can_reproduce!r} ({type(raw_can_reproduce).__name__})"
+        )
+    can_reproduce = raw_can_reproduce
+
+    # 13. Non-empty metrics mapping with valid finite numeric metric values
+    raw_metrics = run_data.get("metrics")
+    if not isinstance(raw_metrics, dict) or len(raw_metrics) == 0:
+        raise ValueError(f"metrics mapping in run '{run_id}' is missing or empty")
+
+    for mk, mv in raw_metrics.items():
+        if not isinstance(mk, str) or not mk.strip():
+            raise ValueError(f"metrics mapping in run '{run_id}' has invalid metric key: {mk!r}")
+        if mv is None or isinstance(mv, bool) or not isinstance(mv, (int, float)):
+            raise ValueError(
+                f"metric '{mk}' in run '{run_id}' must be a numeric value, got: {mv!r}"
+            )
+        if not math.isfinite(mv):
+            raise ValueError(f"metric '{mk}' in run '{run_id}' is not a finite number: {mv!r}")
 
     return {
         "run_id": run_id,
@@ -310,7 +431,7 @@ def extract_run_provenance_record(
         "top_k": top_k,
         "provider": provider,
         "model": model,
-        "metrics": run_data.get("metrics") or {},
+        "metrics": raw_metrics,
         "failure_counts": run_data.get("failure_counts") or {},
     }
 
@@ -319,10 +440,35 @@ def validate_and_compare_runs(
     run1_entry: dict[str, Any], run2_entry: dict[str, Any]
 ) -> dict[str, Any]:
     """Validate both evaluation runs independently and assert cross-run provenance compatibility."""
-    p1 = extract_run_provenance_record(run1_entry)
-    p2 = extract_run_provenance_record(run2_entry)
-
     incompatibilities: list[str] = []
+    p1: dict[str, Any] | None = None
+    p2: dict[str, Any] | None = None
+
+    try:
+        p1 = extract_run_provenance_record(run1_entry)
+    except ValueError as exc:
+        incompatibilities.append(f"Run 1 provenance validation failed: {exc}")
+
+    try:
+        p2 = extract_run_provenance_record(run2_entry)
+    except ValueError as exc:
+        incompatibilities.append(f"Run 2 provenance validation failed: {exc}")
+
+    if p1 is None or p2 is None:
+        metric_cmp: dict[str, Any] = {
+            "is_comparable": False,
+            "missing_keys": [],
+            "metrics": {},
+        }
+        return {
+            "run_1_provenance": p1 or {},
+            "run_2_provenance": p2 or {},
+            "is_comparable": False,
+            "provenance_compatible": False,
+            "incompatibilities": incompatibilities,
+            "overall_reproducibility_tier": "impossible",
+            "metrics_comparison": metric_cmp,
+        }
 
     # 1. Dataset hashes match and are identical
     if p1["dataset_content_hash"] != p2["dataset_content_hash"]:
@@ -372,7 +518,7 @@ def validate_and_compare_runs(
             f"Run 2 is {p2['can_reproduce']}."
         )
 
-    # 8. Retriever and generator configuration match
+    # 8. Retriever, top_k, provider, and model match
     if p1["retriever"] != p2["retriever"]:
         incompatibilities.append(
             f"Retriever mismatch: Run 1 is '{p1['retriever']}', Run 2 is '{p2['retriever']}'."
@@ -528,6 +674,13 @@ def run() -> None:
     p1 = validation["run_1_provenance"]
     p2 = validation["run_2_provenance"]
     metric_cmp = validation["metrics_comparison"]
+
+    if not validation["provenance_compatible"] or not p1 or not p2:
+        print("\nERROR: Cross-run validation failed! Incompatibilities:")
+        for inc in validation["incompatibilities"]:
+            print(f"  - {inc}")
+        if not p1 or not p2:
+            raise RuntimeError(f"Provenance extraction failed: {validation['incompatibilities']}")
 
     print("\n======================================================================")
     print("  REPRODUCIBILITY EVALUATION COMPARISON: RUN 1 vs RUN 2")

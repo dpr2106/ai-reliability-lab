@@ -10,6 +10,7 @@ from scripts.record_demo_evaluation import (
     compare_run_metrics,
     extract_config_hash,
     extract_dataset_content_hash,
+    extract_run_provenance_record,
     poll_evaluation_job,
     request_json,
     select_golden_dataset,
@@ -55,7 +56,31 @@ class TestHashValidationStrictness:
             validate_sha256_digest(None, "test_hash")
         with pytest.raises(ValueError, match="missing or empty"):
             validate_sha256_digest("", "test_hash")
-        with pytest.raises(ValueError, match="missing or empty"):
+
+    def test_whitespace_padded_hashes_fail_closed(self) -> None:
+        # Leading whitespace
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest(" " + SAMPLE_HASH, "test_hash")
+        # Trailing whitespace
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest(SAMPLE_HASH + " ", "test_hash")
+        # Leading tab
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest("\t" + SAMPLE_HASH, "test_hash")
+        # Trailing tab
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest(SAMPLE_HASH + "\t", "test_hash")
+        # Newline
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest(SAMPLE_HASH + "\n", "test_hash")
+        # Carriage return / newline
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest(SAMPLE_HASH + "\r\n", "test_hash")
+        # Internal space
+        with pytest.raises(ValueError, match="contains whitespace characters"):
+            validate_sha256_digest(SAMPLE_HASH[:32] + " " + SAMPLE_HASH[33:], "test_hash")
+        # All whitespace
+        with pytest.raises(ValueError, match="contains whitespace characters"):
             validate_sha256_digest("   ", "test_hash")
 
     def test_extract_dataset_content_hash_success(self) -> None:
@@ -352,6 +377,255 @@ class TestIndependentCrossRunValidation:
         assert val["provenance_compatible"] is False
         assert val["overall_reproducibility_tier"] == "partial"
         assert any("tier is not exact" in s for s in val["incompatibilities"])
+
+    def test_both_runs_missing_dataset_ids_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["repro_data"].pop("dataset_id")
+        r2["repro_data"].pop("dataset_id")
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("dataset_id" in s for s in val["incompatibilities"])
+
+    def test_both_runs_missing_document_scopes_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["repro_data"].pop("corpus_document_ids")
+        r1["run_data"]["metadata"].pop("document_ids")
+        r2["repro_data"].pop("corpus_document_ids")
+        r2["run_data"]["metadata"].pop("document_ids")
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("document_scope" in s for s in val["incompatibilities"])
+
+    def test_both_runs_missing_query_counts_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"].pop("query_count")
+        r2["run_data"].pop("query_count")
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("query_count" in s for s in val["incompatibilities"])
+
+    def test_both_runs_missing_retriever_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"]["config"].pop("retriever")
+        r2["run_data"]["config"].pop("retriever")
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("retriever identifier" in s for s in val["incompatibilities"])
+
+    def test_both_runs_missing_provider_or_model_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"]["config"].pop("generator_provider")
+        r2["run_data"]["config"].pop("generator_model")
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any(
+            "provider identifier" in s or "model identifier" in s for s in val["incompatibilities"]
+        )
+
+    def test_both_runs_missing_top_k_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"]["config"].pop("top_k")
+        r2["run_data"]["config"].pop("top_k")
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("top_k" in s for s in val["incompatibilities"])
+
+    def test_both_runs_containing_empty_metrics_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"]["metrics"] = {}
+        r2["run_data"]["metrics"] = {}
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("metrics mapping" in s for s in val["incompatibilities"])
+
+    def test_string_false_supplied_as_can_reproduce_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["repro_data"]["can_reproduce"] = "false"
+        r2["repro_data"]["can_reproduce"] = "false"
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("can_reproduce" in s for s in val["incompatibilities"])
+
+    def test_invalid_or_non_positive_numeric_config_fails_cross_run_validation(
+        self, valid_run_entries: tuple[dict[str, Any], dict[str, Any]]
+    ) -> None:
+        r1, r2 = valid_run_entries
+        r1["run_data"]["config"]["top_k"] = -5
+        r2["run_data"]["config"]["top_k"] = 0
+
+        val = validate_and_compare_runs(r1, r2)
+        assert val["provenance_compatible"] is False
+        assert val["is_comparable"] is False
+        assert val["overall_reproducibility_tier"] != "exact"
+        assert any("top_k" in s for s in val["incompatibilities"])
+
+
+class TestRunProvenanceExtractionFailClosed:
+    """Test individual run extraction fails closed on missing or invalid metadata."""
+
+    @pytest.fixture
+    def single_valid_run(self) -> dict[str, Any]:
+        return {
+            "run_data": {
+                "run_id": "run_test_001",
+                "experiment_name": "test_experiment",
+                "config_hash": SAMPLE_CONFIG_HASH,
+                "config": {
+                    "retriever": "bm25",
+                    "top_k": 5,
+                    "generator_provider": "mock",
+                    "generator_model": "mock-pipeline",
+                },
+                "metadata": {
+                    "dataset_content_hash": SAMPLE_HASH,
+                    "document_ids": ["doc_1", "doc_2"],
+                },
+                "metrics": {"hit_rate@5": 0.8},
+                "query_count": 10,
+            },
+            "repro_data": {
+                "dataset_id": "ds_test",
+                "reproducibility_tier": "exact",
+                "can_reproduce": True,
+                "corpus_document_ids": ["doc_1", "doc_2"],
+                "metadata": {"dataset_content_hash": SAMPLE_HASH},
+            },
+        }
+
+    def test_missing_run_id_raises_value_error(self, single_valid_run: dict[str, Any]) -> None:
+        single_valid_run["run_data"].pop("run_id")
+        with pytest.raises(ValueError, match="run_id is missing or empty"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_missing_dataset_id_raises_value_error(self, single_valid_run: dict[str, Any]) -> None:
+        single_valid_run["repro_data"].pop("dataset_id")
+        with pytest.raises(ValueError, match="dataset_id is missing or empty"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_missing_document_scope_raises_value_error(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["repro_data"].pop("corpus_document_ids")
+        single_valid_run["run_data"]["metadata"].pop("document_ids")
+        with pytest.raises(ValueError, match=r"document_scope .* is missing, empty, or not a list"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_duplicate_document_scope_ids_raises_value_error(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["repro_data"]["corpus_document_ids"] = ["doc_1", "doc_1"]
+        with pytest.raises(ValueError, match="contains duplicate IDs"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_query_count_zero_or_boolean_raises_value_error(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["run_data"]["query_count"] = 0
+        with pytest.raises(ValueError, match=r"query_count .* must be a positive integer"):
+            extract_run_provenance_record(single_valid_run)
+        single_valid_run["run_data"]["query_count"] = True
+        with pytest.raises(ValueError, match=r"query_count .* must be a positive integer"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_missing_retriever_raises_value_error(self, single_valid_run: dict[str, Any]) -> None:
+        single_valid_run["run_data"]["config"].pop("retriever")
+        with pytest.raises(ValueError, match="retriever identifier is missing or empty"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_missing_top_k_does_not_silently_default_to_5(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["run_data"]["config"].pop("top_k")
+        with pytest.raises(
+            ValueError, match=r"top_k .* must be an explicitly supplied positive integer"
+        ):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_invalid_top_k_raises_value_error(self, single_valid_run: dict[str, Any]) -> None:
+        single_valid_run["run_data"]["config"]["top_k"] = -1
+        with pytest.raises(
+            ValueError, match=r"top_k .* must be an explicitly supplied positive integer"
+        ):
+            extract_run_provenance_record(single_valid_run)
+        single_valid_run["run_data"]["config"]["top_k"] = True
+        with pytest.raises(
+            ValueError, match=r"top_k .* must be an explicitly supplied positive integer"
+        ):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_missing_provider_or_model_raises_value_error(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["run_data"]["config"].pop("generator_provider")
+        with pytest.raises(ValueError, match="provider identifier is missing or empty"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_string_can_reproduce_does_not_coerce_to_true(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["repro_data"]["can_reproduce"] = "false"
+        with pytest.raises(ValueError, match=r"can_reproduce .* must be an actual boolean"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_empty_metrics_mapping_raises_value_error(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["run_data"]["metrics"] = {}
+        with pytest.raises(ValueError, match=r"metrics mapping .* is missing or empty"):
+            extract_run_provenance_record(single_valid_run)
+
+    def test_non_numeric_or_non_finite_metric_raises_value_error(
+        self, single_valid_run: dict[str, Any]
+    ) -> None:
+        single_valid_run["run_data"]["metrics"] = {"hit_rate@5": "high"}
+        with pytest.raises(ValueError, match="must be a numeric value"):
+            extract_run_provenance_record(single_valid_run)
+        single_valid_run["run_data"]["metrics"] = {"hit_rate@5": float("nan")}
+        with pytest.raises(ValueError, match="is not a finite number"):
+            extract_run_provenance_record(single_valid_run)
+        single_valid_run["run_data"]["metrics"] = {"hit_rate@5": True}
+        with pytest.raises(ValueError, match="must be a numeric value"):
+            extract_run_provenance_record(single_valid_run)
 
 
 class TestHttpAndPollingBehavior:
